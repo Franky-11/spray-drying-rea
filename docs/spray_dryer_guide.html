@@ -662,6 +662,11 @@
               zweigleisig aufgebaut: als kompakte Praesentation fuer die Einfuehrung und als
               Bedienungs- und Formelhandbuch fuer die taegliche Nutzung.
             </p>
+            <p>
+              Fuer SMP mit 20 % und 30 % TS wird zusaetzlich eine sehr kurze wasserartige Anfangsphase
+              beruecksichtigt, bevor auf die hinterlegte REA-Korrelation umgeschaltet wird. Der
+              50-%-TS-Fall bleibt dagegen direkt auf der kalibrierten REA-Materialfunktion.
+            </p>
             <div class="hero-actions">
               <a class="button primary" href="#usage">Zur Bedienung</a>
               <a class="button secondary" href="#odes">Zu den Gleichungen</a>
@@ -722,7 +727,7 @@
           <div class="step">
             <div class="step-number">03</div>
             <h4>Hilfsmodelle evaluieren</h4>
-            <p>Relative Luftfeuchte, GAB-Gleichgewichtsfeuchte, Schrumpfungsmodell, Nusselt/Sherwood-Korrelationen und Aktivierungsenergie werden fuer den momentanen Zustand berechnet.</p>
+            <p>Relative Luftfeuchte, GAB-Gleichgewichtsfeuchte, Schrumpfungsmodell, Nusselt/Sherwood-Korrelationen und Aktivierungsenergie werden fuer den momentanen Zustand berechnet. Bei SMP mit 20 % oder 30 % TS wird die REA-Funktion in einer sehr kurzen Anfangsphase zunaechst aus einem wasserartigen Oberflaechenzustand eingeblendet.</p>
           </div>
           <div class="step">
             <div class="step-number">04</div>
@@ -929,6 +934,8 @@ m_s\left(c_{ps} + X c_{pw}\right)\frac{dT_p}{dt}N_p + Q_{\mathrm{loss}}
             <small>
               Die Luft kuehlt ab, weil sie Waerme an das Partikel und an die Verdampfung liefert.
               Waermeverluste an die Umgebung werden ueber Q<sub>loss</sub> eingebunden.
+              Im Code wird dafuer die feuchte Luftwaermekapazitaet als
+              c<sub>p,air,feucht</sub> = c<sub>p,dryair</sub> + c<sub>pv</sub>Y verwendet.
             </small>
           </div>
           <div class="equation">
@@ -1094,6 +1101,7 @@ E_v = f_{\mathrm{mat}}(X, X_e)\,E_{v,b}
 \]
             </div>
             <p>Das materialspezifische REA-Modell beschreibt, wie stark sich die Trocknung mit sinkender Feuchte erschwert. Genau das macht die zweite Trocknungsphase realistisch.</p>
+            <p class="small-note">SMP mit 20 % und 30 % TS nutzt in der App zusaetzlich eine kurze Anfangsphase mit wasserartiger Oberflaechenaktivitaet. Hintergrund ist der Hinweis von Chen (2008), dass die sehr fruehe Phase fuer Skim-Milk-Tropfen nicht immer direkt durch die Masterkurve getroffen wird. Fuer SMP mit 50 % TS wird keine solche Zusatzphase verwendet.</p>
           </div>
         </div>
       </section>
@@ -1169,7 +1177,7 @@ E_v = f_{\mathrm{mat}}(X, X_e)\,E_{v,b}
                 </tr>
                 <tr>
                   <td>Materialkorrelationen fuer SMP/WPC</td>
-                  <td>Die Schrumpfungs- und REA-Funktionen gelten nur in den jeweils hinterlegten Bereichen.</td>
+                  <td>Die Schrumpfungs- und REA-Funktionen gelten nur in den jeweils hinterlegten Bereichen. Fuer SMP mit 20 % und 30 % TS wird die REA-Korrelation in der Fruehphase bewusst mit einer kurzen Nassoberflaechen-Annahme kombiniert.</td>
                 </tr>
               </tbody>
             </table>

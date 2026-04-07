@@ -34,9 +34,9 @@ class SimulationInput:
     constant_drying_air: bool = False
     solid_density_kg_m3: float = 1400.0
     water_density_kg_m3: float = 1000.0
-    protein_fraction: float = 0.80
-    lactose_fraction: float = 0.074
-    fat_fraction: float = 0.056
+    protein_fraction: float = 0.35
+    lactose_fraction: float = 0.55
+    fat_fraction: float = 0.01
 
     def validate(self) -> tuple[list[str], list[str]]:
         errors: list[str] = []
@@ -238,6 +238,33 @@ def gab_equilibrium_moisture(
     return numerator / max(denominator, EPS)
 
 
+def adiabatic_saturation_temp(
+    temp_k: float, abs_humidity: float, total_pressure_pa: float
+) -> float:
+    cpdryair = 1.0067 * 1000.0
+    cpv = 1.93 * 1000.0
+
+    def moist_air_enthalpy(temp_inner_k: float, humidity_inner: float) -> float:
+        temp_c = temp_inner_k - 273.15
+        return cpdryair * temp_c + humidity_inner * (2.501e6 + cpv * temp_c)
+
+    def saturation_abs_humidity(temp_inner_k: float) -> float:
+        pvsat = saturation_vapor_pressure(temp_inner_k)
+        return 0.622 * pvsat / max(total_pressure_pa - pvsat, EPS)
+
+    target_enthalpy = moist_air_enthalpy(temp_k, abs_humidity)
+    lower = 273.15
+    upper = temp_k
+    for _ in range(80):
+        mid = 0.5 * (lower + upper)
+        saturated_enthalpy = moist_air_enthalpy(mid, saturation_abs_humidity(mid))
+        if saturated_enthalpy > target_enthalpy:
+            upper = mid
+        else:
+            lower = mid
+    return 0.5 * (lower + upper)
+
+
 def _build_derived(inputs: SimulationInput) -> _Derived:
     rs = 287.058
     rd = 461.523
@@ -352,22 +379,46 @@ def _material_factor(x: float, xe: float, material: str, d: _Derived) -> float:
     if material == "SMP":
         if isclose(d.tsfeed, 0.5, rel_tol=0.0, abs_tol=1e-9):
             if x >= 1:
-                return 0.05
-            return (
-                1.0063
-                - 1.5828 * delta
-                + 3.3561 * delta**2
-                - 9.389 * delta**3
-                + 12.22 * delta**4
-                - 5.5924 * delta**5
+                raw_factor = 0.05
+            else:
+                raw_factor = (
+                    1.0063
+                    - 1.5828 * delta
+                    + 3.3561 * delta**2
+                    - 9.389 * delta**3
+                    + 12.22 * delta**4
+                    - 5.5924 * delta**5
+                )
+        elif delta > 1.362:
+            raw_factor = -0.1617 * delta + 0.3768
+        else:
+            raw_factor = (
+                1 - 1.305 * delta + 0.7097 * delta**2 - 0.1721 * delta**3 + 0.0151 * delta**4
             )
+    else:
+        delta_non_negative = max(delta, 0.0)
+        raw_factor = 1.335 - 0.3669 * exp(delta_non_negative**0.3011)
 
-        if delta > 1.362:
-            return -0.1617 * delta + 0.3768
-        return 1 - 1.305 * delta + 0.7097 * delta**2 - 0.1721 * delta**3 + 0.0151 * delta**4
+    # Ev/Evb must not become negative; otherwise psi > 1 and the surface vapor density
+    # exceeds saturation, which is not physically admissible in this REA closure.
+    factor = max(raw_factor, 0.0)
 
-    delta_non_negative = max(delta, 0.0)
-    return 1.335 - 0.3669 * exp(delta_non_negative**0.3011)
+    if material == "SMP" and any(
+        isclose(d.tsfeed, supported, rel_tol=0.0, abs_tol=1e-9) for supported in (0.2, 0.3)
+    ):
+        # Chen (2008) notes that skim milk droplets with 20-30 % TS may exhibit a very short
+        # initial period with water-like surface activity. We model this as a smooth blend from
+        # a pure-water surface (Ev/Evb = 0) into the literature REA correlation after 5-10 %
+        # of the removable moisture has been depleted.
+        removable_moisture = max(d.x0 - xe, EPS)
+        drying_progress = (d.x0 - x) / removable_moisture
+        if drying_progress <= 0.05:
+            return 0.0
+        if drying_progress < 0.10:
+            blend = (drying_progress - 0.05) / 0.05
+            return factor * blend
+
+    return factor
 
 
 def _ode_rhs(material: str, d: _Derived):
@@ -448,11 +499,9 @@ def _ode_rhs(material: str, d: _Derived):
                 -1.0 / d.g_air_kg_s
             )
             if x >= 0.08 or x < xe:
-                dtbdt = (denthalpy_dt - dydt * (hv + d.cpv * tb)) / (cpair + d.cpv * y)
+                dtbdt = (denthalpy_dt - dydt * (hv + d.cpv * tb)) / cpair
             else:
-                dtbdt = (denthalpy_dt - dydt * ((hv + qstn) + d.cpv * tb)) / (
-                    cpair + d.cpv * y
-                )
+                dtbdt = (denthalpy_dt - dydt * ((hv + qstn) + d.cpv * tb)) / cpair
 
             cd = (24.0 / re) * (1 + 0.15 * re**0.687)
             if x >= d.xcrit:
@@ -471,6 +520,83 @@ def _ode_rhs(material: str, d: _Derived):
     return rhs
 
 
+def _diagnostic_snapshot(
+    x: float,
+    tp: float,
+    tb: float,
+    y: float,
+    vp: float,
+    xe: float,
+    material: str,
+    d: _Derived,
+) -> dict[str, float]:
+    pvsat_tb = saturation_vapor_pressure(tb)
+    rh = relative_humidity_from_abs_humidity(tb, y, d.p_pa)
+    dp = _particle_diameter(x, xe, material, d)
+    ap = pi * dp**2
+    mp = x * d.ms + d.ms
+    mw = mp - d.ms
+    rf = humid_air_gas_constant(tb, y, d.p_pa, d.rs, d.rd)
+    rhoair = d.p_pa / (rf * tb)
+
+    cp = (
+        ((d.ms * d.prot) / mp) * 1600.0
+        + ((d.ms * d.lac) / mp) * 1400.0
+        + ((d.ms * d.fett) / mp) * 1700.0
+        + ((d.ms * d.asche) / mp) * 800.0
+        + (mw / mp) * 4180.0
+    )
+
+    ur = sqrt((vp - d.vb) ** 2)
+    re = max((dp * ur * rhoair) / d.viskair, EPS)
+    cpair = d.cpdryair + d.cpv * y
+    pr = (cpair * d.viskair) / d.kb
+    sc = d.viskair / max(d.dm * rhoair, EPS)
+    nu = 2.04 + 0.62 * re ** 0.5 * pr ** (1 / 3)
+    sh = 1.54 + 0.54 * re ** 0.5 * sc ** (1 / 3)
+    dwm = (rhoair * d.dm) / d.ma
+
+    alpha = (nu * d.kb) / dp
+    hm = (sh * dwm * d.mw) / (dp * rhoair)
+
+    pvsat_tp = saturation_vapor_pressure(tp)
+    rhovsat_tp = pvsat_tp / (d.rw * tp)
+    rhovsat_tb = pvsat_tb / (d.rw * tb)
+    rhovb = rh * rhovsat_tb
+
+    evb = -d.gas_constant * tb * log(max(rhovb / max(rhovsat_tb, EPS), EPS))
+    matfkt = _material_factor(x, xe, material, d)
+    ev = matfkt * evb
+    psi = exp(-ev / (d.gas_constant * tp))
+    rhovs = psi * rhovsat_tp
+
+    hv = 2.792e6 - 160 * tb - 3.43 * tb**2
+    qstn = 633000.0 if x <= 0.08 else 0.0
+    driv_force = rhovs - rhovb if x > xe else 0.0
+    dmpdt = -hm * ap * driv_force
+    dxdt = dmpdt / d.ms
+
+    q_conv = alpha * ap * (tb - tp)
+    q_latent = hv * dxdt * d.ms
+    q_sorption = qstn * dxdt * d.ms
+    dtpdt = (q_conv + q_latent + q_sorption) / (mp * cp)
+    tadsat = adiabatic_saturation_temp(tb, y, d.p_pa)
+
+    return {
+        "mat_factor": matfkt,
+        "psi": psi,
+        "rhovb": rhovb,
+        "rhovs": rhovs,
+        "driving_force": driv_force,
+        "q_conv_w": q_conv,
+        "q_latent_w": q_latent,
+        "q_sorption_w": q_sorption,
+        "dTpdt_K_s": dtpdt,
+        "TadSat": tadsat,
+        "Tp_minus_TadSat": tp - tadsat,
+    }
+
+
 def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derived, warnings: list[str]) -> SimulationResult:
     t = solution.t
     states = solution.y.T
@@ -484,6 +610,7 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
     rh_values: list[float] = []
     xe_values: list[float] = []
     dp_values: list[float] = []
+    diag_rows: list[dict[str, float]] = []
     for x_i, tb_i, y_i in zip(x, tb, y):
         rh_i = relative_humidity_from_abs_humidity(tb_i, y_i, d.p_pa)
         xe_i = gab_equilibrium_moisture(tb_i, y_i, d.p_pa)
@@ -491,6 +618,8 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
         rh_values.append(rh_i)
         xe_values.append(xe_i)
         dp_values.append(dp_i)
+    for x_i, tp_i, tb_i, y_i, vp_i, xe_i in zip(x, tp, tb, y, vp, xe_values):
+        diag_rows.append(_diagnostic_snapshot(x_i, tp_i, tb_i, y_i, vp_i, xe_i, inputs.material, d))
 
     series = pd.DataFrame(
         {
@@ -504,6 +633,17 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
             "vp": vp,
             "dp": dp_values,
             "Xe": xe_values,
+            "mat_factor": [row["mat_factor"] for row in diag_rows],
+            "psi": [row["psi"] for row in diag_rows],
+            "rhovb": [row["rhovb"] for row in diag_rows],
+            "rhovs": [row["rhovs"] for row in diag_rows],
+            "driving_force": [row["driving_force"] for row in diag_rows],
+            "q_conv_w": [row["q_conv_w"] for row in diag_rows],
+            "q_latent_w": [row["q_latent_w"] for row in diag_rows],
+            "q_sorption_w": [row["q_sorption_w"] for row in diag_rows],
+            "dTpdt_K_s": [row["dTpdt_K_s"] for row in diag_rows],
+            "TadSat": [row["TadSat"] for row in diag_rows],
+            "Tp_minus_TadSat": [row["Tp_minus_TadSat"] for row in diag_rows],
         }
     )
 
@@ -533,6 +673,22 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
     else:
         warnings.append("Die Partikelhoehe Hmax wurde innerhalb der Simulationszeit nicht erreicht.")
 
+    tp_limit_mask = series["Tp"] > 373.15
+    tp_limit_time: float | None = None
+    tp_limit_height: float | None = None
+    tp_limit_x: float | None = None
+    tp_limit_tb: float | None = None
+    tp_limit_rh: float | None = None
+    tp_limit_xe: float | None = None
+    if tp_limit_mask.any():
+        row = series.loc[tp_limit_mask].iloc[0]
+        tp_limit_time = float(row["t"])
+        tp_limit_height = float(row["height"])
+        tp_limit_x = float(row["X"])
+        tp_limit_tb = float(row["Tb"])
+        tp_limit_rh = float(row["RH"])
+        tp_limit_xe = float(row["Xe"])
+
     metrics = {
         "drying_time": drying_time,
         "drying_height": drying_height,
@@ -541,6 +697,13 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
         "outlet_Tb": outlet_tb,
         "outlet_Tp": outlet_tp,
         "outlet_RH": outlet_rh,
+        "max_Tp": float(series["Tp"].max()),
+        "time_Tp_gt_100C": tp_limit_time,
+        "height_Tp_gt_100C": tp_limit_height,
+        "X_at_Tp_gt_100C": tp_limit_x,
+        "Tb_at_Tp_gt_100C": tp_limit_tb,
+        "RH_at_Tp_gt_100C": tp_limit_rh,
+        "Xe_at_Tp_gt_100C": tp_limit_xe,
         "final_X": float(series["X"].iloc[-1]),
         "final_Tb": float(series["Tb"].iloc[-1]),
         "final_Tp": float(series["Tp"].iloc[-1]),

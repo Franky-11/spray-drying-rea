@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from app.ui_state import material_composition_defaults
 from core.model import ScenarioConfig, SimulationInput, run_batch, run_simulation, summarize_input
 
 
@@ -11,21 +12,71 @@ class SimulationRegressionTests(unittest.TestCase):
         self.assertGreater(len(result.series), 50)
         self.assertEqual(
             list(result.series.columns),
-            ["t", "height", "X", "Tp", "Tb", "Y", "RH", "vp", "dp", "Xe"],
+            [
+                "t",
+                "height",
+                "X",
+                "Tp",
+                "Tb",
+                "Y",
+                "RH",
+                "vp",
+                "dp",
+                "Xe",
+                "mat_factor",
+                "psi",
+                "rhovb",
+                "rhovs",
+                "driving_force",
+                "q_conv_w",
+                "q_latent_w",
+                "q_sorption_w",
+                "dTpdt_K_s",
+                "TadSat",
+                "Tp_minus_TadSat",
+            ],
         )
         self.assertLess(result.series["X"].iloc[-1], result.series["X"].iloc[0])
         self.assertGreater(result.series["height"].iloc[-1], result.series["height"].iloc[0])
         self.assertIsNotNone(result.metrics["outlet_time"])
         self.assertAlmostEqual(result.metrics["drying_time"], 1.6541353383458646, places=6)
-        self.assertAlmostEqual(result.metrics["drying_height"], 0.8859828453220324, places=6)
-        self.assertAlmostEqual(result.metrics["outlet_X"], 0.01734420817127426, places=9)
-        self.assertAlmostEqual(result.metrics["outlet_Tb"], 351.4977067911271, places=6)
-        self.assertAlmostEqual(result.metrics["outlet_Tp"], 351.51808070263723, places=6)
-        self.assertAlmostEqual(result.metrics["outlet_RH"], 0.06926419191166566, places=9)
+        self.assertAlmostEqual(result.metrics["drying_height"], 0.8859870967951392, places=6)
+        self.assertAlmostEqual(result.metrics["outlet_X"], 0.018185875877720536, places=9)
+        self.assertAlmostEqual(result.metrics["outlet_Tb"], 349.692046446196, places=6)
+        self.assertAlmostEqual(result.metrics["outlet_Tp"], 349.7083449033247, places=6)
+        self.assertAlmostEqual(result.metrics["outlet_RH"], 0.07454842658795068, places=9)
+        self.assertAlmostEqual(result.metrics["max_Tp"], 386.53412478302687, places=6)
+        self.assertAlmostEqual(result.metrics["time_Tp_gt_100C"], 0.15037593984962405, places=6)
+        self.assertAlmostEqual(result.metrics["X_at_Tp_gt_100C"], 0.6091349982868275, places=9)
 
     def test_invalid_wpc_total_solids_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             run_simulation(SimulationInput(material="WPC", feed_total_solids=0.5))
+
+    def test_smp_20_percent_material_factor_stays_physical(self) -> None:
+        result = run_simulation(SimulationInput(material="SMP", feed_total_solids=0.2))
+        self.assertGreaterEqual(float(result.series["mat_factor"].min()), 0.0)
+        self.assertLessEqual(float(result.series["psi"].max()), 1.0)
+        self.assertAlmostEqual(float(result.series["mat_factor"].iloc[0]), 0.0)
+
+    def test_smp_20_percent_uses_short_initial_wet_surface_regime(self) -> None:
+        result = run_simulation(SimulationInput(material="SMP", feed_total_solids=0.2, time_points=4000))
+        early = result.series[result.series["X"] > 3.8]
+        later = result.series[result.series["X"] < 3.5]
+        self.assertTrue((early["mat_factor"] == 0.0).all())
+        self.assertGreater(float(later["mat_factor"].max()), 0.0)
+
+    def test_material_composition_defaults_match_selected_material(self) -> None:
+        self.assertEqual(material_composition_defaults("SMP"), {
+            "protein_fraction": 0.35,
+            "lactose_fraction": 0.55,
+            "fat_fraction": 0.01,
+        })
+        self.assertEqual(material_composition_defaults("WPC"), {
+            "protein_fraction": 0.8,
+            "lactose_fraction": 0.074,
+            "fat_fraction": 0.056,
+        })
 
     def test_batch_run_preserves_order_and_labels(self) -> None:
         base = SimulationInput()
@@ -39,6 +90,13 @@ class SimulationRegressionTests(unittest.TestCase):
         self.assertGreater(summary["air_superficial_velocity_ms"], 0.0)
         self.assertGreater(summary["humid_air_mass_flow_kg_s"], 0.0)
         self.assertGreater(summary["droplets_per_s"], 0.0)
+
+    def test_default_input_uses_smp_composition(self) -> None:
+        default_input = SimulationInput()
+        self.assertEqual(default_input.material, "SMP")
+        self.assertAlmostEqual(default_input.protein_fraction, 0.35)
+        self.assertAlmostEqual(default_input.lactose_fraction, 0.55)
+        self.assertAlmostEqual(default_input.fat_fraction, 0.01)
 
 
 if __name__ == "__main__":
