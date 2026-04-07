@@ -43,6 +43,10 @@ streamlit run app/app.py
 
 Danach ist die Anwendung lokal im Browser verfügbar.
 
+Als begleitende Dokumentation zur App steht zusätzlich der HTML-Guide unter
+`docs/spray_dryer_guide.html` bereit. Er erläutert Bedienung, Modellannahmen,
+Gleichungen und die fachliche Einordnung der Ergebnisse.
+
 ## Tests ausführen
 
 ```bash
