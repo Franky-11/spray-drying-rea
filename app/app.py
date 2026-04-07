@@ -210,61 +210,156 @@ def _inject_styles() -> None:
         """
         <style>
         :root {
-            --sand: #f3ede0;
-            --ink: #20332a;
-            --accent: #d46a2e;
-            --green: #3d7a62;
-            --panel: #fbf8f1;
-            --line: #dfd7c8;
+            --bg: #ffffff;
+            --surface: #ffffff;
+            --surface-soft: #fafafa;
+            --ink: #171717;
+            --muted: #4d4d4d;
+            --muted-soft: #666666;
+            --line: #ebebeb;
+            --accent: #0a72ef;
+            --accent-soft: rgba(10, 114, 239, 0.08);
+            --good: #0f766e;
+            --bad: #b42318;
+            --shadow-ring: rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;
+            --shadow-card: rgba(0, 0, 0, 0.08) 0px 0px 0px 1px, rgba(0, 0, 0, 0.04) 0px 2px 2px 0px,
+                rgba(0, 0, 0, 0.04) 0px 8px 8px -8px;
         }
         .stApp {
             background:
-                radial-gradient(circle at top right, rgba(212,106,46,0.14), transparent 28%),
-                radial-gradient(circle at top left, rgba(61,122,98,0.12), transparent 24%),
-                linear-gradient(180deg, #fcfaf4 0%, #f3ede0 100%);
+                radial-gradient(circle at top left, rgba(10,114,239,0.06), transparent 22%),
+                linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
             color: var(--ink);
         }
-        .hero-panel, .metric-panel {
-            background: rgba(251, 248, 241, 0.88);
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 1rem 1.1rem;
-            box-shadow: 0 14px 30px rgba(32, 51, 42, 0.07);
+        .block-container {
+            max-width: 1380px;
+            padding-top: 2rem;
+            padding-bottom: 3rem;
         }
-        .hero-kicker {
+        h1, h2, h3, h4 {
+            color: var(--ink);
+            letter-spacing: -0.03em;
+        }
+        .app-hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .hero-panel, .summary-panel, .section-panel, .metric-panel, .toolbar-panel {
+            background: var(--surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow-card);
+            padding: 1rem 1.1rem;
+        }
+        .hero-kicker, .section-kicker, .meta-kicker {
             text-transform: uppercase;
             letter-spacing: 0.14em;
             font-size: 0.72rem;
             color: var(--accent);
-            font-weight: 700;
+            font-weight: 600;
         }
         .hero-title {
-            font-size: 2.1rem;
-            line-height: 1.05;
-            margin: 0.25rem 0 0.55rem;
+            font-size: 2.55rem;
+            line-height: 0.98;
+            margin: 0.35rem 0 0.7rem;
             color: var(--ink);
-            font-weight: 700;
+            font-weight: 600;
         }
         .hero-copy {
-            color: #42564a;
-            margin-bottom: 0;
+            color: var(--muted);
+            margin: 0;
+            max-width: 60ch;
+        }
+        .hero-meta-copy {
+            color: var(--muted);
+            margin-top: 0.45rem;
+            line-height: 1.6;
+        }
+        .section-title {
+            font-size: 1.35rem;
+            margin: 0.35rem 0 0.2rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+        .section-copy, .summary-note, .toolbar-note, .meta-note {
+            color: var(--muted-soft);
+            font-size: 0.92rem;
+            line-height: 1.55;
+            margin: 0;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem 1rem;
+            margin-top: 0.9rem;
+        }
+        .summary-item {
+            padding-top: 0.65rem;
+            border-top: 1px solid var(--line);
+        }
+        .summary-label {
+            font-size: 0.78rem;
+            color: var(--muted-soft);
+            margin-bottom: 0.2rem;
+        }
+        .summary-value {
+            font-size: 1.02rem;
+            color: var(--ink);
+            font-weight: 600;
+        }
+        .summary-meta {
+            margin-top: 0.95rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--line);
         }
         .status-good {
-            color: var(--green);
+            color: var(--good);
             font-weight: 700;
         }
         .status-bad {
-            color: #a33d2f;
+            color: var(--bad);
             font-weight: 700;
         }
         .status-neutral {
-            color: #6d6657;
+            color: var(--muted-soft);
             font-weight: 700;
         }
         .chart-note {
-            color: #5e655d;
+            color: var(--muted);
             font-size: 0.92rem;
             margin: -0.15rem 0 0.8rem;
+        }
+        .section-panel {
+            margin-bottom: 1rem;
+        }
+        .toolbar-panel {
+            margin-bottom: 0.95rem;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.5rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 9999px;
+            box-shadow: var(--shadow-ring);
+            padding-inline: 0.95rem;
+            color: var(--muted);
+            background: var(--surface);
+        }
+        .stTabs [aria-selected="true"] {
+            background: var(--ink);
+            color: #ffffff;
+        }
+        .stTabs [data-baseweb="tab-panel"] {
+            padding-top: 1rem;
+        }
+        @media (max-width: 980px) {
+            .app-hero {
+                grid-template-columns: 1fr;
+            }
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
         }
         </style>
         """,
@@ -328,38 +423,45 @@ def _selectbox(
 
 
 def _render_header() -> None:
-    left, right = st.columns([1.5, 1.0], vertical_alignment="center")
-    with left:
-        st.markdown(
-            """
+    st.markdown(
+        """
+        <div class="app-hero">
             <div class="hero-panel">
-                <div class="hero-kicker">REA Modell</div>
-                <div class="hero-title">Spruehtrockner Rechner</div>
+                <div class="hero-kicker">Prozessmodell</div>
+                <div class="hero-title">Spruehtrockner REA</div>
                 <p class="hero-copy">
-                    Eingaben definieren, Varianten vergleichen und direkt sehen, ob die
-                    Trocknung vor dem Trockneraustritt abgeschlossen wird.
+                    Prozessdaten eingeben, Varianten gegeneinander rechnen und schnell beurteilen,
+                    ob die Trocknung vor dem Trockneraustritt abgeschlossen wird.
                 </p>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with right:
-        st.markdown(
-            """
-            <div class="metric-panel">
-                <strong>Modellbasis</strong><br>
-                Plug-Flow, co-current, monodisperse Tropfen, REA-Trocknungskinetik.<br><br>
-                <strong>Materialmodelle</strong><br>
-                SMP: TS &lt; 0.2 sowie 0.2 / 0.3 / 0.5<br>
-                WPC: TS = 0.3
+            <div class="summary-panel">
+                <div class="meta-kicker">Modellrahmen</div>
+                <div class="section-title">Plug-Flow, Gleichstrom, REA</div>
+                <p class="hero-meta-copy">
+                    Materialmodelle: SMP fuer TS &lt; 0.2 sowie 0.2 / 0.3 / 0.5, WPC fuer TS = 0.3.
+                    Die App dient fuer Betriebspunktvergleich und Vorstudien, nicht fuer CFD-Details.
+                </p>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_preset_toolbar() -> None:
-    bar1, bar2, bar3 = st.columns([1.3, 1, 3])
+    st.markdown(
+        """
+        <div class="toolbar-panel">
+            <div class="section-kicker">Preset und Startpunkt</div>
+            <div class="section-title">Basiseingaben vorbereiten</div>
+            <p class="toolbar-note">
+                Presets laden einen sinnvollen Ausgangspunkt. Danach koennen einzelne Parameter gezielt angepasst werden.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    bar1, bar2 = st.columns([1.6, 0.9])
     with bar1:
         selected_preset = st.selectbox(
             "Preset",
@@ -371,17 +473,31 @@ def _render_preset_toolbar() -> None:
         if st.button("Preset laden", use_container_width=True):
             _apply_preset(selected_preset)
             st.rerun()
-    with bar3:
-        st.caption(
-            "Presets setzen praxisnahe Startwerte. Sie ersetzen die Basiseingaben, bevor Varianten hinzugefuegt werden."
-        )
+
+
+def _render_section_intro(kicker: str, title: str, copy: str) -> None:
+    st.markdown(
+        f"""
+        <div class="section-panel">
+            <div class="section-kicker">{kicker}</div>
+            <div class="section-title">{title}</div>
+            <p class="section-copy">{copy}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_process_group() -> None:
-    cols = st.columns(3)
+    _render_section_intro(
+        "Basisparameter",
+        "Prozessdaten",
+        "Diese Eingaben beschreiben den Betriebspunkt des Trockners und sollten zuerst gesetzt werden.",
+    )
+    cols = st.columns(2)
     process_fields = FIELD_GROUPS["Prozess"]
     for index, field in enumerate(process_fields):
-        with cols[index % 3]:
+        with cols[index % 2]:
             key = f"base_{field}"
             if field == "material":
                 _selectbox(FIELD_LABELS[field], key, ("SMP", "WPC"), DEFAULT_INPUT.material)
@@ -404,10 +520,15 @@ def _render_process_group() -> None:
 
 
 def _render_expert_group() -> None:
-    cols = st.columns(3)
+    _render_section_intro(
+        "Erweiterte Parameter",
+        "Modellannahmen feinjustieren",
+        "Nur anpassen, wenn gezielt Material- oder Simulationsparameter untersucht werden sollen.",
+    )
+    cols = st.columns(2)
     expert_fields = FIELD_GROUPS["Experten"]
     for index, field in enumerate(expert_fields):
-        with cols[index % 3]:
+        with cols[index % 2]:
             _number_input(
                 FIELD_LABELS[field],
                 f"base_{field}",
@@ -432,20 +553,51 @@ def _format_summary_value(key: str, value: float) -> str:
 
 def _render_base_summary(base_input: SimulationInput) -> None:
     summary = summarize_input(base_input)
-    st.markdown("**Betriebspunkt Basisszenario**")
-    cols = st.columns(4)
-    ordered_keys = list(SUMMARY_LABELS)
-    for index, key in enumerate(ordered_keys):
-        with cols[index % 4]:
-            st.markdown(
-                f"""
-                <div class="metric-panel">
-                    <div style="font-size:0.82rem;color:#6d6657;">{SUMMARY_LABELS[key]}</div>
-                    <div style="font-size:1.18rem;font-weight:700;">{_format_summary_value(key, summary[key])}</div>
+    primary_keys = [
+        "initial_moisture_content",
+        "air_superficial_velocity_ms",
+        "humid_air_mass_flow_kg_s",
+        "droplets_per_s",
+        "air_residence_time_s",
+        "solid_mass_per_droplet_kg",
+    ]
+    rows = "".join(
+        f"""
+        <div class="summary-item">
+            <div class="summary-label">{SUMMARY_LABELS[key]}</div>
+            <div class="summary-value">{_format_summary_value(key, summary[key])}</div>
+        </div>
+        """
+        for key in primary_keys
+    )
+    st.markdown(
+        f"""
+        <div class="summary-panel">
+            <div class="meta-kicker">Betriebspunkt</div>
+            <div class="section-title">Kompakte Zusammenfassung</div>
+            <p class="summary-note">
+                Die wichtigsten abgeleiteten Kennwerte werden live aus den Basiseingaben berechnet.
+            </p>
+            <div class="summary-grid">{rows}</div>
+            <div class="summary-meta">
+                <div class="summary-label">Modellgrenze</div>
+                <div class="summary-value" style="font-size:0.96rem;font-weight:500;">
+                    SMP fuer TS &lt; 0.2 sowie 0.2 / 0.3 / 0.5, WPC fuer TS = 0.3
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.expander("Weitere abgeleitete Kennwerte", expanded=False):
+        extra_keys = [key for key in SUMMARY_LABELS if key not in primary_keys]
+        extra_rows = pd.DataFrame(
+            [
+                {"Kennwert": SUMMARY_LABELS[key], "Wert": _format_summary_value(key, summary[key])}
+                for key in extra_keys
+            ]
+        )
+        st.dataframe(extra_rows, use_container_width=True, hide_index=True)
 
 
 def _render_override_input(field: str, base_input: SimulationInput, key_prefix: str) -> Any:
@@ -903,6 +1055,21 @@ def _render_exports(results: list[SimulationResult]) -> None:
         )
 
 
+def _render_evaluation_settings() -> None:
+    _render_section_intro(
+        "Bewertung",
+        "Zielwert fuer die Einordnung",
+        "Das Ziel wird nur fuer Bewertung und Visualisierung genutzt, nicht als Solver-Abbruch.",
+    )
+    st.number_input(
+        "Bewertungsziel fuer Austrittsfeuchte X [-]",
+        value=float(st.session_state.get("target_outlet_x", 0.04)),
+        min_value=0.0,
+        step=0.005,
+        key="target_outlet_x",
+    )
+
+
 def _render_warning_box(results: list[SimulationResult]) -> None:
     warnings = [warning for result in results for warning in result.warnings]
     if warnings:
@@ -915,30 +1082,17 @@ def main() -> None:
     _ensure_base_state()
     _inject_styles()
     _render_header()
-    _render_preset_toolbar()
 
     left, right = st.columns([1.5, 1.0], vertical_alignment="top")
     with left:
-        st.subheader("Basiseingaben")
         with st.form("simulation_form"):
+            _render_preset_toolbar()
             _render_process_group()
             with st.expander("Expertenmodus", expanded=False):
                 _render_expert_group()
             base_input = _gather_base_input()
             scenario_inputs = _render_variants(base_input)
-            settings1, settings2 = st.columns([1.0, 1.0])
-            with settings1:
-                target_outlet_x = st.number_input(
-                    "Bewertungsziel fuer Austrittsfeuchte X [-]",
-                    value=float(st.session_state.get("target_outlet_x", 0.04)),
-                    min_value=0.0,
-                    step=0.005,
-                    key="target_outlet_x",
-                )
-            with settings2:
-                st.caption(
-                    "Das Ziel wird nur zur Bewertung und Visualisierung genutzt, nicht als Solver-Abbruch."
-                )
+            _render_evaluation_settings()
             submitted = st.form_submit_button("Berechnen", use_container_width=True)
 
     with right:
@@ -962,20 +1116,16 @@ def main() -> None:
     target_outlet_x = float(st.session_state.get("target_outlet_x", 0.04))
     _render_warning_box(results)
 
-    overview_tab, charts_tab, data_tab, export_tab = st.tabs(
-        ["Uebersicht", "Diagramme", "Daten", "Export"]
+    overview_tab, charts_tab, data_export_tab = st.tabs(
+        ["Ergebnis", "Diagramme", "Daten & Export"]
     )
     with overview_tab:
-        st.subheader("Kennzahlen und Bewertung")
         _render_metrics(results, target_outlet_x)
     with charts_tab:
-        st.subheader("Kurvenvergleich")
         _render_charts(results, target_outlet_x)
-    with data_tab:
-        st.subheader("Rohdaten")
+    with data_export_tab:
         _render_data_tabs(results)
-    with export_tab:
-        st.subheader("Download")
+        st.markdown("")
         _render_exports(results)
 
 
