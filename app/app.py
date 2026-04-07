@@ -1224,8 +1224,8 @@ def main() -> None:
 
     left, right = st.columns([1.5, 1.0], vertical_alignment="top")
     with left:
+        _render_preset_toolbar()
         with st.form("simulation_form"):
-            _render_preset_toolbar()
             _render_process_group()
             with st.expander("Expertenmodus", expanded=False):
                 _render_expert_group()
