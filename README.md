@@ -30,17 +30,14 @@ Lokale Streamlit-Anwendung zur Simulation der Tropfentrocknung in einem einfache
 - Python 3.12 oder kompatibel
 - Die Abhaengigkeiten aus `requirements.txt`
 
-## Installation
+## Schnellstart
 
 ```bash
+git clone https://github.com/Franky-11/spray-drying-rea.git
+cd spray-drying-rea
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-## App starten
-
-```bash
 streamlit run app/app.py
 ```
 
