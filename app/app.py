@@ -336,6 +336,85 @@ def _inject_styles() -> None:
         .toolbar-panel {
             margin-bottom: 0.95rem;
         }
+        .scenario-card, .decision-card {
+            background: var(--surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow-card);
+            padding: 1rem 1.05rem;
+            margin-bottom: 0.9rem;
+        }
+        .scenario-list {
+            display: grid;
+            gap: 0.55rem;
+            margin-top: 0.85rem;
+        }
+        .scenario-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.75rem;
+            align-items: start;
+            padding-top: 0.55rem;
+            border-top: 1px solid var(--line);
+        }
+        .scenario-name {
+            font-size: 0.98rem;
+            color: var(--ink);
+            font-weight: 600;
+        }
+        .scenario-copy {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .scenario-badge {
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: var(--accent-soft);
+            border-radius: 9999px;
+            padding: 0.2rem 0.55rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .decision-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .decision-card {
+            margin-bottom: 0;
+        }
+        .decision-scenario {
+            font-size: 0.78rem;
+            color: var(--muted-soft);
+            margin-bottom: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .decision-status {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .decision-main {
+            font-size: 1.8rem;
+            color: var(--ink);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.04em;
+        }
+        .decision-detail {
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.55;
+        }
+        .decision-note {
+            color: var(--muted-soft);
+            font-size: 0.82rem;
+            margin-top: 0.65rem;
+            padding-top: 0.65rem;
+            border-top: 1px solid var(--line);
+        }
         .stTabs [data-baseweb="tab-list"] {
             gap: 0.5rem;
         }
@@ -625,37 +704,67 @@ def _render_override_input(field: str, base_input: SimulationInput, key_prefix: 
 
 
 def _render_variants(base_input: SimulationInput) -> list[SimulationInput]:
-    st.subheader("Variantenvergleich")
-    st.caption("Bis zu drei Szenarien mit gezielten Parameterabweichungen gegeneinander rechnen.")
+    _render_section_intro(
+        "Szenarien",
+        "Varianten gezielt gegen die Basis rechnen",
+        "Die Basis bleibt unveraendert. Zusaetzliche Szenarien enthalten nur die bewusst geaenderten Eingaben.",
+    )
     scenario_total = int(st.slider("Anzahl Szenarien", min_value=1, max_value=3, value=1))
 
     inputs = [base_input]
     labels = ["Basis"]
     override_fields = list(FIELD_LABELS)
+    st.markdown(
+        """
+        <div class="scenario-card">
+            <div class="meta-kicker">Referenz</div>
+            <div class="section-title">Basisfall</div>
+            <p class="section-copy">
+                Alle weiteren Szenarien werden als Abweichung gegen diese Eingaben aufgebaut.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     for variant_index in range(2, scenario_total + 1):
-        st.markdown(f"**Szenario {variant_index}**")
-        header_col, text_col = st.columns([1.1, 2.2])
-        with header_col:
-            label = st.text_input(
-                "Szenariobezeichnung",
-                value=st.session_state.get(f"scenario_label_{variant_index}", f"Szenario {variant_index}"),
-                key=f"variant_label_{variant_index}",
-            )
-        with text_col:
-            selected_fields = st.multiselect(
-                "Abweichende Eingaben",
-                options=override_fields,
-                default=st.session_state.get(f"variant_fields_{variant_index}", []),
-                format_func=lambda field: FIELD_LABELS[field],
-                key=f"variant_fields_{variant_index}",
-            )
+        with st.expander(f"Szenario {variant_index}", expanded=True):
+            header_col, text_col = st.columns([1.0, 1.8])
+            with header_col:
+                label = st.text_input(
+                    "Szenariobezeichnung",
+                    value=st.session_state.get(f"scenario_label_{variant_index}", f"Szenario {variant_index}"),
+                    key=f"variant_label_{variant_index}",
+                )
+            with text_col:
+                selected_fields = st.multiselect(
+                    "Abweichende Eingaben",
+                    options=override_fields,
+                    default=st.session_state.get(f"variant_fields_{variant_index}", []),
+                    format_func=lambda field: FIELD_LABELS[field],
+                    key=f"variant_fields_{variant_index}",
+                    help="Nur diese Felder werden gegen die Basis geaendert.",
+                )
 
-        overrides: dict[str, Any] = {}
-        if selected_fields:
-            columns = st.columns(3)
-            for index, field in enumerate(selected_fields):
-                with columns[index % 3]:
-                    overrides[field] = _render_override_input(field, base_input, f"variant_{variant_index}")
+            overrides: dict[str, Any] = {}
+            if selected_fields:
+                st.markdown(
+                    f"""
+                    <div class="scenario-card">
+                        <div class="meta-kicker">Overrides</div>
+                        <div class="section-title">{label or f"Szenario {variant_index}"}</div>
+                        <p class="section-copy">
+                            Es werden nur {len(selected_fields)} Eingaben angepasst. Alle anderen Werte kommen aus dem Basisfall.
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                columns = st.columns(2)
+                for index, field in enumerate(selected_fields):
+                    with columns[index % 2]:
+                        overrides[field] = _render_override_input(field, base_input, f"variant_{variant_index}")
+            else:
+                st.info("Noch keine Abweichungen ausgewaehlt. Dieses Szenario entspricht aktuell der Basis.")
         config = ScenarioConfig(label=label, overrides=overrides)
         inputs.append(config.apply(base_input))
         labels.append(label)
@@ -673,8 +782,11 @@ def _to_display_metrics(metrics_frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _render_kpi_cards(results: list[SimulationResult], target_outlet_x: float) -> None:
-    cards = st.columns(len(results))
-    for column, result in zip(cards, results):
+    cards_markup: list[str] = []
+    base_result = results[0]
+    base_outlet_x = base_result.metrics["outlet_X"]
+    base_drying_height = base_result.metrics["drying_height"]
+    for result in results:
         metrics = result.metrics
         outlet_x = metrics["outlet_X"]
         outlet_tb = metrics["outlet_Tb"]
@@ -685,18 +797,31 @@ def _render_kpi_cards(results: list[SimulationResult], target_outlet_x: float) -
         status_text = "prozesstauglich" if reached_target and dried_in_tower else "kritisch"
         outlet_x_text = f"{outlet_x:.4f}" if outlet_x is not None else "n/a"
         outlet_tb_text = f"{(outlet_tb - 273.0):.1f}" if outlet_tb is not None else "n/a"
-        with column:
-            st.markdown(
-                f"""
-                <div class="metric-panel">
-                    <div style="font-size:0.82rem;color:#6d6657;">{result.label}</div>
-                    <div style="font-size:1.5rem;font-weight:700;">X = {outlet_x_text}</div>
-                    <div style="margin:0.35rem 0;">Tb Austritt = {outlet_tb_text} degC</div>
-                    <div class="{status_class}">{status_text}</div>
+        note = "Referenzfall"
+        if result is not base_result:
+            delta_parts: list[str] = []
+            if outlet_x is not None and base_outlet_x is not None:
+                delta_parts.append(f"Delta X {outlet_x - base_outlet_x:+.4f}")
+            if drying_height is not None and base_drying_height is not None:
+                delta_parts.append(f"Delta Trocknungshoehe {drying_height - base_drying_height:+.3f} m")
+            if delta_parts:
+                note = " | ".join(delta_parts)
+        cards_markup.append(
+            f"""
+            <div class="decision-card">
+                <div class="decision-scenario">{result.label}</div>
+                <div class="decision-status {status_class}">{status_text}</div>
+                <div class="decision-main">X Austritt {outlet_x_text}</div>
+                <div class="decision-detail">
+                    Tb Austritt: {outlet_tb_text} degC<br>
+                    Trocknung vor Austritt: {"Ja" if dried_in_tower else "Nein"}<br>
+                    Ziel-X eingehalten: {"Ja" if reached_target else "Nein"}
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                <div class="decision-note">{note}</div>
+            </div>
+            """
+        )
+    st.markdown(f"""<div class="decision-grid">{''.join(cards_markup)}</div>""", unsafe_allow_html=True)
 
 
 def _build_assessment_frame(results: list[SimulationResult], target_outlet_x: float) -> pd.DataFrame:
@@ -775,19 +900,33 @@ def _render_metrics(results: list[SimulationResult], target_outlet_x: float) -> 
             "final_RH": "RH Ende [-]",
         }
     )
+    _render_section_intro(
+        "Entscheidung",
+        "Szenarien fachlich einordnen",
+        "Zuerst zaehlt, ob das Ziel-X eingehalten wird und ob die Trocknung vor dem Austritt abgeschlossen ist.",
+    )
     _render_kpi_cards(results, target_outlet_x)
-    st.dataframe(display_metrics, use_container_width=True)
 
     assessment = _build_assessment_frame(results, target_outlet_x)
     delta_frame = _build_delta_frame(metrics_frame)
-    lower_left, lower_right = st.columns([1.3, 1.0])
+    lower_left, lower_right = st.columns([1.25, 1.0])
     with lower_left:
-        st.markdown("**Fachliche Bewertung**")
-        st.dataframe(assessment, use_container_width=True)
+        _render_section_intro(
+            "Bewertung",
+            "Kernaussagen pro Szenario",
+            "Diese Tabelle zeigt nur die entscheidenden Kriterien fuer die Einordnung des Betriebspunkts.",
+        )
+        st.dataframe(assessment, use_container_width=True, hide_index=True)
     with lower_right:
         if not delta_frame.empty:
-            st.markdown("**Abweichung gegen Basis**")
-            st.dataframe(delta_frame, use_container_width=True)
+            _render_section_intro(
+                "Basisvergleich",
+                "Abweichung gegen den Referenzfall",
+                "Positive oder negative Deltas helfen bei der Einordnung der Wirkung jeder Aenderung.",
+            )
+            st.dataframe(delta_frame, use_container_width=True, hide_index=True)
+    with st.expander("Vollstaendige Kennzahlen", expanded=False):
+        st.dataframe(display_metrics, use_container_width=True, hide_index=True)
 
 
 def _chart_frame(results: list[SimulationResult]) -> pd.DataFrame:
