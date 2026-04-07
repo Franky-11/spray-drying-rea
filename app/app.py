@@ -343,38 +343,6 @@ def _inject_styles() -> None:
             padding: 1rem 1.05rem;
             margin-bottom: 0.9rem;
         }
-        .scenario-list {
-            display: grid;
-            gap: 0.55rem;
-            margin-top: 0.85rem;
-        }
-        .scenario-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 0.75rem;
-            align-items: start;
-            padding-top: 0.55rem;
-            border-top: 1px solid var(--line);
-        }
-        .scenario-name {
-            font-size: 0.98rem;
-            color: var(--ink);
-            font-weight: 600;
-        }
-        .scenario-copy {
-            color: var(--muted);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-        .scenario-badge {
-            font-size: 0.75rem;
-            color: var(--accent);
-            background: var(--accent-soft);
-            border-radius: 9999px;
-            padding: 0.2rem 0.55rem;
-            font-weight: 600;
-            white-space: nowrap;
-        }
         .decision-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -414,6 +382,36 @@ def _inject_styles() -> None:
             margin-top: 0.65rem;
             padding-top: 0.65rem;
             border-top: 1px solid var(--line);
+        }
+        .chart-shell, .data-shell, .export-shell {
+            background: var(--surface);
+            border-radius: 12px;
+            box-shadow: var(--shadow-card);
+            padding: 1rem 1.05rem;
+            margin-bottom: 0.95rem;
+        }
+        .chart-toolbar {
+            margin-bottom: 0.9rem;
+        }
+        .chart-panel {
+            background: var(--surface-soft);
+            border-radius: 12px;
+            box-shadow: var(--shadow-ring);
+            padding: 0.85rem 0.9rem 0.5rem;
+            height: 100%;
+        }
+        .chart-panel-title {
+            color: var(--muted-soft);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.55rem;
+        }
+        .utility-note {
+            color: var(--muted-soft);
+            font-size: 0.88rem;
+            line-height: 1.55;
+            margin: 0 0 0.75rem;
         }
         .stTabs [data-baseweb="tab-list"] {
             gap: 0.5rem;
@@ -1060,47 +1058,54 @@ def _build_chart_figure(
         )
 
     figure.update_layout(
-        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=20, color="#20332A")),
-        height=390,
-        margin=dict(l=18, r=18, t=56, b=18),
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=19, color="#171717")),
+        height=370,
+        margin=dict(l=12, r=12, t=48, b=12),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#FFFDF8",
+        plot_bgcolor="#FFFFFF",
         hovermode="x unified",
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=1.02,
+            y=1.01,
             xanchor="right",
             x=1,
             bgcolor="rgba(0,0,0,0)",
+            font=dict(size=11, color="#4d4d4d"),
         ),
     )
     figure.update_xaxes(
         title=x_label,
         showline=True,
-        linecolor="#CFC5B4",
-        linewidth=1.1,
-        gridcolor="rgba(95, 86, 73, 0.10)",
+        linecolor="#EBEBEB",
+        linewidth=1,
+        gridcolor="rgba(23, 23, 23, 0.08)",
         zeroline=False,
-        tickfont=dict(color="#42564A"),
-        title_font=dict(color="#42564A"),
+        tickfont=dict(color="#4D4D4D"),
+        title_font=dict(color="#4D4D4D"),
     )
     figure.update_yaxes(
         title=y_label,
         showline=True,
-        linecolor="#CFC5B4",
-        linewidth=1.1,
-        gridcolor="rgba(95, 86, 73, 0.12)",
+        linecolor="#EBEBEB",
+        linewidth=1,
+        gridcolor="rgba(23, 23, 23, 0.08)",
         zeroline=False,
-        tickfont=dict(color="#42564A"),
-        title_font=dict(color="#42564A"),
+        tickfont=dict(color="#4D4D4D"),
+        title_font=dict(color="#4D4D4D"),
     )
     return figure
 
 
 def _render_charts(results: list[SimulationResult], target_outlet_x: float) -> None:
+    _render_section_intro(
+        "Diagramme",
+        "Kurven direkt vergleichen",
+        "Zuerst Diagrammgruppe waehlen, dann Szenarien eingrenzen. Die Ansicht bleibt bewusst kompakt und vergleichsorientiert.",
+    )
     plot_frame = _chart_frame(results)
-    control1, control2, control3 = st.columns([1.0, 1.0, 1.5])
+    st.markdown('<div class="chart-shell chart-toolbar">', unsafe_allow_html=True)
+    control1, control2, control3 = st.columns([1.0, 1.0, 1.3])
     with control1:
         x_axis = st.radio("x-Achse", ("height", "t"), format_func=_axis_label, horizontal=True)
     with control2:
@@ -1112,6 +1117,7 @@ def _render_charts(results: list[SimulationResult], target_outlet_x: float) -> N
             ("Thermisch", "Feuchte", "Partikel"),
             index=0,
         )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     subset = plot_frame[plot_frame["scenario"].isin(selected_scenarios)]
     if subset.empty:
@@ -1140,9 +1146,13 @@ def _render_charts(results: list[SimulationResult], target_outlet_x: float) -> N
     cols = st.columns(2)
     for index, (column, title, unit) in enumerate(CHART_GROUPS[chart_family]):
         with cols[index % 2]:
-            chart_box = st.container(border=True)
+            st.markdown('<div class="chart-panel">', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="chart-panel-title">{chart_family} | {title}</div>',
+                unsafe_allow_html=True,
+            )
+            chart_box = st.container()
             with chart_box:
-                st.caption(f"{chart_family} | {title}")
                 fig = _build_chart_figure(
                     subset=subset,
                     x_axis=x_axis,
@@ -1158,28 +1168,49 @@ def _render_charts(results: list[SimulationResult], target_outlet_x: float) -> N
                     use_container_width=True,
                     key=f"chart_{chart_family}_{column}_{x_axis}_{'-'.join(selected_scenarios)}",
                 )
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_data_tabs(results: list[SimulationResult]) -> None:
+    _render_section_intro(
+        "Daten",
+        "Kennzahlen und Rohdaten nachschlagen",
+        "Dieser Bereich ist fuer Detailpruefung und Weiterverarbeitung gedacht, nicht fuer die erste fachliche Entscheidung.",
+    )
     metrics_frame = _to_display_metrics(results_to_metrics_frame(results))
     timeseries_frame = _chart_frame(results)
     tabs = st.tabs(["Kennzahlen", "Zeitreihen", "Eingaben"])
     with tabs[0]:
+        st.markdown('<div class="data-shell">', unsafe_allow_html=True)
+        st.markdown('<p class="utility-note">Verdichtete Kennzahlen aller Szenarien in Tabellenform.</p>', unsafe_allow_html=True)
         st.dataframe(metrics_frame, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     with tabs[1]:
+        st.markdown('<div class="data-shell">', unsafe_allow_html=True)
+        st.markdown('<p class="utility-note">Alle berechneten Zeit- bzw. Hoehenreihen fuer Export oder Plausibilitaetspruefung.</p>', unsafe_allow_html=True)
         st.dataframe(timeseries_frame, use_container_width=True, height=420)
+        st.markdown("</div>", unsafe_allow_html=True)
     with tabs[2]:
+        st.markdown('<div class="data-shell">', unsafe_allow_html=True)
+        st.markdown('<p class="utility-note">Tatsaechlich verwendete Eingaben je Szenario inklusive aller Overrides.</p>', unsafe_allow_html=True)
         inputs_df = pd.DataFrame(
             [{"scenario": result.label, **asdict(result.inputs)} for result in results]
         )
         st.dataframe(inputs_df, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_exports(results: list[SimulationResult]) -> None:
+    _render_section_intro(
+        "Export",
+        "Ergebnisse weitergeben oder weiterverarbeiten",
+        "CSV ist fuer schnelle Analyse geeignet, XLSX fuer strukturierten Austausch mit mehreren Tabellenblaettern.",
+    )
     metrics_csv = results_to_metrics_frame(results).to_csv(index=False).encode("utf-8")
     timeseries_csv = results_to_timeseries_frame(results).to_csv(index=False).encode("utf-8")
     excel_bytes = results_to_excel_bytes(results)
 
+    st.markdown('<div class="export-shell">', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
         st.download_button("Kennzahlen als CSV", metrics_csv, "spruehtrockner_metrics.csv", "text/csv")
@@ -1192,6 +1223,7 @@ def _render_exports(results: list[SimulationResult]) -> None:
             "spruehtrockner_results.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_evaluation_settings() -> None:
@@ -1249,7 +1281,7 @@ def main() -> None:
 
     results: list[SimulationResult] | None = st.session_state.get("results")
     if not results:
-        st.info("Preset oder Eingaben festlegen und danach Berechnen waehlen.")
+        st.info("Preset laden, Eingaben anpassen und danach Berechnen waehlen.")
         return
 
     target_outlet_x = float(st.session_state.get("target_outlet_x", 0.04))
