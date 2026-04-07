@@ -657,8 +657,8 @@
               Feuchteverlauf, Temperaturverlauf, Partikelgroesse, Luftbeladung und Austrittswerte.
             </p>
             <p>
-              Fachlich basiert das Modell auf dem MATLAB-Skript <code>Dryingkinetic_REA.m</code>,
-              numerisch wird es in Python mit einem BDF-Solver geloest. Die Seite hier ist bewusst
+              Fachlich basiert das Modell auf einem REA-Ansatz fuer die gekoppelte Beschreibung von
+              Feuchte-, Temperatur- und Bewegungsverlauf. Numerisch wird es in Python mit einem BDF-Solver geloest. Die Seite hier ist bewusst
               zweigleisig aufgebaut: als kompakte Praesentation fuer die Einfuehrung und als
               Bedienungs- und Formelhandbuch fuer die taegliche Nutzung.
             </p>
@@ -675,7 +675,7 @@
               <div class="metric">
                 Trocknungshoehe
                 <span class="value">0.886 m</span>
-                <div class="small-note">Bei MATLAB-Default-Eingaben</div>
+                <div class="small-note">Bei Standard-Eingaben</div>
               </div>
               <div class="metric">
                 Austrittsfeuchte
@@ -845,7 +845,7 @@
       <section id="odes" class="reveal">
         <div class="section-tag">ODE-System</div>
         <h3>Die Differentialgleichungen des Modells</h3>
-        <p>Im Kern loest die App ein gekoppeltes, steifes Anfangswertproblem. Die folgenden Gleichungen spiegeln die Struktur der Python-Portierung und des MATLAB-Skripts in fachlich sauberer Schreibweise wider.</p>
+        <p>Im Kern loest die App ein gekoppeltes, steifes Anfangswertproblem. Die folgenden Gleichungen spiegeln die Struktur der Python-Implementierung in fachlich sauberer Schreibweise wider.</p>
         <div class="grid-2 formula-grid">
           <div class="equation">
             <h4>1. Produktfeuchte</h4>
@@ -1022,7 +1022,7 @@ K = 5.710 \exp\left(\frac{-5118}{R T_b}\right)
           </div>
           <div class="card">
             <h4>Schrumpfung und Partikeldurchmesser</h4>
-            <p>Der Partikeldurchmesser wird material- und TS-abhaengig geschlossen. In der App sind die gleichen Fallunterscheidungen wie im MATLAB-Skript umgesetzt.</p>
+            <p>Der Partikeldurchmesser wird material- und TS-abhaengig geschlossen. In der App sind dafuer feste Fallunterscheidungen fuer die hinterlegten Material- und TS-Bereiche umgesetzt.</p>
             <div class="math-block spacious">
 \[
 \text{SMP, } TS = 0.3:
@@ -1104,7 +1104,7 @@ E_v = f_{\mathrm{mat}}(X, X_e)\,E_{v,b}
         <div class="grid-2">
           <div class="card">
             <h4>Solverwahl</h4>
-            <p>Im MATLAB-Skript wurde <strong>ode23s</strong> verwendet. In der Python-App wird das System mit <strong>BDF</strong> geloest. Beide Solver sind fuer steife ODEs gedacht.</p>
+            <p>In der Python-App wird das System mit <strong>BDF</strong> geloest. Dieser Solver ist fuer steife ODEs geeignet und passt zur gekoppelten Dynamik des Modells.</p>
             <p>Steifigkeit entsteht hier, weil Waermeuebergang, Stoffuebergang und Geschwindigkeitsanpassung deutlich schnellere Zeitskalen haben koennen als der langsamere Feuchteabbau im spaeteren Verlauf.</p>
           </div>
           <div class="card">
@@ -1177,7 +1177,7 @@ E_v = f_{\mathrm{mat}}(X, X_e)\,E_{v,b}
           <div class="card">
             <h4>Empfehlung fuer die Nutzung</h4>
             <p>Die App ist sehr gut geeignet fuer Vorstudien, Variantenvergleich, erste Betriebspunktabschaetzungen und zur Erklaerung des Prozessverhaltens. Sie ersetzt aber keine vollaufgeloeste CFD- oder Mehrpartikel-Simulation.</p>
-            <p>Fuer einen formalen Modellabgleich sollten spaeter reale Messdaten oder ein MATLAB/Octave-Referenzlauf fuer ausgewaehlte Faelle herangezogen werden.</p>
+            <p>Fuer einen formalen Modellabgleich sollten spaeter reale Messdaten fuer ausgewaehlte Faelle herangezogen werden.</p>
           </div>
         </div>
       </section>

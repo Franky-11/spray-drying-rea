@@ -76,7 +76,7 @@ FIELD_LABELS = {
 }
 
 PRESETS: dict[str, dict[str, Any]] = {
-    "MATLAB-Default": {},
+    "Standard": {},
     "Schonende Trocknung": {
         "inlet_air_temp_c": 165.0,
         "feed_rate_kg_h": 2.5,
@@ -279,7 +279,7 @@ def _ensure_base_state() -> None:
         if key not in st.session_state:
             st.session_state[key] = defaults[field]
     if "selected_preset" not in st.session_state:
-        st.session_state["selected_preset"] = "MATLAB-Default"
+        st.session_state["selected_preset"] = "Standard"
 
 
 def _apply_preset(preset_name: str) -> None:
