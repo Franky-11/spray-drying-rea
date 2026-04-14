@@ -6,6 +6,14 @@ from .model import (
     run_batch,
     run_simulation,
 )
+from .process_simulation import (
+    ProcessEvent,
+    ProcessSimulationInput,
+    ProcessSimulationResult,
+    build_stepwise_inputs,
+    run_process_simulation,
+    summarize_process_kpis,
+)
 
 __all__ = [
     "ScenarioConfig",
@@ -14,4 +22,10 @@ __all__ = [
     "summarize_input",
     "run_batch",
     "run_simulation",
+    "ProcessEvent",
+    "ProcessSimulationInput",
+    "ProcessSimulationResult",
+    "build_stepwise_inputs",
+    "run_process_simulation",
+    "summarize_process_kpis",
 ]
