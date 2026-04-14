@@ -13,3 +13,10 @@ __pycache__/
 htmlcov/
 design
 docs/ui_refactor_plan.md
+docs/image_prompts/
+assets/generated_images/*
+!assets/generated_images/.gitkeep
+docs/process_simulation.md
+docs/process_simulation.pdf
+docs/process_simulation_extension_plan.md
+docs/process_simulation_implementation_slice.md
