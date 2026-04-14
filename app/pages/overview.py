@@ -66,9 +66,10 @@ st.divider()
 st.subheader("C. Praktische Nutzung")
 st.markdown(
     "1. Auf `Simulation` einen Basisfall oder ein Preset setzen.\n"
-    "2. Optional Vergleichsszenarien über ausgewählte Overrides anlegen.\n"
-    "3. Ein Bewertungsziel für die Austrittsfeuchte definieren.\n"
-    "4. Auf `Ergebnisse` Trocknungshöhe, Austrittsfeuchte, Austritts-Temperatur und Kurven vergleichen."
+    "2. Für transiente Störfälle auf `Prozesssimulation` ein Event-Schedule oder Preset wählen.\n"
+    "3. Optional Vergleichsszenarien über ausgewählte Overrides anlegen.\n"
+    "4. Ein Bewertungsziel für die Austrittsfeuchte definieren.\n"
+    "5. Auf `Ergebnisse` stationäre Szenarien vergleichen oder die Prozesssimulation direkt auf ihrer Seite auswerten."
 )
 st.caption(
     "Praxisregel: Wenn die berechnete Trocknungshöhe kleiner ist als die reale Trocknerhöhe, "

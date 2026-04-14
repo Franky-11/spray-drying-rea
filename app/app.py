@@ -18,6 +18,7 @@ def main() -> None:
         [
             st.Page("pages/overview.py", title="Überblick", default=True),
             st.Page("pages/simulation.py", title="Simulation"),
+            st.Page("pages/process_simulation.py", title="Prozesssimulation"),
             st.Page("pages/results.py", title="Ergebnisse"),
         ],
         position="sidebar",
