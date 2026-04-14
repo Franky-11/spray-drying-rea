@@ -55,6 +55,7 @@ class ProcessSimulationTests(unittest.TestCase):
         self.assertAlmostEqual(delayed["outlet_X"], before["outlet_X"])
         self.assertGreater(later["outlet_Tb"], before["outlet_Tb"])
         self.assertLess(later["outlet_X"], before["outlet_X"])
+        self.assertGreater(at_switch["target_outlet_time_s"], 0.0)
 
     def test_inlet_temperature_step_drives_hotter_and_drier_output(self) -> None:
         result = run_process_simulation(
@@ -72,6 +73,9 @@ class ProcessSimulationTests(unittest.TestCase):
         self.assertLess(end["outlet_X"], start["outlet_X"])
         self.assertGreater(end["outlet_Tb"], start["outlet_Tb"])
         self.assertLess(end["moisture_error"], start["moisture_error"])
+        self.assertGreater(end["q_loss_w"], start["q_loss_w"])
+        self.assertGreater(end["evaporation_rate_kg_s"], start["evaporation_rate_kg_s"])
+        self.assertGreater(end["latent_load_w"], 0.0)
 
     def test_higher_inlet_humidity_increases_residual_moisture(self) -> None:
         result = run_process_simulation(
@@ -89,6 +93,7 @@ class ProcessSimulationTests(unittest.TestCase):
         self.assertGreater(end["outlet_X"], start["outlet_X"])
         self.assertGreater(end["outlet_Y"], start["outlet_Y"])
         self.assertGreater(end["moisture_error"], start["moisture_error"])
+        self.assertLess(end["evaporation_rate_kg_s"], start["evaporation_rate_kg_s"])
 
     def test_lower_total_solids_increases_residual_moisture(self) -> None:
         result = run_process_simulation(
@@ -106,6 +111,34 @@ class ProcessSimulationTests(unittest.TestCase):
         self.assertGreater(end["outlet_X"], start["outlet_X"])
         self.assertLess(end["outlet_Tb"], start["outlet_Tb"])
         self.assertGreater(result.kpis["max_outlet_X"], start["outlet_X"])
+        self.assertGreater(end["evaporation_rate_kg_s"], start["evaporation_rate_kg_s"])
+
+    def test_process_result_contains_derived_balance_columns(self) -> None:
+        result = run_process_simulation(
+            ProcessSimulationInput(
+                base_input=SimulationInput(),
+                events=[],
+                duration_s=20.0,
+                time_step_s=10.0,
+            )
+        )
+
+        for column in (
+            "target_outlet_time_s",
+            "q_loss_w",
+            "evaporation_rate_kg_s",
+            "latent_load_w",
+        ):
+            self.assertIn(column, result.series.columns)
+
+        self.assertGreater(result.series["target_outlet_time_s"].iloc[0], 0.0)
+        self.assertGreater(result.series["q_loss_w"].iloc[0], 0.0)
+        self.assertGreater(result.series["evaporation_rate_kg_s"].iloc[0], 0.0)
+        self.assertGreater(result.series["latent_load_w"].iloc[0], 0.0)
+        self.assertAlmostEqual(
+            result.kpis["final_q_loss_w"],
+            float(result.series["q_loss_w"].iloc[-1]),
+        )
 
 
 if __name__ == "__main__":

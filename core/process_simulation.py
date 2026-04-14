@@ -115,6 +115,10 @@ def summarize_process_kpis(
             "mean_moisture_error": None,
             "max_moisture_error": None,
             "time_above_target_s": None,
+            "final_target_outlet_time_s": None,
+            "final_q_loss_w": None,
+            "final_evaporation_rate_kg_s": None,
+            "final_latent_load_w": None,
         }
 
     above_target = series["outlet_X"] > target_outlet_x
@@ -130,6 +134,10 @@ def summarize_process_kpis(
         "mean_moisture_error": float(series["moisture_error"].mean()),
         "max_moisture_error": float(series["moisture_error"].max()),
         "time_above_target_s": float(dt_values.where(above_target, 0.0).sum()),
+        "final_target_outlet_time_s": float(series["target_outlet_time_s"].iloc[-1]),
+        "final_q_loss_w": float(series["q_loss_w"].iloc[-1]),
+        "final_evaporation_rate_kg_s": float(series["evaporation_rate_kg_s"].iloc[-1]),
+        "final_latent_load_w": float(series["latent_load_w"].iloc[-1]),
     }
 
 
@@ -234,6 +242,7 @@ def run_process_simulation(sim_input: ProcessSimulationInput) -> ProcessSimulati
         for column, value in actual_states.items():
             series.at[index, column] = value
 
+    _append_derived_process_quantities(series, sim_input.base_input)
     series["moisture_error"] = series["outlet_X"] - sim_input.target_outlet_x
     kpis = summarize_process_kpis(series, target_outlet_x=sim_input.target_outlet_x)
     kpis["air_dead_time_s"] = float(air_dead_steps * sim_input.time_step_s)
@@ -257,12 +266,30 @@ def _extract_target_outputs(result: Any) -> dict[str, float | None]:
         "target_outlet_RH": float(outlet_row["RH"]),
         "target_outlet_Y": float(outlet_row["Y"]),
         "target_outlet_Tp": float(outlet_row["Tp"]),
+        "target_outlet_time_s": float(result.metrics["outlet_time"] or outlet_row["t"]),
     }
 
 
 def _lag_step(current: float, target: float, time_step_s: float, tau_s: float) -> float:
     alpha = min(1.0, time_step_s / max(tau_s, time_step_s))
     return current + alpha * (target - current)
+
+
+def _append_derived_process_quantities(series: pd.DataFrame, base_input: SimulationInput) -> None:
+    ambient_temp_k = base_input.ambient_temp_c + 273.0
+    dryer_shell_area_m2 = np.pi * base_input.dryer_diameter_m * base_input.dryer_height_m
+    dry_solids_rate_kg_s = (series["feed_rate_kg_h"] * series["feed_total_solids"]) / 3600.0
+    inlet_water_dry_basis = (1.0 - series["feed_total_solids"]) / series["feed_total_solids"]
+    evaporation_rate_kg_s = dry_solids_rate_kg_s * (inlet_water_dry_basis - series["outlet_X"])
+    vaporization_enthalpy_j_kg = 2.792e6 - 160.0 * series["outlet_Tb"] - 3.43 * series["outlet_Tb"] ** 2
+
+    series["q_loss_w"] = (
+        base_input.heat_loss_coeff_w_m2k
+        * dryer_shell_area_m2
+        * (series["outlet_Tb"] - ambient_temp_k)
+    )
+    series["evaporation_rate_kg_s"] = evaporation_rate_kg_s.clip(lower=0.0)
+    series["latent_load_w"] = series["evaporation_rate_kg_s"] * vaporization_enthalpy_j_kg
 
 
 def _deduplicate_warnings(warnings: list[str]) -> list[str]:
