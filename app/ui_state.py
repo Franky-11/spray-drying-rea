@@ -248,7 +248,7 @@ def build_base_input() -> SimulationInput:
 
 def render_field_input(field: str, key: str, value: Any | None = None) -> Any:
     fallback = getattr(DEFAULT_INPUT, field) if value is None else value
-    if key not in st.session_state:
+    if key not in st.session_state or st.session_state[key] is None:
         st.session_state[key] = fallback
     label = FIELD_LABELS[field]
     help_text = FIELD_HELP.get(field)
@@ -273,6 +273,7 @@ def render_field_input(field: str, key: str, value: Any | None = None) -> Any:
         "label": label,
         "step": float(STEP_MAP[field]),
         "key": key,
+        "help": help_text,
     }
     minimum = MIN_MAP.get(field)
     if minimum is not None:

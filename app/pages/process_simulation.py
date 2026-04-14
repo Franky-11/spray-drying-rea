@@ -17,6 +17,7 @@ for candidate in (str(ROOT), str(APP_DIR)):
 
 from core import ProcessEvent, ProcessSimulationInput, run_process_simulation
 from ui_state import (
+    DEFAULT_INPUT,
     MATERIAL_FIELDS,
     PROCESS_FIELDS,
     EXPERT_FIELDS,
@@ -31,7 +32,8 @@ PROCESS_SIM_DURATION_KEY = "process_sim_duration_s"
 PROCESS_SIM_DT_KEY = "process_sim_time_step_s"
 PROCESS_SIM_TARGET_KEY = "process_sim_target_x"
 PROCESS_SIM_PRESET_KEY = "process_sim_preset"
-PROCESS_SIM_EVENTS_KEY = "process_sim_events"
+PROCESS_SIM_EVENTS_DATA_KEY = "process_sim_events_data"
+PROCESS_SIM_EVENTS_EDITOR_KEY = "process_sim_events_editor"
 
 PROCESS_PRESETS: dict[str, dict[str, Any]] = {
     "Benutzerdefiniert": {
@@ -89,7 +91,7 @@ def initialize_process_sim_state() -> None:
     st.session_state.setdefault(PROCESS_SIM_DT_KEY, preset["time_step_s"])
     st.session_state.setdefault(PROCESS_SIM_TARGET_KEY, preset["target_outlet_x"])
     st.session_state.setdefault(PROCESS_SIM_PRESET_KEY, "Benutzerdefiniert")
-    st.session_state.setdefault(PROCESS_SIM_EVENTS_KEY, _events_frame(preset["events"]))
+    st.session_state.setdefault(PROCESS_SIM_EVENTS_DATA_KEY, _events_frame(preset["events"]))
 
 
 def render_field_grid(fields: list[str], key_prefix: str = "base") -> None:
@@ -105,8 +107,15 @@ def apply_process_preset() -> None:
     st.session_state[PROCESS_SIM_DURATION_KEY] = preset["duration_s"]
     st.session_state[PROCESS_SIM_DT_KEY] = preset["time_step_s"]
     st.session_state[PROCESS_SIM_TARGET_KEY] = preset["target_outlet_x"]
-    st.session_state[PROCESS_SIM_EVENTS_KEY] = _events_frame(preset["events"])
+    st.session_state[PROCESS_SIM_EVENTS_DATA_KEY] = _events_frame(preset["events"])
     st.session_state.pop(PROCESS_SIM_RESULT_KEY, None)
+
+
+def ensure_base_defaults(fields: list[str]) -> None:
+    for field in fields:
+        key = f"base_{field}"
+        if key not in st.session_state or st.session_state[key] is None:
+            st.session_state[key] = getattr(DEFAULT_INPUT, field)
 
 
 def _events_frame(events: list[dict[str, Any]]) -> pd.DataFrame:
@@ -182,6 +191,7 @@ def _display_frame(result_frame: pd.DataFrame) -> pd.DataFrame:
 
 initialize_session_state()
 initialize_process_sim_state()
+ensure_base_defaults(EXPERT_FIELDS)
 
 st.title("Prozesssimulation")
 st.write(
@@ -201,6 +211,10 @@ with st.expander("Basisfall anpassen", expanded=True):
     st.markdown("**Prozessparameter**")
     render_field_grid(PROCESS_FIELDS)
     with st.expander("Expertenparameter", expanded=False):
+        st.caption(
+            "Die Expertenfelder sind mit den Modell-Defaults vorbelegt. "
+            "Nur ändern, wenn du gezielt Geometrie-, Stoffwert- oder Modellannahmen variieren willst."
+        )
         render_field_grid(EXPERT_FIELDS)
 
 st.divider()
@@ -240,10 +254,14 @@ st.subheader("C. Event-Schedule")
 st.caption(
     "Jede Zeile startet ab `time_s` einen neuen Abschnitt. Leere Felder übernehmen den vorherigen Wert."
 )
+st.caption(
+    "Ja, du kannst Abschnitte aneinanderhängen: einfach mehrere Zeilen mit steigenden Zeiten anlegen. "
+    "Beispiel: 60 s Tin hoch, 120 s Feedstrom hoch, 180 s Tin zurück."
+)
 
 event_frame = st.data_editor(
-    st.session_state[PROCESS_SIM_EVENTS_KEY],
-    key=PROCESS_SIM_EVENTS_KEY,
+    st.session_state[PROCESS_SIM_EVENTS_DATA_KEY],
+    key=PROCESS_SIM_EVENTS_EDITOR_KEY,
     use_container_width=True,
     num_rows="dynamic",
     hide_index=True,
@@ -257,6 +275,7 @@ event_frame = st.data_editor(
         "feed_total_solids": st.column_config.NumberColumn("Feed-TS [-]", step=0.01),
     },
 )
+st.session_state[PROCESS_SIM_EVENTS_DATA_KEY] = event_frame
 
 st.divider()
 if st.button("Prozesssimulation rechnen", type="primary", use_container_width=True):
