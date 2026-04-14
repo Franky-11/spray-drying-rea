@@ -15,7 +15,12 @@ for candidate in (str(ROOT), str(APP_DIR)):
     if candidate not in sys.path:
         sys.path.insert(0, candidate)
 
-from core import ProcessEvent, ProcessSimulationInput, run_process_simulation
+from core import (
+    ProcessEvent,
+    ProcessSimulationInput,
+    build_stepwise_inputs,
+    run_process_simulation,
+)
 from ui_state import (
     DEFAULT_INPUT,
     MATERIAL_FIELDS,
@@ -33,7 +38,6 @@ PROCESS_SIM_DT_KEY = "process_sim_time_step_s"
 PROCESS_SIM_TARGET_KEY = "process_sim_target_x"
 PROCESS_SIM_PRESET_KEY = "process_sim_preset"
 PROCESS_SIM_EVENTS_DATA_KEY = "process_sim_events_data"
-PROCESS_SIM_EVENTS_EDITOR_KEY = "process_sim_events_editor"
 
 PROCESS_PRESETS: dict[str, dict[str, Any]] = {
     "Benutzerdefiniert": {
@@ -148,8 +152,6 @@ def _events_from_frame(frame: pd.DataFrame) -> list[ProcessEvent]:
 def _process_chart(
     frame: pd.DataFrame,
     columns: list[tuple[str, str, str]],
-    *,
-    title: str,
 ) -> go.Figure:
     figure = go.Figure()
     colors = ["#D46A2E", "#3D7A62", "#3E5C76", "#B88B4A", "#7A4E6D"]
@@ -167,13 +169,12 @@ def _process_chart(
             )
         )
     figure.update_layout(
-        title=title,
-        height=360,
-        margin=dict(l=12, r=12, t=44, b=12),
+        height=320,
+        margin=dict(l=12, r=12, t=12, b=12),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#FFFFFF",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
     )
     figure.update_xaxes(title="Zeit [s]", showline=True, linecolor="#D9D9D9", gridcolor="rgba(0,0,0,0.08)")
     figure.update_yaxes(showline=True, linecolor="#D9D9D9", gridcolor="rgba(0,0,0,0.08)")
@@ -187,6 +188,34 @@ def _display_frame(result_frame: pd.DataFrame) -> pd.DataFrame:
     frame["target_outlet_Y_gkg"] = frame["target_outlet_Y"] * 1000.0
     frame["outlet_Y_gkg"] = frame["outlet_Y"] * 1000.0
     return frame
+
+
+def _segment_preview_frame(schedule: pd.DataFrame, duration_s: float) -> pd.DataFrame:
+    if schedule.empty:
+        return pd.DataFrame()
+
+    rows: list[dict[str, Any]] = []
+    for index, row in schedule.iterrows():
+        start_s = float(row["t"])
+        if index + 1 < len(schedule):
+            end_s = float(schedule.iloc[index + 1]["t"])
+        else:
+            end_s = float(duration_s)
+        if end_s <= start_s:
+            continue
+        rows.append(
+            {
+                "von [s]": start_s,
+                "bis [s]": end_s,
+                "Label": row["event_label"],
+                "Tin [degC]": float(row["inlet_air_temp_c"]),
+                "Luftstrom [m^3/h]": float(row["air_flow_m3_h"]),
+                "Zuluftfeuchte [g/kg]": float(row["inlet_abs_humidity_g_kg"]),
+                "Feedstrom [kg/h]": float(row["feed_rate_kg_h"]),
+                "Feed-TS [-]": float(row["feed_total_solids"]),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 initialize_session_state()
@@ -259,34 +288,49 @@ st.caption(
     "Beispiel: 60 s Tin hoch, 120 s Feedstrom hoch, 180 s Tin zurück."
 )
 
-event_frame = st.data_editor(
-    st.session_state[PROCESS_SIM_EVENTS_DATA_KEY],
-    key=PROCESS_SIM_EVENTS_EDITOR_KEY,
-    use_container_width=True,
-    num_rows="dynamic",
-    hide_index=True,
-    column_config={
-        "time_s": st.column_config.NumberColumn("time_s [s]", min_value=0.0, step=10.0),
-        "label": st.column_config.TextColumn("Label"),
-        "inlet_air_temp_c": st.column_config.NumberColumn("Tin [degC]", step=1.0),
-        "air_flow_m3_h": st.column_config.NumberColumn("Luftstrom [m^3/h]", step=1.0),
-        "inlet_abs_humidity_g_kg": st.column_config.NumberColumn("Zuluftfeuchte [g/kg]", step=0.1),
-        "feed_rate_kg_h": st.column_config.NumberColumn("Feedstrom [kg/h]", step=0.1),
-        "feed_total_solids": st.column_config.NumberColumn("Feed-TS [-]", step=0.01),
-    },
+with st.form("process_schedule_form", clear_on_submit=False):
+    event_frame = st.data_editor(
+        st.session_state[PROCESS_SIM_EVENTS_DATA_KEY].copy(),
+        use_container_width=True,
+        num_rows="dynamic",
+        hide_index=True,
+        column_config={
+            "time_s": st.column_config.NumberColumn("time_s [s]", min_value=0.0, step=10.0),
+            "label": st.column_config.TextColumn("Label"),
+            "inlet_air_temp_c": st.column_config.NumberColumn("Tin [degC]", step=1.0),
+            "air_flow_m3_h": st.column_config.NumberColumn("Luftstrom [m^3/h]", step=1.0),
+            "inlet_abs_humidity_g_kg": st.column_config.NumberColumn("Zuluftfeuchte [g/kg]", step=0.1),
+            "feed_rate_kg_h": st.column_config.NumberColumn("Feedstrom [kg/h]", step=0.1),
+            "feed_total_solids": st.column_config.NumberColumn("Feed-TS [-]", step=0.01),
+        },
+    )
+    schedule_submitted = st.form_submit_button("Schedule übernehmen", use_container_width=True)
+
+if schedule_submitted:
+    st.session_state[PROCESS_SIM_EVENTS_DATA_KEY] = event_frame.copy()
+    st.success("Schedule übernommen.")
+
+preview_input = ProcessSimulationInput(
+    base_input=build_base_input(),
+    events=_events_from_frame(st.session_state[PROCESS_SIM_EVENTS_DATA_KEY]),
+    duration_s=float(st.session_state[PROCESS_SIM_DURATION_KEY]),
+    time_step_s=float(st.session_state[PROCESS_SIM_DT_KEY]),
+    target_outlet_x=float(st.session_state[PROCESS_SIM_TARGET_KEY]),
 )
-st.session_state[PROCESS_SIM_EVENTS_DATA_KEY] = event_frame
+schedule_preview = build_stepwise_inputs(preview_input)
+segment_preview = _segment_preview_frame(schedule_preview, preview_input.duration_s)
+
+with st.expander("Aufgelöste Abschnittsvorschau", expanded=True):
+    st.caption(
+        "Diese Tabelle zeigt, welche Werte in welchem Zeitabschnitt tatsächlich aktiv sind. "
+        "Damit ist direkt sichtbar, wie Basisfall und Events zusammenwirken."
+    )
+    st.dataframe(segment_preview, use_container_width=True, hide_index=True)
 
 st.divider()
 if st.button("Prozesssimulation rechnen", type="primary", use_container_width=True):
     try:
-        sim_input = ProcessSimulationInput(
-            base_input=build_base_input(),
-            events=_events_from_frame(event_frame),
-            duration_s=float(st.session_state[PROCESS_SIM_DURATION_KEY]),
-            time_step_s=float(st.session_state[PROCESS_SIM_DT_KEY]),
-            target_outlet_x=float(st.session_state[PROCESS_SIM_TARGET_KEY]),
-        )
+        sim_input = preview_input
         st.session_state[PROCESS_SIM_RESULT_KEY] = run_process_simulation(sim_input)
         st.success("Prozesssimulation abgeschlossen.")
     except Exception as exc:
@@ -325,58 +369,83 @@ tab_outputs, tab_targets, tab_balances, tab_table = st.tabs(
 )
 
 with tab_outputs:
-    st.plotly_chart(
-        _process_chart(
-            series,
-            [
-                ("outlet_Tb_C", "Ablufttemperatur", "degC"),
-                ("outlet_Tp_C", "Partikeltemperatur", "degC"),
-                ("outlet_X", "Austrittsfeuchte X", "-"),
-            ],
-            title="Geglättete Prozessantwort",
-        ),
-        use_container_width=True,
-    )
-    st.plotly_chart(
-        _process_chart(
-            series,
-            [
-                ("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
-                ("outlet_RH", "Abluft-RH", "-"),
-                ("moisture_error", "Feuchteabweichung", "-"),
-            ],
-            title="Feuchtebezogene Ausgangsgrößen",
-        ),
-        use_container_width=True,
-    )
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Temperaturen**")
+        st.plotly_chart(
+            _process_chart(
+                series,
+                [
+                    ("outlet_Tb_C", "Ablufttemperatur", "degC"),
+                    ("outlet_Tp_C", "Partikeltemperatur", "degC"),
+                ],
+            ),
+            use_container_width=True,
+        )
+        st.markdown("**Abluftfeuchte**")
+        st.plotly_chart(
+            _process_chart(
+                series,
+                [
+                    ("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
+                    ("outlet_RH", "Abluft-RH", "-"),
+                ],
+            ),
+            use_container_width=True,
+        )
+    with right:
+        st.markdown("**Produktfeuchte**")
+        st.plotly_chart(
+            _process_chart(
+                series,
+                [
+                    ("outlet_X", "Austrittsfeuchte X", "-"),
+                    ("moisture_error", "Feuchteabweichung", "-"),
+                ],
+            ),
+            use_container_width=True,
+        )
 
 with tab_targets:
-    st.plotly_chart(
-        _process_chart(
-            series,
-            [
-                ("target_outlet_Tb_C", "Target Ablufttemperatur", "degC"),
-                ("target_outlet_Tp_C", "Target Partikeltemperatur", "degC"),
-                ("target_outlet_X", "Target Austrittsfeuchte X", "-"),
-            ],
-            title="REA-Zielgrößen je Betriebspunkt",
-        ),
-        use_container_width=True,
-    )
-    st.plotly_chart(
-        _process_chart(
-            series,
-            [
-                ("target_outlet_Y_gkg", "Target Abluftfeuchte", "g/kg"),
-                ("target_outlet_RH", "Target Abluft-RH", "-"),
-                ("target_outlet_time_s", "Target Austrittszeit", "s"),
-            ],
-            title="REA-abgeleitete Zusatzgrößen",
-        ),
-        use_container_width=True,
-    )
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**REA-Zieltemperaturen**")
+        st.plotly_chart(
+            _process_chart(
+                series,
+                [
+                    ("target_outlet_Tb_C", "Target Ablufttemperatur", "degC"),
+                    ("target_outlet_Tp_C", "Target Partikeltemperatur", "degC"),
+                ],
+            ),
+            use_container_width=True,
+        )
+        st.markdown("**REA-Zielabluft**")
+        st.plotly_chart(
+            _process_chart(
+                series,
+                [
+                    ("target_outlet_Y_gkg", "Target Abluftfeuchte", "g/kg"),
+                    ("target_outlet_RH", "Target Abluft-RH", "-"),
+                ],
+            ),
+            use_container_width=True,
+        )
+    with right:
+        st.markdown("**REA-Zielprodukt**")
+        st.plotly_chart(
+            _process_chart(
+                series,
+                [
+                    ("target_outlet_X", "Target Austrittsfeuchte X", "-"),
+                    ("target_outlet_time_s", "Target Austrittszeit", "s"),
+                ],
+            ),
+            use_container_width=True,
+        )
 
 with tab_balances:
+    st.markdown("**Bilanz- und Lastgrößen**")
     st.plotly_chart(
         _process_chart(
             series,
@@ -385,7 +454,6 @@ with tab_balances:
                 ("latent_load_w", "Latentlast", "W"),
                 ("evaporation_rate_kg_s", "Verdampfungsrate", "kg/s"),
             ],
-            title="Bilanz- und Lastgrößen",
         ),
         use_container_width=True,
     )
