@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -149,7 +150,7 @@ def _events_from_frame(frame: pd.DataFrame) -> list[ProcessEvent]:
     return events
 
 
-def _process_chart(
+def _single_axis_chart(
     frame: pd.DataFrame,
     columns: list[tuple[str, str, str]],
 ) -> go.Figure:
@@ -181,12 +182,94 @@ def _process_chart(
     return figure
 
 
+def _dual_axis_chart(
+    frame: pd.DataFrame,
+    *,
+    left: tuple[str, str, str],
+    right: tuple[str, str, str],
+    left_color: str = "#D46A2E",
+    right_color: str = "#3D7A62",
+    target_right_value: float | None = None,
+    target_right_label: str | None = None,
+) -> go.Figure:
+    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    left_column, left_label, left_unit = left
+    right_column, right_label, right_unit = right
+
+    figure.add_trace(
+        go.Scatter(
+            x=frame["t"],
+            y=frame[left_column],
+            mode="lines",
+            name=f"{left_label} [{left_unit}]",
+            line=dict(color=left_color, width=3),
+            hovertemplate=(
+                f"<b>{left_label}</b><br>Zeit: %{{x:.1f}} s<br>Wert: %{{y:.3f}} {left_unit}<extra></extra>"
+            ),
+        ),
+        secondary_y=False,
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=frame["t"],
+            y=frame[right_column],
+            mode="lines",
+            name=f"{right_label} [{right_unit}]",
+            line=dict(color=right_color, width=3),
+            hovertemplate=(
+                f"<b>{right_label}</b><br>Zeit: %{{x:.1f}} s<br>Wert: %{{y:.3f}} {right_unit}<extra></extra>"
+            ),
+        ),
+        secondary_y=True,
+    )
+
+    if target_right_value is not None:
+        figure.add_hline(
+            y=target_right_value,
+            line_dash="dash",
+            line_color=right_color,
+            annotation_text=target_right_label or f"Ziel {target_right_value:.3f}",
+            annotation_position="top left",
+            secondary_y=True,
+        )
+
+    figure.update_layout(
+        height=320,
+        margin=dict(l=12, r=12, t=12, b=12),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#FFFFFF",
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
+    )
+    figure.update_xaxes(title="Zeit [s]", showline=True, linecolor="#D9D9D9", gridcolor="rgba(0,0,0,0.08)")
+    figure.update_yaxes(
+        title=f"{left_label} [{left_unit}]",
+        showline=True,
+        linecolor=left_color,
+        tickfont=dict(color=left_color),
+        title_font=dict(color=left_color),
+        gridcolor="rgba(0,0,0,0.08)",
+        secondary_y=False,
+    )
+    figure.update_yaxes(
+        title=f"{right_label} [{right_unit}]",
+        showline=True,
+        linecolor=right_color,
+        tickfont=dict(color=right_color),
+        title_font=dict(color=right_color),
+        gridcolor="rgba(0,0,0,0.04)",
+        secondary_y=True,
+    )
+    return figure
+
+
 def _display_frame(result_frame: pd.DataFrame) -> pd.DataFrame:
     frame = result_frame.copy()
     for column in ("target_outlet_Tb", "target_outlet_Tp", "outlet_Tb", "outlet_Tp"):
         frame[f"{column}_C"] = frame[column] - 273.0
     frame["target_outlet_Y_gkg"] = frame["target_outlet_Y"] * 1000.0
     frame["outlet_Y_gkg"] = frame["outlet_Y"] * 1000.0
+    frame["outlet_powder_rate_kg_h"] = frame["feed_rate_kg_h"] * frame["feed_total_solids"] * (1.0 + frame["outlet_X"])
     return frame
 
 
@@ -364,102 +447,132 @@ with kpi_four:
 
 st.divider()
 st.subheader("E. Zeitreihen")
-tab_outputs, tab_targets, tab_balances, tab_table = st.tabs(
-    ["Ausgänge", "Zielgrößen", "Bilanzgrößen", "Tabelle"]
-)
+tab_process, tab_diagnostics = st.tabs(["Prozessbild", "Diagnostik"])
 
-with tab_outputs:
-    left, right = st.columns(2)
-    with left:
-        st.markdown("**Temperaturen**")
-        st.plotly_chart(
-            _process_chart(
-                series,
-                [
-                    ("outlet_Tb_C", "Ablufttemperatur", "degC"),
-                    ("outlet_Tp_C", "Partikeltemperatur", "degC"),
-                ],
-            ),
-            use_container_width=True,
-        )
-        st.markdown("**Abluftfeuchte**")
-        st.plotly_chart(
-            _process_chart(
-                series,
-                [
-                    ("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
-                    ("outlet_RH", "Abluft-RH", "-"),
-                ],
-            ),
-            use_container_width=True,
-        )
-    with right:
-        st.markdown("**Produktfeuchte**")
-        st.plotly_chart(
-            _process_chart(
-                series,
-                [
-                    ("outlet_X", "Austrittsfeuchte X", "-"),
-                    ("moisture_error", "Feuchteabweichung", "-"),
-                ],
-            ),
-            use_container_width=True,
-        )
-
-with tab_targets:
-    left, right = st.columns(2)
-    with left:
-        st.markdown("**REA-Zieltemperaturen**")
-        st.plotly_chart(
-            _process_chart(
-                series,
-                [
-                    ("target_outlet_Tb_C", "Target Ablufttemperatur", "degC"),
-                    ("target_outlet_Tp_C", "Target Partikeltemperatur", "degC"),
-                ],
-            ),
-            use_container_width=True,
-        )
-        st.markdown("**REA-Zielabluft**")
-        st.plotly_chart(
-            _process_chart(
-                series,
-                [
-                    ("target_outlet_Y_gkg", "Target Abluftfeuchte", "g/kg"),
-                    ("target_outlet_RH", "Target Abluft-RH", "-"),
-                ],
-            ),
-            use_container_width=True,
-        )
-    with right:
-        st.markdown("**REA-Zielprodukt**")
-        st.plotly_chart(
-            _process_chart(
-                series,
-                [
-                    ("target_outlet_X", "Target Austrittsfeuchte X", "-"),
-                    ("target_outlet_time_s", "Target Austrittszeit", "s"),
-                ],
-            ),
-            use_container_width=True,
-        )
-
-with tab_balances:
-    st.markdown("**Bilanz- und Lastgrößen**")
-    st.plotly_chart(
-        _process_chart(
-            series,
-            [
-                ("q_loss_w", "Wärmeverlust", "W"),
-                ("latent_load_w", "Latentlast", "W"),
-                ("evaporation_rate_kg_s", "Verdampfungsrate", "kg/s"),
-            ],
-        ),
-        use_container_width=True,
+with tab_process:
+    st.caption(
+        "Oben stehen die vorgegebenen Eingangsprofile. Darunter folgen die dazu passenden Reaktionen des Prozesses."
     )
+    input_left, input_mid, input_right = st.columns(3)
+    with input_left:
+        st.markdown("**Input: Tin und Zuluftfeuchte**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("inlet_air_temp_c", "Tin", "degC"),
+                right=("inlet_abs_humidity_g_kg", "Zuluftfeuchte", "g/kg"),
+            ),
+            use_container_width=True,
+        )
+    with input_mid:
+        st.markdown("**Input: Feedstrom und Feed-TS**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("feed_rate_kg_h", "Feedstrom", "kg/h"),
+                right=("feed_total_solids", "Feed-TS", "-"),
+                left_color="#3E5C76",
+                right_color="#B88B4A",
+            ),
+            use_container_width=True,
+        )
+    with input_right:
+        st.markdown("**Input: Luftmenge**")
+        st.plotly_chart(
+            _single_axis_chart(
+                series,
+                [("air_flow_m3_h", "Luftstrom", "m^3/h")],
+            ),
+            use_container_width=True,
+        )
 
-with tab_table:
-    st.dataframe(series, use_container_width=True, hide_index=True, height=480)
+    output_left, output_mid, output_right = st.columns(3)
+    with output_left:
+        st.markdown("**Reaktion: Abluft auf Tin/Zuluftfeuchte**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("outlet_Tb_C", "Ablufttemperatur", "degC"),
+                right=("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
+            ),
+            use_container_width=True,
+        )
+    with output_mid:
+        st.markdown("**Reaktion: Produkt auf Feedseite**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("outlet_powder_rate_kg_h", "Pulverrate", "kg/h"),
+                right=("outlet_X", "Austrittsfeuchte X", "-"),
+                left_color="#3E5C76",
+                right_color="#B88B4A",
+                target_right_value=float(st.session_state[PROCESS_SIM_TARGET_KEY]),
+                target_right_label=f"Ziel X = {float(st.session_state[PROCESS_SIM_TARGET_KEY]):.3f}",
+            ),
+            use_container_width=True,
+        )
+    with output_right:
+        st.markdown("**Reaktion: Partikel/Luftseite**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("outlet_Tp_C", "Partikeltemperatur", "degC"),
+                right=("outlet_RH", "Abluft-RH", "-"),
+            ),
+            use_container_width=True,
+        )
+
+with tab_diagnostics:
+    diag_left, diag_right = st.columns(2)
+    with diag_left:
+        st.markdown("**REA-Zielgrößen**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("target_outlet_Tb_C", "Target Ablufttemperatur", "degC"),
+                right=("target_outlet_Y_gkg", "Target Abluftfeuchte", "g/kg"),
+            ),
+            use_container_width=True,
+        )
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("target_outlet_time_s", "Target Austrittszeit", "s"),
+                right=("target_outlet_X", "Target Austrittsfeuchte X", "-"),
+                left_color="#3E5C76",
+                right_color="#B88B4A",
+            ),
+            use_container_width=True,
+        )
+    with diag_right:
+        st.markdown("**Bilanz- und Lastgrößen**")
+        st.plotly_chart(
+            _single_axis_chart(
+                series,
+                [
+                    ("q_loss_w", "Wärmeverlust", "W"),
+                    ("latent_load_w", "Latentlast", "W"),
+                    ("evaporation_rate_kg_s", "Verdampfungsrate", "kg/s"),
+                ],
+            ),
+            use_container_width=True,
+        )
+        st.markdown("**Feuchtediagnostik**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("moisture_error", "Feuchteabweichung", "-"),
+                right=("outlet_X", "Austrittsfeuchte X", "-"),
+                left_color="#D46A2E",
+                right_color="#B88B4A",
+                target_right_value=float(st.session_state[PROCESS_SIM_TARGET_KEY]),
+                target_right_label=f"Ziel X = {float(st.session_state[PROCESS_SIM_TARGET_KEY]):.3f}",
+            ),
+            use_container_width=True,
+        )
+
+    st.markdown("**Zeitreihentabelle**")
+    st.dataframe(series, use_container_width=True, hide_index=True, height=420)
 
 st.divider()
 st.subheader("F. Export")
