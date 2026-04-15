@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -50,6 +51,19 @@ def to_display_metrics(metrics_frame: pd.DataFrame) -> pd.DataFrame:
 
 def chart_frame(results: list[SimulationResult]) -> pd.DataFrame:
     frame = results_to_timeseries_frame(results).copy()
+    if "progress" not in frame.columns:
+        if "height" in frame.columns:
+            progress_parts: list[pd.Series] = []
+            for _, scenario_frame in frame.groupby("scenario", sort=False):
+                height = pd.to_numeric(scenario_frame["height"], errors="coerce")
+                height_max = float(height.max()) if not height.empty else 0.0
+                if height_max > 0:
+                    progress_parts.append(height / height_max)
+                else:
+                    progress_parts.append(pd.Series(np.zeros(len(scenario_frame)), index=scenario_frame.index))
+            frame["progress"] = pd.concat(progress_parts).sort_index()
+        else:
+            frame["progress"] = 0.0
     frame["Tb_C"] = frame["Tb"] - 273.0
     frame["Tp_C"] = frame["Tp"] - 273.0
     frame["dp_um"] = frame["dp"] * 1_000_000.0

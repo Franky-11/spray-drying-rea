@@ -314,11 +314,25 @@ def build_override_summary_frame(base_input: SimulationInput, overrides: dict[st
 
 def build_operating_point_frame(base_input: SimulationInput) -> pd.DataFrame:
     summary = summarize_input(base_input)
+    solids_rate_kg_s = (base_input.feed_rate_kg_h * base_input.feed_total_solids) / 3600.0
+    inlet_humidity = base_input.inlet_abs_humidity_g_kg / 1000.0
 
     def resolve_summary_value(key: str) -> float:
         for candidate in SUMMARY_KEY_ALIASES.get(key, (key,)):
             if candidate in summary:
                 return float(summary[candidate])
+        if key == "dry_solids_rate_kg_s":
+            return float(solids_rate_kg_s)
+        if key == "dry_air_mass_flow_kg_s":
+            humid_air = float(summary.get("humid_air_mass_flow_kg_s", 0.0))
+            return humid_air / max(1.0 + inlet_humidity, 1e-12)
+        if key == "air_to_solid_ratio_kg_kg":
+            humid_air = float(summary.get("humid_air_mass_flow_kg_s", 0.0))
+            dry_air = humid_air / max(1.0 + inlet_humidity, 1e-12)
+            return dry_air / max(solids_rate_kg_s, 1e-12)
+        if key == "effective_residence_time_s":
+            if "air_residence_time_s" in summary:
+                return float(summary["air_residence_time_s"])
         available = ", ".join(sorted(summary))
         raise KeyError(f"{key} fehlt in summarize_input(). Verfügbar: {available}")
 
