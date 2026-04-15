@@ -513,23 +513,7 @@ control_left, control_right = st.columns([1.0, 1.0])
 with control_left:
     st.button("Event hinzufügen", on_click=_add_event, use_container_width=True)
 with control_right:
-    if st.button("Events aus Widgets übernehmen", use_container_width=True):
-        current_events, current_errors = _collect_events_from_state()
-        if current_errors:
-            for error in current_errors:
-                st.error(error)
-        else:
-            _set_event_widgets(
-                [
-                    {
-                        "time_s": event.time_s,
-                        "label": event.label,
-                        **{field: getattr(event, field) for field in EVENT_COLUMNS[2:]},
-                    }
-                    for event in current_events
-                ]
-            )
-            st.success("Events übernommen.")
+    st.caption("Vorschau und Simulation nutzen die aktuellen Widget-Werte direkt.")
 
 collected_events, collected_errors = _collect_events_from_state()
 if collected_errors:
