@@ -290,6 +290,23 @@ def _water_vapor_diffusivity_air(temp_k: float) -> float:
     return 0.22e-4 * (temp_k / 273.15) ** 1.75
 
 
+def _specific_heat_loss_rate(
+    tb: float,
+    d: _Derived,
+    heat_loss_factor_w_m2k: float,
+) -> tuple[float, float]:
+    q_loss_total_w = (
+        heat_loss_factor_w_m2k
+        * d.chamber_lateral_area_m2
+        * max(tb - d.tu_k, 0.0)
+    )
+    q_loss_w_per_kg_s = q_loss_total_w / max(
+        d.solids_rate_kg_s * d.effective_residence_time_s,
+        EPS,
+    )
+    return q_loss_total_w, q_loss_w_per_kg_s
+
+
 def _build_derived(inputs: SimulationInput) -> _Derived:
     rs = 287.058
     rd = 461.523
@@ -502,7 +519,11 @@ def _rea_snapshot(
     rho_air = air_density(tb, y, d.p_pa, d.rs, d.rd)
     cp_air = d.cpdryair + max(y, 0.0) * d.cpv
     diffusivity = _water_vapor_diffusivity_air(tb)
-    relative_velocity = max(abs(d.initial_droplet_velocity_ms - d.air_superficial_velocity_ms), 0.05)
+    # In the reduced stationary kernel the velocity ODE is absent, so the
+    # reference Re/Nu/Sh closure must use the mean particle flight velocity
+    # from the residence-time closure instead of freezing the nozzle exit
+    # velocity over the whole dryer.
+    relative_velocity = max(abs(d.display_velocity_ms - d.air_superficial_velocity_ms), 0.05)
     reynolds = dp * relative_velocity * rho_air / max(d.air_dynamic_viscosity_kg_ms, EPS)
     prandtl = cp_air * d.air_dynamic_viscosity_kg_ms / max(d.kb, EPS)
     schmidt = d.air_dynamic_viscosity_kg_ms / max(diffusivity * rho_air, EPS)
@@ -526,12 +547,7 @@ def _rea_snapshot(
     q_conv_w = alpha * area_per_kg_dry * (tb - tp)
     q_latent_w = evap_rate_kg_per_kg_s * hv
     q_sorption_w = evap_rate_kg_per_kg_s * q_sorption_specific
-    q_loss_total_w = (
-        heat_loss_factor_w_kgk
-        * d.chamber_lateral_area_m2
-        * max(tb - d.tu_k, 0.0)
-    )
-    q_loss_w = q_loss_total_w / max(d.solids_rate_kg_s, EPS)
+    q_loss_total_w, q_loss_w = _specific_heat_loss_rate(tb, d, heat_loss_factor_w_kgk)
     d_tp_dt = (q_conv_w - q_latent_w - q_sorption_w) / max(cp_product, EPS)
 
     d_y_dt = evap_rate_kg_per_kg_s / max(air_to_solid_ratio, EPS)
@@ -554,6 +570,7 @@ def _rea_snapshot(
         "Re": reynolds,
         "Pr": prandtl,
         "Sc": schmidt,
+        "relative_velocity_ms": relative_velocity,
         "Nu": nusselt,
         "Sh": sherwood,
         "driving_force": driving_force,
@@ -561,6 +578,7 @@ def _rea_snapshot(
         "q_conv_w": q_conv_w,
         "q_latent_w": q_latent_w,
         "q_sorption_w": q_sorption_w,
+        "q_loss_total_w": q_loss_total_w,
         "q_loss_w": q_loss_w,
         "q_air_sensible_evap_w": q_air_sensible_evap_w,
         "dXdt": -evap_rate_kg_per_kg_s,

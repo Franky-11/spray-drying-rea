@@ -164,6 +164,81 @@ class MS400CalibrationTests(unittest.TestCase):
         self.assertAlmostEqual(snapshot["dTbdt_K_s"], expected)
         self.assertGreater(snapshot["q_latent_w"], snapshot["q_air_sensible_evap_w"])
 
+    def test_heat_loss_is_converted_to_specific_rate_via_residence_time(self) -> None:
+        sim_input = SimulationInput(
+            material="SMP",
+            feed_total_solids=0.37,
+            feed_rate_kg_h=17.0,
+            droplet_size_um=85.0,
+            air_flow_m3_h=170.0,
+            inlet_air_temp_c=180.0,
+            inlet_abs_humidity_g_kg=5.0,
+            feed_temp_c=40.0,
+            dryer_height_m=2.0,
+            heat_loss_coeff_w_m2k=4.5,
+        )
+        derived = _build_derived(sim_input)
+        snapshot = _rea_snapshot(
+            derived.x0,
+            derived.tp0_k,
+            derived.tb0_k,
+            derived.y0,
+            sim_input.material,
+            derived,
+            air_to_solid_ratio=derived.air_to_solid_ratio,
+            heat_loss_factor_w_kgk=derived.heat_loss_factor_w_kgk,
+        )
+
+        expected_total = (
+            sim_input.heat_loss_coeff_w_m2k
+            * derived.chamber_lateral_area_m2
+            * (derived.tb0_k - derived.tu_k)
+        )
+        expected_specific_rate = expected_total / (
+            derived.solids_rate_kg_s * derived.effective_residence_time_s
+        )
+
+        self.assertAlmostEqual(snapshot["q_loss_total_w"], expected_total)
+        self.assertAlmostEqual(snapshot["q_loss_w"], expected_specific_rate)
+
+    def test_snapshot_uses_mean_flight_velocity_for_transfer_coefficients(self) -> None:
+        sim_input = SimulationInput(
+            material="SMP",
+            feed_total_solids=0.37,
+            feed_rate_kg_h=17.0,
+            droplet_size_um=85.0,
+            air_flow_m3_h=170.0,
+            inlet_air_temp_c=180.0,
+            inlet_abs_humidity_g_kg=5.0,
+            feed_temp_c=40.0,
+            initial_droplet_velocity_ms=30.0,
+        )
+        derived = _build_derived(sim_input)
+        snapshot = _rea_snapshot(
+            derived.x0,
+            derived.tp0_k,
+            derived.tb0_k,
+            derived.y0,
+            sim_input.material,
+            derived,
+            air_to_solid_ratio=derived.air_to_solid_ratio,
+            heat_loss_factor_w_kgk=derived.heat_loss_factor_w_kgk,
+        )
+
+        expected_relative_velocity = max(
+            abs(derived.display_velocity_ms - derived.air_superficial_velocity_ms),
+            0.05,
+        )
+
+        self.assertAlmostEqual(snapshot["relative_velocity_ms"], expected_relative_velocity)
+        self.assertNotAlmostEqual(
+            snapshot["relative_velocity_ms"],
+            max(
+                abs(sim_input.initial_droplet_velocity_ms - derived.air_superficial_velocity_ms),
+                0.05,
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
