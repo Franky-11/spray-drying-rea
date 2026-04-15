@@ -36,18 +36,23 @@ class SimulationInput:
     protein_fraction: float = 0.35
     lactose_fraction: float = 0.55
     fat_fraction: float = 0.01
+    rea_transfer_scale: float = 1.0
+    equilibrium_moisture_offset: float = 0.0
 
     def validate(self) -> tuple[list[str], list[str]]:
         errors: list[str] = []
         warnings: list[str] = []
 
         positive_fields = {
+            "dryer_height_m": self.dryer_height_m,
             "droplet_size_um": self.droplet_size_um,
             "feed_rate_kg_h": self.feed_rate_kg_h,
             "air_flow_m3_h": self.air_flow_m3_h,
+            "dryer_diameter_m": self.dryer_diameter_m,
             "simulation_end_s": self.simulation_end_s,
             "solid_density_kg_m3": self.solid_density_kg_m3,
             "water_density_kg_m3": self.water_density_kg_m3,
+            "rea_transfer_scale": self.rea_transfer_scale,
         }
         for name, value in positive_fields.items():
             if value <= 0:
@@ -83,14 +88,11 @@ class SimulationInput:
             errors.append("Protein-, Lactose- und Fettanteil duerfen zusammen hoechstens 1 ergeben.")
 
         if self.material == "SMP":
-            supported_exact = any(
-                isclose(self.feed_total_solids, supported, rel_tol=0.0, abs_tol=1e-9)
-                for supported in (0.2, 0.3, 0.5)
-            )
             supported_balloon = self.feed_total_solids < 0.2
-            if not (supported_exact or supported_balloon):
+            supported_dense = 0.2 <= self.feed_total_solids <= 0.5
+            if not (supported_balloon or supported_dense):
                 errors.append(
-                    "SMP unterstuetzt nur TS < 0.2 sowie die diskreten TS-Werte 0.2, 0.3 und 0.5."
+                    "SMP unterstuetzt TS < 0.2 sowie den Bereich 0.2 bis 0.5."
                 )
         if self.material == "WPC" and not isclose(
             self.feed_total_solids, 0.3, rel_tol=0.0, abs_tol=1e-9
@@ -109,10 +111,8 @@ class SimulationInput:
             warnings.append(
                 "TS < 0.2 nutzt das Ballon-Shrinkage-Modell und ist empfindlicher gegen Randbedingungen."
             )
-        if self.dryer_height_m <= 0 or self.dryer_diameter_m <= 0:
-            warnings.append(
-                "Trocknergeometrie wird im Minimalmodell nicht fuer die Kernbilanzen benoetigt und nur noch als optionale Anzeigeinformation verwendet."
-            )
+        if self.initial_droplet_velocity_ms < 0:
+            errors.append("initial_droplet_velocity_ms darf nicht negativ sein.")
 
         return errors, warnings
 
@@ -165,6 +165,10 @@ class _Derived:
     cpdryair: float
     cpv: float
     cpw: float
+    kb: float
+    air_dynamic_viscosity_kg_ms: float
+    molecular_weight_dry_air_kg_kmol: float
+    molecular_weight_water_kg_kmol: float
     rhos: float
     rhow: float
     rhomilk: float
@@ -180,6 +184,10 @@ class _Derived:
     humid_air_mass_flow_kg_s: float
     dry_air_mass_flow_kg_s: float
     air_to_solid_ratio: float
+    chamber_cross_section_area_m2: float
+    chamber_lateral_area_m2: float
+    air_superficial_velocity_ms: float
+    initial_droplet_velocity_ms: float
     effective_residence_time_s: float
     display_height_m: float
     display_velocity_ms: float
@@ -187,6 +195,8 @@ class _Derived:
     mass_transfer_base_ms: float
     heat_transfer_base_w_m2k: float
     nominal_air_ratio: float
+    rea_transfer_scale: float
+    equilibrium_moisture_offset: float
 
 
 def saturation_vapor_pressure(temp_k: float) -> float:
@@ -268,13 +278,16 @@ def _mixture_density(x: float, d: _Derived) -> float:
     return d.rhos * ((1 + x) / (1 + (d.rhos / d.rhow) * x))
 
 
-def _estimate_residence_time(inputs: SimulationInput, dry_air_mass_flow_kg_s: float) -> float:
-    solids_rate_kg_s = max(inputs.feed_rate_kg_h * inputs.feed_total_solids / 3600.0, EPS)
-    air_to_solid = dry_air_mass_flow_kg_s / solids_rate_kg_s
-    dp_factor = max(inputs.droplet_size_um / 100.0, 0.5) ** 0.2
-    loading_factor = max(1.0 / max(air_to_solid, EPS), EPS) ** 0.18
-    residence = 2.5 + 6.0 * dp_factor + 8.0 * loading_factor
-    return float(np.clip(residence, 3.0, max(inputs.simulation_end_s * 0.95, 3.0)))
+def _estimate_residence_time(
+    inputs: SimulationInput,
+    air_superficial_velocity_ms: float,
+) -> float:
+    air_residence = inputs.dryer_height_m / max(air_superficial_velocity_ms, EPS)
+    return float(np.clip(air_residence, 3.0, max(inputs.simulation_end_s * 0.95, 3.0)))
+
+
+def _water_vapor_diffusivity_air(temp_k: float) -> float:
+    return 0.22e-4 * (temp_k / 273.15) ** 1.75
 
 
 def _build_derived(inputs: SimulationInput) -> _Derived:
@@ -291,6 +304,11 @@ def _build_derived(inputs: SimulationInput) -> _Derived:
     rhoair = air_density(tb0_k, y0, p_pa, rs, rd)
     humid_air_mass_flow_kg_s = (rhoair * inputs.air_flow_m3_h) / 3600.0
     dry_air_mass_flow_kg_s = humid_air_mass_flow_kg_s / max(1.0 + y0, EPS)
+    chamber_cross_section_area_m2 = pi * inputs.dryer_diameter_m**2 / 4.0
+    chamber_lateral_area_m2 = pi * inputs.dryer_diameter_m * inputs.dryer_height_m
+    air_superficial_velocity_ms = (inputs.air_flow_m3_h / 3600.0) / max(
+        chamber_cross_section_area_m2, EPS
+    )
     solids_rate_kg_s = (inputs.feed_rate_kg_h * tsfeed) / 3600.0
     water_rate_kg_s = (inputs.feed_rate_kg_h * (1.0 - tsfeed)) / 3600.0
     air_to_solid_ratio = dry_air_mass_flow_kg_s / max(solids_rate_kg_s, EPS)
@@ -310,7 +328,7 @@ def _build_derived(inputs: SimulationInput) -> _Derived:
         + inputs.fat_fraction * 1700.0
         + asche * 800.0
     )
-    effective_residence_time_s = _estimate_residence_time(inputs, dry_air_mass_flow_kg_s)
+    effective_residence_time_s = _estimate_residence_time(inputs, air_superficial_velocity_ms)
     display_height_m = inputs.dryer_height_m if inputs.dryer_height_m > 0 else 1.0
     display_velocity_ms = display_height_m / max(effective_residence_time_s, EPS)
     return _Derived(
@@ -330,6 +348,10 @@ def _build_derived(inputs: SimulationInput) -> _Derived:
         cpdryair=1.0067 * 1000.0,
         cpv=1.93 * 1000.0,
         cpw=4.186 * 1000.0,
+        kb=0.0262,
+        air_dynamic_viscosity_kg_ms=18.2e-6,
+        molecular_weight_dry_air_kg_kmol=29.0,
+        molecular_weight_water_kg_kmol=18.0,
         rhos=inputs.solid_density_kg_m3,
         rhow=inputs.water_density_kg_m3,
         rhomilk=rhomilk,
@@ -345,6 +367,10 @@ def _build_derived(inputs: SimulationInput) -> _Derived:
         humid_air_mass_flow_kg_s=humid_air_mass_flow_kg_s,
         dry_air_mass_flow_kg_s=dry_air_mass_flow_kg_s,
         air_to_solid_ratio=air_to_solid_ratio,
+        chamber_cross_section_area_m2=chamber_cross_section_area_m2,
+        chamber_lateral_area_m2=chamber_lateral_area_m2,
+        air_superficial_velocity_ms=air_superficial_velocity_ms,
+        initial_droplet_velocity_ms=inputs.initial_droplet_velocity_ms,
         effective_residence_time_s=effective_residence_time_s,
         display_height_m=display_height_m,
         display_velocity_ms=display_velocity_ms,
@@ -352,7 +378,15 @@ def _build_derived(inputs: SimulationInput) -> _Derived:
         mass_transfer_base_ms=0.03,
         heat_transfer_base_w_m2k=30.0,
         nominal_air_ratio=air_to_solid_ratio,
+        rea_transfer_scale=inputs.rea_transfer_scale,
+        equilibrium_moisture_offset=inputs.equilibrium_moisture_offset,
     )
+
+
+def _interpolate_piecewise(anchor_lo: float, value_lo: float, anchor_hi: float, value_hi: float, x: float) -> float:
+    blend = (x - anchor_lo) / max(anchor_hi - anchor_lo, EPS)
+    blend = float(np.clip(blend, 0.0, 1.0))
+    return value_lo + blend * (value_hi - value_lo)
 
 
 def _particle_diameter(x: float, xe: float, material: str, d: _Derived) -> float:
@@ -362,12 +396,15 @@ def _particle_diameter(x: float, xe: float, material: str, d: _Derived) -> float
 
     if d.tsfeed >= 0.2:
         if material == "SMP":
-            if isclose(d.tsfeed, 0.3, rel_tol=0.0, abs_tol=1e-9):
-                return base * (0.76 + (1 - 0.76) * delta)
-            if isclose(d.tsfeed, 0.2, rel_tol=0.0, abs_tol=1e-9):
-                return base * (0.67 + (1 - 0.67) * delta)
-            if isclose(d.tsfeed, 0.5, rel_tol=0.0, abs_tol=1e-9):
-                return base * (0.0447 * (x - xe) + 0.959)
+            factor_02 = 0.67 + (1 - 0.67) * delta
+            factor_03 = 0.76 + (1 - 0.76) * delta
+            factor_05 = 0.0447 * (x - xe) + 0.959
+            if d.tsfeed <= 0.2:
+                return base * factor_02
+            if d.tsfeed <= 0.3:
+                return base * _interpolate_piecewise(0.2, factor_02, 0.3, factor_03, d.tsfeed)
+            if d.tsfeed <= 0.5:
+                return base * _interpolate_piecewise(0.3, factor_03, 0.5, factor_05, d.tsfeed)
         if material == "WPC":
             return base * (0.873 + (1 - 0.873) * delta)
         raise ValueError("Ungueltige Material-/TS-Kombination fuer das Schrumpfungsmodell.")
@@ -382,24 +419,30 @@ def _material_factor(x: float, xe: float, material: str, d: _Derived) -> float:
     delta = x - xe
 
     if material == "SMP":
-        if isclose(d.tsfeed, 0.5, rel_tol=0.0, abs_tol=1e-9):
-            if x >= 1:
-                raw_factor = 0.05
-            else:
-                raw_factor = (
-                    1.0063
-                    - 1.5828 * delta
-                    + 3.3561 * delta**2
-                    - 9.389 * delta**3
-                    + 12.22 * delta**4
-                    - 5.5924 * delta**5
-                )
-        elif delta > 1.362:
-            raw_factor = -0.1617 * delta + 0.3768
+        if x >= 1:
+            high_ts_factor = 0.05
         else:
-            raw_factor = (
+            high_ts_factor = (
+                1.0063
+                - 1.5828 * delta
+                + 3.3561 * delta**2
+                - 9.389 * delta**3
+                + 12.22 * delta**4
+                - 5.5924 * delta**5
+            )
+
+        if delta > 1.362:
+            low_ts_factor = -0.1617 * delta + 0.3768
+        else:
+            low_ts_factor = (
                 1 - 1.305 * delta + 0.7097 * delta**2 - 0.1721 * delta**3 + 0.0151 * delta**4
             )
+        if d.tsfeed <= 0.3:
+            raw_factor = low_ts_factor
+        elif d.tsfeed >= 0.5:
+            raw_factor = high_ts_factor
+        else:
+            raw_factor = _interpolate_piecewise(0.3, low_ts_factor, 0.5, high_ts_factor, d.tsfeed)
     else:
         delta_non_negative = max(delta, 0.0)
         raw_factor = 1.335 - 0.3669 * exp(delta_non_negative**0.3011)
@@ -438,20 +481,10 @@ def _rea_snapshot(
     transfer_scale: float = 1.0,
 ) -> dict[str, float]:
     rh = relative_humidity_from_abs_humidity(tb, y, d.p_pa)
-    xe = gab_equilibrium_moisture(tb, y, d.p_pa)
+    xe = max(gab_equilibrium_moisture(tb, y, d.p_pa) + d.equilibrium_moisture_offset, EPS)
     dp = max(_particle_diameter(x, xe, material, d), 20e-6)
     rho_particle = _mixture_density(x, d)
     area_per_kg_dry = 6.0 * (1.0 + max(x, 0.0)) / max(rho_particle * dp, EPS)
-
-    size_factor = np.clip((d.dpi_m / dp) ** 0.2, 0.7, 1.6)
-    air_ratio_factor = np.clip(
-        max(air_to_solid_ratio, EPS) / max(d.nominal_air_ratio, EPS),
-        0.25,
-        4.0,
-    )
-    transfer_multiplier = transfer_scale * (air_ratio_factor ** 0.25) * size_factor
-    hm = d.mass_transfer_base_ms * transfer_multiplier
-    alpha = d.heat_transfer_base_w_m2k * transfer_multiplier
 
     pvsat_tb = saturation_vapor_pressure(tb)
     pvsat_tp = saturation_vapor_pressure(tp)
@@ -466,9 +499,26 @@ def _rea_snapshot(
     psi = min(max(psi, EPS), 1.0)
     rhovs = psi * rhovsat_tp
 
+    rho_air = air_density(tb, y, d.p_pa, d.rs, d.rd)
+    cp_air = d.cpdryair + max(y, 0.0) * d.cpv
+    diffusivity = _water_vapor_diffusivity_air(tb)
+    relative_velocity = max(abs(d.initial_droplet_velocity_ms - d.air_superficial_velocity_ms), 0.05)
+    reynolds = dp * relative_velocity * rho_air / max(d.air_dynamic_viscosity_kg_ms, EPS)
+    prandtl = cp_air * d.air_dynamic_viscosity_kg_ms / max(d.kb, EPS)
+    schmidt = d.air_dynamic_viscosity_kg_ms / max(diffusivity * rho_air, EPS)
+    nusselt = 2.04 + 0.62 * reynolds**0.5 * prandtl ** (1.0 / 3.0)
+    sherwood = 1.54 + 0.54 * reynolds**0.5 * schmidt ** (1.0 / 3.0)
+    transfer_multiplier = transfer_scale * d.rea_transfer_scale
+    alpha = transfer_multiplier * nusselt * d.kb / max(dp, EPS)
+    hm = transfer_multiplier * (
+        sherwood
+        * diffusivity
+        * d.molecular_weight_water_kg_kmol
+        / max(dp * d.molecular_weight_dry_air_kg_kmol, EPS)
+    )
+
     driving_force = max(rhovs - rhovb, 0.0) if x > xe else 0.0
-    humidity_suppression = 1.0 / (1.0 + 80.0 * max(y, 0.0))
-    evap_rate_kg_per_kg_s = hm * area_per_kg_dry * driving_force * humidity_suppression
+    evap_rate_kg_per_kg_s = hm * area_per_kg_dry * driving_force
 
     cp_product = d.cps + max(x, 0.0) * d.cpw
     hv = _latent_heat_vaporization(tb)
@@ -476,15 +526,20 @@ def _rea_snapshot(
     q_conv_w = alpha * area_per_kg_dry * (tb - tp)
     q_latent_w = evap_rate_kg_per_kg_s * hv
     q_sorption_w = evap_rate_kg_per_kg_s * q_sorption_specific
-    q_loss_w = heat_loss_factor_w_kgk * max(tb - d.tu_k, 0.0)
+    q_loss_total_w = (
+        heat_loss_factor_w_kgk
+        * d.chamber_lateral_area_m2
+        * max(tb - d.tu_k, 0.0)
+    )
+    q_loss_w = q_loss_total_w / max(d.solids_rate_kg_s, EPS)
     d_tp_dt = (q_conv_w - q_latent_w - q_sorption_w) / max(cp_product, EPS)
 
-    cp_air = d.cpdryair + max(y, 0.0) * d.cpv
     d_y_dt = evap_rate_kg_per_kg_s / max(air_to_solid_ratio, EPS)
+    q_air_sensible_evap_w = evap_rate_kg_per_kg_s * d.cpv * (tb - tp)
     d_tb_dt = (
         -q_conv_w
         - q_loss_w
-        - evap_rate_kg_per_kg_s * (hv + d.cpv * max(tb - 273.15, 0.0))
+        - q_air_sensible_evap_w
     ) / max(air_to_solid_ratio * cp_air, EPS)
 
     return {
@@ -495,12 +550,19 @@ def _rea_snapshot(
         "psi": psi,
         "rhovb": rhovb,
         "rhovs": rhovs,
+        "rho_air": rho_air,
+        "Re": reynolds,
+        "Pr": prandtl,
+        "Sc": schmidt,
+        "Nu": nusselt,
+        "Sh": sherwood,
         "driving_force": driving_force,
         "evap_rate_kg_per_kg_s": evap_rate_kg_per_kg_s,
         "q_conv_w": q_conv_w,
         "q_latent_w": q_latent_w,
         "q_sorption_w": q_sorption_w,
         "q_loss_w": q_loss_w,
+        "q_air_sensible_evap_w": q_air_sensible_evap_w,
         "dXdt": -evap_rate_kg_per_kg_s,
         "dYdt": d_y_dt,
         "dTpdt_K_s": d_tp_dt,
@@ -516,32 +578,39 @@ def _advance_stationary_state(
     material: str,
     d: _Derived,
 ) -> np.ndarray:
-    x, tp, tb, y = state
-    snap = _rea_snapshot(
-        x,
-        tp,
-        tb,
-        y,
-        material,
-        d,
-        air_to_solid_ratio=d.air_to_solid_ratio,
-        heat_loss_factor_w_kgk=d.heat_loss_factor_w_kgk,
-    )
-    dx = snap["dXdt"] * dt
-    min_dx = -(x - snap["Xe"])
-    if dx < min_dx:
-        scale = min_dx / min(dx, -EPS)
-    else:
-        scale = 1.0
+    substeps = max(1, int(np.ceil(dt / 0.0025)))
+    sub_dt = dt / substeps
+    current = state.astype(float, copy=True)
 
-    next_x = max(snap["Xe"], x + dx)
-    next_tp = tp + snap["dTpdt_K_s"] * dt * scale
-    next_tb = tb + snap["dTbdt_K_s"] * dt * scale
-    next_y = y + snap["dYdt"] * dt * scale
-    next_tp = float(np.clip(next_tp, 273.15, 473.15))
-    next_tb = float(np.clip(next_tb, d.tu_k, d.tb0_k + 15.0))
-    next_y = float(max(next_y, d.y0))
-    return np.array([next_x, next_tp, next_tb, next_y], dtype=float)
+    for _ in range(substeps):
+        x, tp, tb, y = current
+        snap = _rea_snapshot(
+            x,
+            tp,
+            tb,
+            y,
+            material,
+            d,
+            air_to_solid_ratio=d.air_to_solid_ratio,
+            heat_loss_factor_w_kgk=d.heat_loss_factor_w_kgk,
+        )
+        dx = snap["dXdt"] * sub_dt
+        min_dx = -(x - snap["Xe"])
+        if dx < min_dx:
+            scale = min_dx / min(dx, -EPS)
+        else:
+            scale = 1.0
+
+        next_x = max(snap["Xe"], x + dx)
+        next_tp = tp + snap["dTpdt_K_s"] * sub_dt * scale
+        next_tb = tb + snap["dTbdt_K_s"] * sub_dt * scale
+        next_y = y + snap["dYdt"] * sub_dt * scale
+        next_tb = float(np.clip(next_tb, d.tu_k, d.tb0_k))
+        next_tp = float(np.clip(next_tp, 273.15, next_tb))
+        next_y = float(max(next_y, d.y0))
+        current = np.array([next_x, next_tp, next_tb, next_y], dtype=float)
+
+    return current
 
 
 def _run_profile(inputs: SimulationInput, label: str, d: _Derived, warnings: list[str]) -> SimulationResult:

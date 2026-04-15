@@ -36,8 +36,11 @@ BASE_FIELD_ORDER = [
     "feed_temp_c",
     "feed_total_solids",
     "material",
+    "dryer_height_m",
+    "dryer_diameter_m",
     "heat_loss_coeff_w_m2k",
     "xcrit",
+    "initial_droplet_velocity_ms",
     "simulation_end_s",
     "solid_density_kg_m3",
     "water_density_kg_m3",
@@ -59,8 +62,11 @@ PROCESS_FIELDS = [
     "ambient_temp_c",
 ]
 EXPERT_FIELDS = [
+    "dryer_height_m",
+    "dryer_diameter_m",
     "heat_loss_coeff_w_m2k",
     "xcrit",
+    "initial_droplet_velocity_ms",
     "simulation_end_s",
     "solid_density_kg_m3",
     "water_density_kg_m3",
@@ -81,7 +87,7 @@ FIELD_LABELS = {
     "material": "Material",
     "dryer_height_m": "Anzeigehöhe [m]",
     "dryer_diameter_m": "Anzeigedurchmesser [m]",
-    "heat_loss_coeff_w_m2k": "Effektiver Wärmeverlustfaktor [W/kgK]",
+    "heat_loss_coeff_w_m2k": "Wärmeverlustkoeffizient Up [W/m^2K]",
     "xcrit": "Kritische Beladung Xcrit [-]",
     "initial_droplet_velocity_ms": "Anfangsgeschwindigkeit [m/s]",
     "simulation_end_s": "Simulationsdauer [s]",
@@ -93,8 +99,8 @@ FIELD_LABELS = {
 }
 
 FIELD_HELP = {
-    "feed_total_solids": "SMP: TS < 0.2 sowie 0.2 / 0.3 / 0.5. WPC: nur 0.3.",
-    "heat_loss_coeff_w_m2k": "Einfacher effektiver Verlustterm des lumped Modells; Geometrie geht nicht mehr explizit ein.",
+    "feed_total_solids": "SMP: TS < 0.2 sowie der kontinuierliche Bereich 0.2 bis 0.5. WPC: nur 0.3.",
+    "heat_loss_coeff_w_m2k": "Geht jetzt zusammen mit Trocknerhoehe und -durchmesser in Qloss = Up * pi * D * L * (Tb - Tamb) ein.",
 }
 
 MATERIAL_COMPOSITION_DEFAULTS: dict[str, dict[str, float]] = {
@@ -269,16 +275,29 @@ def render_field_input(field: str, key: str, value: Any | None = None) -> Any:
         if key == "base_material":
             selectbox_kwargs["on_change"] = apply_material_defaults_for_key
             selectbox_kwargs["kwargs"] = {"material_key": key}
+        else:
+            selectbox_kwargs["on_change"] = clear_results
         return st.selectbox(**selectbox_kwargs)
 
     if field == "feed_total_solids":
-        return float(st.selectbox(label, (0.15, 0.2, 0.3, 0.5), key=key, help=help_text))
+        return float(
+            st.number_input(
+                label,
+                min_value=0.15,
+                max_value=0.5,
+                step=0.01,
+                key=key,
+                help=help_text,
+                on_change=clear_results,
+            )
+        )
 
     kwargs: dict[str, Any] = {
         "label": label,
         "step": float(STEP_MAP[field]),
         "key": key,
         "help": help_text,
+        "on_change": clear_results,
     }
     minimum = MIN_MAP.get(field)
     if minimum is not None:

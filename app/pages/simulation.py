@@ -259,7 +259,8 @@ st.subheader("1. Kurzbeschreibung")
 st.write(
     "Dieses Werkzeug bildet einen stationären Minimal-REA-Kern mit gekoppelten Stoff- und "
     "Energiebilanzen fuer Produkt und Luft ab. Intern wird direkt mit Feststoff- und Luftstroemen "
-    "gerechnet; Tropfenanzahl, Flugbahn und Trocknergeometrie sind nicht mehr kernbestimmend."
+    "gerechnet; Tropfenzahl und explizite Flugbahn werden nicht integriert, aber Luftgeschwindigkeit, "
+    "Partikelgroesse und Trocknergeometrie fliessen wieder in Stoffuebergang, Waermeuebergang und Qloss ein."
 )
 
 st.divider()
@@ -278,7 +279,8 @@ st.caption("Material, Partikelcharakteristik und Feed-Zustand des Basisfalls.")
 st.info(
     "Hinweis: Fuer SMP mit 20 % oder 30 % TS nutzt das Modell eine sehr kurze wasserartige "
     "Anfangsphase und schaltet danach auf die REA-Korrelation. SMP mit 50 % TS bleibt direkt "
-    "auf REA. Beim Materialwechsel werden die Expertenparameter fuer Protein, Lactose und Fett "
+    "auf REA. TS zwischen 0.3 und 0.5 werden aktuell zwischen den SMP-Materialfunktionen "
+    "interpoliert. Beim Materialwechsel werden die Expertenparameter fuer Protein, Lactose und Fett "
     "auf materialtypische Standardwerte gesetzt."
 )
 render_field_grid(MATERIAL_FIELDS)
