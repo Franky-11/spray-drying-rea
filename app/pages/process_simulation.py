@@ -574,134 +574,79 @@ with kpi_four:
 
 st.divider()
 st.subheader("E. Zeitreihen")
-tab_process, tab_diagnostics = st.tabs(["Prozessbild", "Diagnostik"])
-
-with tab_process:
-    st.caption(
-        "Oben stehen die vorgegebenen Eingangsprofile. Darunter folgen die dazu passenden Reaktionen des Prozesses."
+st.caption(
+    "Oben stehen die vorgegebenen Eingangsprofile. Darunter folgen die dazu passenden Reaktionen des Prozesses."
+)
+input_left, input_mid, input_right = st.columns(3)
+with input_left:
+    st.markdown("**Input: Tin und Zuluftfeuchte**")
+    st.plotly_chart(
+        _dual_axis_chart(
+            series,
+            left=("inlet_air_temp_c", "Tin", "degC"),
+            right=("inlet_abs_humidity_g_kg", "Zuluftfeuchte", "g/kg"),
+            left_shape="hv",
+            right_shape="hv",
+            left_range_override=[150.0, 230.0],
+            right_range_override=[0.0, 30.0],
+        ),
+        use_container_width=True,
     )
-    input_left, input_mid, input_right = st.columns(3)
-    with input_left:
-        st.markdown("**Input: Tin und Zuluftfeuchte**")
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("inlet_air_temp_c", "Tin", "degC"),
-                right=("inlet_abs_humidity_g_kg", "Zuluftfeuchte", "g/kg"),
-                left_shape="hv",
-                right_shape="hv",
-                left_range_override=[150.0, 230.0],
-                right_range_override=[0.0, 30.0],
-            ),
-            use_container_width=True,
-        )
-    with input_mid:
-        st.markdown("**Input: Feedstrom und Feed-TS**")
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("feed_rate_kg_h", "Feedstrom", "kg/h"),
-                right=("feed_total_solids_pct", "Feed-TS", "%"),
-                left_color="#3E5C76",
-                right_color="#B88B4A",
-                left_shape="hv",
-                right_shape="hv",
-                right_range_override=[20.0, 60.0],
-            ),
-            use_container_width=True,
-        )
-    with input_right:
-        st.markdown("**Input: Luftmenge**")
-        st.plotly_chart(
-            _single_axis_chart(
-                series,
-                [("air_flow_m3_h", "Luftstrom", "m^3/h")],
-            ),
-            use_container_width=True,
-        )
+with input_mid:
+    st.markdown("**Input: Feedstrom und Feed-TS**")
+    st.plotly_chart(
+        _dual_axis_chart(
+            series,
+            left=("feed_rate_kg_h", "Feedstrom", "kg/h"),
+            right=("feed_total_solids_pct", "Feed-TS", "%"),
+            left_color="#3E5C76",
+            right_color="#B88B4A",
+            left_shape="hv",
+            right_shape="hv",
+            right_range_override=[20.0, 60.0],
+        ),
+        use_container_width=True,
+    )
+with input_right:
+    st.markdown("**Input: Luftmenge**")
+    st.plotly_chart(
+        _single_axis_chart(
+            series,
+            [("air_flow_m3_h", "Luftstrom", "m^3/h")],
+        ),
+        use_container_width=True,
+    )
 
-    output_left, output_mid, output_right = st.columns(3)
-    output_left, output_right = st.columns(2)
-    with output_left:
-        st.markdown("**Reaktion: Abluft auf Tin/Zuluftfeuchte**")
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("outlet_Tb_C", "Ablufttemperatur", "degC"),
-                right=("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
-                left_range_override=[60.0, 120.0],
-                right_range_override=[0.0, 30.0],
-            ),
-            use_container_width=True,
-        )
-    with output_right:
-        st.markdown("**Reaktion: Produktzustand**")
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("outlet_Tp_C", "Partikeltemperatur", "degC"),
-                right=("outlet_X_pct", "Austrittsfeuchte X", "%"),
-                left_range_override=[60.0, 120.0],
-                right_range_override=[0.0, 6.0],
-                target_right_value=float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0,
-                target_right_label=f"Ziel X = {float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0:.1f} %",
-            ),
-            use_container_width=True,
-        )
+output_left, output_right = st.columns(2)
+with output_left:
+    st.markdown("**Reaktion: Abluft auf Tin/Zuluftfeuchte**")
+    st.plotly_chart(
+        _dual_axis_chart(
+            series,
+            left=("outlet_Tb_C", "Ablufttemperatur", "degC"),
+            right=("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
+            left_range_override=[60.0, 120.0],
+            right_range_override=[0.0, 30.0],
+        ),
+        use_container_width=True,
+    )
+with output_right:
+    st.markdown("**Reaktion: Produktzustand**")
+    st.plotly_chart(
+        _dual_axis_chart(
+            series,
+            left=("outlet_Tp_C", "Partikeltemperatur", "degC"),
+            right=("outlet_X_pct", "Austrittsfeuchte X", "%"),
+            left_range_override=[60.0, 120.0],
+            right_range_override=[0.0, 6.0],
+            target_right_value=float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0,
+            target_right_label=f"Ziel X = {float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0:.1f} %",
+        ),
+        use_container_width=True,
+    )
 
-with tab_diagnostics:
-    diag_left, diag_right = st.columns(2)
-    with diag_left:
-        st.markdown("**REA-Zielgrößen**")
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("target_outlet_Tb_C", "Target Ablufttemperatur", "degC"),
-                right=("target_outlet_Y_gkg", "Target Abluftfeuchte", "g/kg"),
-            ),
-            use_container_width=True,
-        )
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("target_outlet_time_s", "Target Austrittszeit", "s"),
-                right=("target_outlet_X_pct", "Target Austrittsfeuchte X", "%"),
-                left_color="#3E5C76",
-                right_color="#B88B4A",
-                right_range_override=[0.0, 6.0],
-            ),
-            use_container_width=True,
-        )
-    with diag_right:
-        st.markdown("**Bilanz- und Lastgrößen**")
-        st.plotly_chart(
-            _single_axis_chart(
-                series,
-                [
-                    ("q_loss_w", "Wärmeverlust", "W"),
-                    ("latent_load_w", "Latentlast", "W"),
-                    ("evaporation_rate_kg_s", "Verdampfungsrate", "kg/s"),
-                ],
-            ),
-            use_container_width=True,
-        )
-        st.markdown("**Feuchtediagnostik**")
-        st.plotly_chart(
-            _dual_axis_chart(
-                series,
-                left=("moisture_error_pct", "Feuchteabweichung", "%-Pkt"),
-                right=("outlet_X_pct", "Austrittsfeuchte X", "%"),
-                left_color="#D46A2E",
-                right_color="#B88B4A",
-                target_right_value=float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0,
-                target_right_label=f"Ziel X = {float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0:.1f} %",
-                right_range_override=[0.0, 6.0],
-            ),
-            use_container_width=True,
-        )
-
-    st.markdown("**Zeitreihentabelle**")
-    st.dataframe(series, use_container_width=True, hide_index=True, height=420)
+st.markdown("**Zeitreihentabelle**")
+st.dataframe(series, use_container_width=True, hide_index=True, height=420)
 
 st.divider()
 st.subheader("F. Export")
