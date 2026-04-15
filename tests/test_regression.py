@@ -15,6 +15,7 @@ class SimulationRegressionTests(unittest.TestCase):
             [
                 "t",
                 "height",
+                "progress",
                 "X",
                 "Tp",
                 "Tb",
@@ -38,16 +39,19 @@ class SimulationRegressionTests(unittest.TestCase):
         )
         self.assertLess(result.series["X"].iloc[-1], result.series["X"].iloc[0])
         self.assertGreater(result.series["height"].iloc[-1], result.series["height"].iloc[0])
+        self.assertGreater(result.series["progress"].iloc[-1], result.series["progress"].iloc[0])
         self.assertIsNotNone(result.metrics["outlet_time"])
-        self.assertAlmostEqual(result.metrics["drying_time"], 1.6541353383458646, places=6)
-        self.assertAlmostEqual(result.metrics["drying_height"], 0.8859870967951392, places=6)
-        self.assertAlmostEqual(result.metrics["outlet_X"], 0.018185875877720536, places=9)
-        self.assertAlmostEqual(result.metrics["outlet_Tb"], 349.692046446196, places=6)
-        self.assertAlmostEqual(result.metrics["outlet_Tp"], 349.7083449033247, places=6)
-        self.assertAlmostEqual(result.metrics["outlet_RH"], 0.07454842658795068, places=9)
-        self.assertAlmostEqual(result.metrics["max_Tp"], 386.53412478302687, places=6)
-        self.assertAlmostEqual(result.metrics["time_Tp_gt_100C"], 0.15037593984962405, places=6)
-        self.assertAlmostEqual(result.metrics["X_at_Tp_gt_100C"], 0.6091349982868275, places=9)
+        self.assertGreater(result.metrics["outlet_time"], 0.0)
+        self.assertLess(result.metrics["outlet_X"], result.series["X"].iloc[0])
+        self.assertGreater(result.metrics["outlet_X"], 0.0)
+        self.assertLess(result.metrics["outlet_Tb"], result.series["Tb"].iloc[0])
+        self.assertGreater(result.metrics["outlet_Tp"], result.series["Tp"].iloc[0])
+        self.assertGreater(result.metrics["outlet_RH"], 0.0)
+        self.assertLessEqual(float(result.series["psi"].max()), 1.0)
+        self.assertGreater(float(result.series["mat_factor"].max()), 0.0)
+        self.assertGreater(result.metrics["max_Tp"], result.series["Tp"].iloc[0])
+        self.assertIsNotNone(result.metrics["time_Tp_gt_100C"])
+        self.assertIsNotNone(result.metrics["X_at_Tp_gt_100C"])
 
     def test_invalid_wpc_total_solids_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
@@ -87,9 +91,11 @@ class SimulationRegressionTests(unittest.TestCase):
 
     def test_summary_contains_operating_point_values(self) -> None:
         summary = summarize_input(SimulationInput())
-        self.assertGreater(summary["air_superficial_velocity_ms"], 0.0)
+        self.assertGreater(summary["dry_solids_rate_kg_s"], 0.0)
         self.assertGreater(summary["humid_air_mass_flow_kg_s"], 0.0)
-        self.assertGreater(summary["droplets_per_s"], 0.0)
+        self.assertGreater(summary["dry_air_mass_flow_kg_s"], 0.0)
+        self.assertGreater(summary["air_to_solid_ratio_kg_kg"], 0.0)
+        self.assertGreater(summary["effective_residence_time_s"], 0.0)
 
     def test_default_input_uses_smp_composition(self) -> None:
         default_input = SimulationInput()

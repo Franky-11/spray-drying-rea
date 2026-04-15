@@ -398,19 +398,88 @@ def _segment_preview_frame(schedule: pd.DataFrame, duration_s: float) -> pd.Data
     return pd.DataFrame(rows)
 
 
+def _build_process_kpi_frame(kpis: dict[str, float | None], target_outlet_x: float) -> pd.DataFrame:
+    rows = [
+        {"Kennzahl": "Ziel-Austrittsfeuchte X [-]", "Wert": target_outlet_x, "Einheit": "-"},
+        {"Kennzahl": "Finales Austritts-X", "Wert": kpis["final_outlet_X"], "Einheit": "-"},
+        {"Kennzahl": "Maximales Austritts-X", "Wert": kpis["max_outlet_X"], "Einheit": "-"},
+        {"Kennzahl": "Minimales Austritts-X", "Wert": kpis["min_outlet_X"], "Einheit": "-"},
+        {
+            "Kennzahl": "Zeit über Ziel-X",
+            "Wert": kpis["time_above_target_s"],
+            "Einheit": "s",
+        },
+        {
+            "Kennzahl": "Finale Ablufttemperatur",
+            "Wert": None if kpis["final_outlet_Tb"] is None else kpis["final_outlet_Tb"] - 273.0,
+            "Einheit": "degC",
+        },
+        {
+            "Kennzahl": "Finale Partikeltemperatur",
+            "Wert": None if kpis["final_outlet_Tp"] is None else kpis["final_outlet_Tp"] - 273.0,
+            "Einheit": "degC",
+        },
+        {
+            "Kennzahl": "Finale Abluftfeuchte",
+            "Wert": None if kpis["final_outlet_Y"] is None else kpis["final_outlet_Y"] * 1000.0,
+            "Einheit": "g/kg",
+        },
+        {
+            "Kennzahl": "Finale relative Abluftfeuchte",
+            "Wert": None if kpis["final_outlet_RH"] is None else kpis["final_outlet_RH"] * 100.0,
+            "Einheit": "%",
+        },
+        {
+            "Kennzahl": "Mittlerer Feuchtefehler",
+            "Wert": None if kpis["mean_moisture_error"] is None else kpis["mean_moisture_error"] * 100.0,
+            "Einheit": "%-Pkt",
+        },
+        {
+            "Kennzahl": "Maximaler Feuchtefehler",
+            "Wert": None if kpis["max_moisture_error"] is None else kpis["max_moisture_error"] * 100.0,
+            "Einheit": "%-Pkt",
+        },
+        {"Kennzahl": "Nominale Luftverweilzeit", "Wert": kpis["air_dead_time_s"], "Einheit": "s"},
+        {"Kennzahl": "Nominale Produktverweilzeit", "Wert": kpis["product_dead_time_s"], "Einheit": "s"},
+        {"Kennzahl": "Luft-Zeitkonstante", "Wert": kpis["tau_air_s"], "Einheit": "s"},
+        {"Kennzahl": "Produkt-Zeitkonstante", "Wert": kpis["tau_product_s"], "Einheit": "s"},
+        {"Kennzahl": "Finaler Wärmeverlust", "Wert": kpis["final_q_loss_w"], "Einheit": "W"},
+        {
+            "Kennzahl": "Finale Verdampfungsrate",
+            "Wert": kpis["final_evaporation_rate_kg_s"],
+            "Einheit": "kg/s",
+        },
+        {
+            "Kennzahl": "Finale latente Last",
+            "Wert": kpis["final_latent_load_w"],
+            "Einheit": "W",
+        },
+        {
+            "Kennzahl": "Finale Ziel-Austrittszeit",
+            "Wert": kpis["final_target_outlet_time_s"],
+            "Einheit": "s",
+        },
+    ]
+    return pd.DataFrame(rows)
+
+
 initialize_session_state()
 initialize_process_sim_state()
-ensure_base_defaults(EXPERT_FIELDS)
+ensure_base_defaults(MATERIAL_FIELDS + PROCESS_FIELDS + EXPERT_FIELDS)
 
 st.title("Prozesssimulation")
+st.subheader("1. Kurzbeschreibung")
 st.write(
-    "Diese Seite erweitert den stationären REA-Kern um eine diskrete Open-Loop-Prozesssimulation "
-    "mit stückkonstanten Störungen, Totzeit/Lag und diagnostischen Bilanzgrößen."
+    "Dieses Werkzeug erweitert den stationären REA-Kern um eine zeitabhaengige, zweistufige "
+    "lumped Prozesssimulation. Die Dynamik folgt Stage-Bilanzen fuer Luft und Produkt; die "
+    "stationaeren Zielwerte werden nur noch als Referenz mitgefuehrt."
 )
 
-st.subheader("A. Basisfall")
+st.divider()
+st.subheader("2. Eingaben")
+st.markdown("**Basisfall**")
 st.caption(
-    "Material, Tropfengröße und Feedtemperatur bleiben innerhalb einer Prozesssimulation konstant. "
+    "Material, Tropfengroesse und Feedtemperatur bleiben innerhalb einer Prozesssimulation konstant. "
     "Zeitabhängig sind nur Tin, Luftstrom, absolute Zuluftfeuchte, Feedstrom und Feed-TS."
 )
 
@@ -422,12 +491,11 @@ with st.expander("Basisfall anpassen", expanded=True):
     with st.expander("Expertenparameter", expanded=False):
         st.caption(
             "Die Expertenfelder sind mit den Modell-Defaults vorbelegt. "
-            "Nur ändern, wenn du gezielt Geometrie-, Stoffwert- oder Modellannahmen variieren willst."
+            "Nur aendern, wenn du gezielt Verlust-, Stoffwert- oder Modellannahmen variieren willst."
         )
         render_field_grid(EXPERT_FIELDS)
 
-st.divider()
-st.subheader("B. Simulationsprofil")
+st.markdown("**Simulationsprofil**")
 left, middle, right = st.columns([1.1, 1.0, 1.0])
 with left:
     st.selectbox(
@@ -458,8 +526,7 @@ st.number_input(
     key=PROCESS_SIM_TARGET_KEY,
 )
 
-st.divider()
-st.subheader("C. Event-Schedule")
+st.markdown("**Event-Schedule**")
 st.caption(
     "Jede Zeile startet ab `time_s` einen neuen Abschnitt. Leere Felder übernehmen den vorherigen Wert."
 )
@@ -538,122 +605,163 @@ with st.expander("Aufgelöste Abschnittsvorschau", expanded=True):
     st.dataframe(segment_preview, use_container_width=True, hide_index=True)
 
 st.divider()
+st.subheader("3. Berechnen")
 if st.button("Prozesssimulation rechnen", type="primary", use_container_width=True):
     try:
         sim_input = preview_input
         st.session_state[PROCESS_SIM_RESULT_KEY] = run_process_simulation(sim_input)
-        st.success("Prozesssimulation abgeschlossen.")
+        st.success(
+            "Prozesssimulation abgeschlossen. KPI-Überblick, Hauptdiagramme, Detailtabellen und "
+            "Export wurden unten aktualisiert."
+        )
     except Exception as exc:
         st.session_state.pop(PROCESS_SIM_RESULT_KEY, None)
         st.error(str(exc))
 
 result = st.session_state.get(PROCESS_SIM_RESULT_KEY)
+st.divider()
+st.subheader("4. KPI-Überblick")
 if not result:
-    st.info("Noch keine Prozesssimulation gerechnet.")
-    st.stop()
-
-if result.warnings:
-    with st.expander("Warnungen und Modellgrenzen", expanded=True):
-        for warning in result.warnings:
-            st.warning(warning)
-
-series = _display_frame(result.series)
-kpis = result.kpis
-
-st.divider()
-st.subheader("D. KPI-Überblick")
-kpi_left, kpi_mid, kpi_right, kpi_four = st.columns(4)
-with kpi_left:
-    st.metric("Finales Austritts-X", f"{kpis['final_outlet_X']:.4f}")
-with kpi_mid:
-    st.metric("Finale Austritts-Tb", f"{kpis['final_outlet_Tb'] - 273.0:.1f} degC")
-with kpi_right:
-    st.metric("Finale Abluftfeuchte", f"{kpis['final_outlet_Y'] * 1000.0:.2f} g/kg")
-with kpi_four:
-    st.metric("Finaler Wärmeverlust", f"{kpis['final_q_loss_w']:.0f} W")
-
-st.divider()
-st.subheader("E. Zeitreihen")
-st.caption(
-    "Oben stehen die vorgegebenen Eingangsprofile. Darunter folgen die dazu passenden Reaktionen des Prozesses."
-)
-input_left, input_mid, input_right = st.columns(3)
-with input_left:
-    st.markdown("**Input: Tin und Zuluftfeuchte**")
-    st.plotly_chart(
-        _dual_axis_chart(
-            series,
-            left=("inlet_air_temp_c", "Tin", "degC"),
-            right=("inlet_abs_humidity_g_kg", "Zuluftfeuchte", "g/kg"),
-            left_shape="hv",
-            right_shape="hv",
-            left_range_override=[150.0, 230.0],
-            right_range_override=[0.0, 30.0],
-        ),
-        use_container_width=True,
+    st.info(
+        "Noch keine Prozesssimulation gerechnet. Nach `Prozesssimulation rechnen` erscheinen hier "
+        "Kennzahlen, Hauptdiagramme, Detailtabellen und Exporte."
     )
-with input_mid:
-    st.markdown("**Input: Feedstrom und Feed-TS**")
-    st.plotly_chart(
-        _dual_axis_chart(
-            series,
-            left=("feed_rate_kg_h", "Feedstrom", "kg/h"),
-            right=("feed_total_solids_pct", "Feed-TS", "%"),
-            left_color="#3E5C76",
-            right_color="#B88B4A",
-            left_shape="hv",
-            right_shape="hv",
-            right_range_override=[20.0, 60.0],
-        ),
-        use_container_width=True,
-    )
-with input_right:
-    st.markdown("**Input: Luftmenge**")
-    st.plotly_chart(
-        _single_axis_chart(
-            series,
-            [("air_flow_m3_h", "Luftstrom", "m^3/h")],
-        ),
-        use_container_width=True,
-    )
+    st.divider()
+    st.subheader("5. Hauptdiagramme")
+    st.caption("Die Prozessdiagramme werden nach der ersten Berechnung eingeblendet.")
+    st.divider()
+    st.subheader("6. Detailtabellen")
+    st.caption("Zeitreihen, KPI-Tabelle und Abschnittsdaten folgen nach der Berechnung.")
+    st.divider()
+    st.subheader("7. Export")
+    st.caption("CSV-Exporte werden nach der Berechnung aktiviert.")
+else:
+    if result.warnings:
+        with st.expander("Warnungen und Modellgrenzen", expanded=True):
+            for warning in result.warnings:
+                st.warning(warning)
 
-output_left, output_right = st.columns(2)
-with output_left:
-    st.markdown("**Reaktion: Abluft auf Tin/Zuluftfeuchte**")
-    st.plotly_chart(
-        _dual_axis_chart(
-            series,
-            left=("outlet_Tb_C", "Ablufttemperatur", "degC"),
-            right=("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
-            left_range_override=[60.0, 120.0],
-            right_range_override=[0.0, 30.0],
-        ),
-        use_container_width=True,
-    )
-with output_right:
-    st.markdown("**Reaktion: Produktzustand**")
-    st.plotly_chart(
-        _dual_axis_chart(
-            series,
-            left=("outlet_Tp_C", "Partikeltemperatur", "degC"),
-            right=("outlet_X_pct", "Austrittsfeuchte X", "%"),
-            left_range_override=[60.0, 120.0],
-            right_range_override=[0.0, 6.0],
-            target_right_value=float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0,
-            target_right_label=f"Ziel X = {float(st.session_state[PROCESS_SIM_TARGET_KEY]) * 100.0:.1f} %",
-        ),
-        use_container_width=True,
-    )
+    series = _display_frame(result.series)
+    kpis = result.kpis
+    target_outlet_x = float(st.session_state[PROCESS_SIM_TARGET_KEY])
+    kpi_frame = _build_process_kpi_frame(kpis, target_outlet_x)
 
-st.markdown("**Zeitreihentabelle**")
-st.dataframe(series, use_container_width=True, hide_index=True, height=420)
+    kpi_left, kpi_mid, kpi_right, kpi_four = st.columns(4)
+    with kpi_left:
+        st.metric("Finales Austritts-X", f"{kpis['final_outlet_X']:.4f}")
+    with kpi_mid:
+        st.metric("Maximales Austritts-X", f"{kpis['max_outlet_X']:.4f}")
+    with kpi_right:
+        st.metric("Zeit über Ziel-X", f"{kpis['time_above_target_s']:.1f} s")
+    with kpi_four:
+        st.metric("Produktverweilzeit", f"{kpis['product_dead_time_s']:.1f} s")
 
-st.divider()
-st.subheader("F. Export")
-csv_bytes = series.to_csv(index=False).encode("utf-8")
-st.download_button(
-    "Zeitreihen als CSV",
-    csv_bytes,
-    "spruehtrockner_process_timeseries.csv",
-    "text/csv",
-)
+    st.divider()
+    st.subheader("5. Hauptdiagramme")
+    st.caption(
+        "Oben stehen die vorgegebenen Eingangsprofile. Darunter folgen die dazu passenden Reaktionen des Prozesses."
+    )
+    input_left, input_mid, input_right = st.columns(3)
+    with input_left:
+        st.markdown("**Input: Tin und Zuluftfeuchte**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("inlet_air_temp_c", "Tin", "degC"),
+                right=("inlet_abs_humidity_g_kg", "Zuluftfeuchte", "g/kg"),
+                left_shape="hv",
+                right_shape="hv",
+                left_range_override=[150.0, 230.0],
+                right_range_override=[0.0, 30.0],
+            ),
+            use_container_width=True,
+        )
+    with input_mid:
+        st.markdown("**Input: Feedstrom und Feed-TS**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("feed_rate_kg_h", "Feedstrom", "kg/h"),
+                right=("feed_total_solids_pct", "Feed-TS", "%"),
+                left_color="#3E5C76",
+                right_color="#B88B4A",
+                left_shape="hv",
+                right_shape="hv",
+                right_range_override=[20.0, 60.0],
+            ),
+            use_container_width=True,
+        )
+    with input_right:
+        st.markdown("**Input: Luftmenge**")
+        st.plotly_chart(
+            _single_axis_chart(
+                series,
+                [("air_flow_m3_h", "Luftstrom", "m^3/h")],
+            ),
+            use_container_width=True,
+        )
+
+    output_left, output_right = st.columns(2)
+    with output_left:
+        st.markdown("**Reaktion: Abluft auf Tin/Zuluftfeuchte**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("outlet_Tb_C", "Ablufttemperatur", "degC"),
+                right=("outlet_Y_gkg", "Abluftfeuchte", "g/kg"),
+                left_range_override=[60.0, 120.0],
+                right_range_override=[0.0, 30.0],
+            ),
+            use_container_width=True,
+        )
+    with output_right:
+        st.markdown("**Reaktion: Produktzustand**")
+        st.plotly_chart(
+            _dual_axis_chart(
+                series,
+                left=("outlet_Tp_C", "Partikeltemperatur", "degC"),
+                right=("outlet_X_pct", "Austrittsfeuchte X", "%"),
+                left_range_override=[60.0, 120.0],
+                right_range_override=[0.0, 6.0],
+                target_right_value=target_outlet_x * 100.0,
+                target_right_label=f"Ziel X = {target_outlet_x * 100.0:.1f} %",
+            ),
+            use_container_width=True,
+        )
+
+    st.divider()
+    st.subheader("6. Detailtabellen")
+    with st.expander("KPI-Tabelle", expanded=False):
+        st.dataframe(kpi_frame, use_container_width=True, hide_index=True)
+    with st.expander("Zeitreihen", expanded=False):
+        st.dataframe(series, use_container_width=True, hide_index=True, height=420)
+    with st.expander("Aufgelöste Zeitabschnitte", expanded=False):
+        st.dataframe(segment_preview, use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.subheader("7. Export")
+    kpi_csv = kpi_frame.to_csv(index=False).encode("utf-8")
+    series_csv = series.to_csv(index=False).encode("utf-8")
+    schedule_csv = segment_preview.to_csv(index=False).encode("utf-8")
+    export_left, export_mid, export_right = st.columns(3)
+    with export_left:
+        st.download_button(
+            "KPIs als CSV",
+            kpi_csv,
+            "spruehtrockner_process_kpis.csv",
+            "text/csv",
+        )
+    with export_mid:
+        st.download_button(
+            "Zeitreihen als CSV",
+            series_csv,
+            "spruehtrockner_process_timeseries.csv",
+            "text/csv",
+        )
+    with export_right:
+        st.download_button(
+            "Zeitabschnitte als CSV",
+            schedule_csv,
+            "spruehtrockner_process_schedule.csv",
+            "text/csv",
+        )

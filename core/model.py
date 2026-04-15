@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
 from io import BytesIO
-from math import exp, isclose, log, pi, sqrt
+from math import exp, isclose, log, pi
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.integrate import solve_ivp
 
 
 EPS = 1e-12
@@ -43,18 +42,19 @@ class SimulationInput:
         warnings: list[str] = []
 
         positive_fields = {
-            "dryer_height_m": self.dryer_height_m,
             "droplet_size_um": self.droplet_size_um,
             "feed_rate_kg_h": self.feed_rate_kg_h,
             "air_flow_m3_h": self.air_flow_m3_h,
-            "dryer_diameter_m": self.dryer_diameter_m,
-            "heat_loss_coeff_w_m2k": self.heat_loss_coeff_w_m2k,
-            "initial_droplet_velocity_ms": self.initial_droplet_velocity_ms,
             "simulation_end_s": self.simulation_end_s,
+            "solid_density_kg_m3": self.solid_density_kg_m3,
+            "water_density_kg_m3": self.water_density_kg_m3,
         }
         for name, value in positive_fields.items():
             if value <= 0:
                 errors.append(f"{name} muss groesser als 0 sein.")
+
+        if self.heat_loss_coeff_w_m2k < 0:
+            errors.append("heat_loss_coeff_w_m2k darf nicht negativ sein.")
 
         if self.inlet_abs_humidity_g_kg < 0:
             errors.append("inlet_abs_humidity_g_kg darf nicht negativ sein.")
@@ -99,15 +99,19 @@ class SimulationInput:
 
         if not 120 <= self.inlet_air_temp_c <= 220:
             warnings.append(
-                "Die Zulufttemperatur liegt ausserhalb des im Skript typischen Bereichs von etwa 120-220 degC."
+                "Die Zulufttemperatur liegt ausserhalb des fuer das Minimalmodell typischen Bereichs von etwa 120-220 degC."
             )
         if not 50 <= self.droplet_size_um <= 150:
             warnings.append(
-                "Die Tropfengroesse liegt ausserhalb des im Skript typischen Bereichs von etwa 50-150 um."
+                "Die Partikel-/Tropfengroesse liegt ausserhalb des fuer das Minimalmodell typischen Bereichs von etwa 50-150 um."
             )
         if self.feed_total_solids < 0.2:
             warnings.append(
                 "TS < 0.2 nutzt das Ballon-Shrinkage-Modell und ist empfindlicher gegen Randbedingungen."
+            )
+        if self.dryer_height_m <= 0 or self.dryer_diameter_m <= 0:
+            warnings.append(
+                "Trocknergeometrie wird im Minimalmodell nicht fuer die Kernbilanzen benoetigt und nur noch als optionale Anzeigeinformation verwendet."
             )
 
         return errors, warnings
@@ -145,51 +149,44 @@ class SimulationResult:
 
 @dataclass(frozen=True)
 class _Derived:
-    hmax: float
     tb0_k: float
     tp0_k: float
     tu_k: float
     dpi_m: float
-    mf_kg_s: float
-    y0: float
-    vluft_m3_h: float
     tsfeed: float
     x0: float
     xi: float
-    ddryer_m: float
-    udryer: float
-    adryer: float
-    aodryer: float
+    y0: float
     p_pa: float
     rs: float
     rd: float
-    kb: float
-    viskair: float
+    rw: float
+    gas_constant: float
     cpdryair: float
     cpv: float
-    ma: float
-    dm: float
-    gas_constant: float
     cpw: float
     rhos: float
     rhow: float
-    mw: float
-    rw: float
     rhomilk: float
-    ms: float
-    np_droplets: float
-    vb: float
-    g_air_kg_s: float
-    vp0: float
-    xcrit: float
     rhopballoni: float
+    xcrit: float
     prot: float
     lac: float
     fett: float
     asche: float
     cps: float
-    up: float
-    constant_air: bool
+    solids_rate_kg_s: float
+    water_rate_kg_s: float
+    humid_air_mass_flow_kg_s: float
+    dry_air_mass_flow_kg_s: float
+    air_to_solid_ratio: float
+    effective_residence_time_s: float
+    display_height_m: float
+    display_velocity_ms: float
+    heat_loss_factor_w_kgk: float
+    mass_transfer_base_ms: float
+    heat_transfer_base_w_m2k: float
+    nominal_air_ratio: float
 
 
 def saturation_vapor_pressure(temp_k: float) -> float:
@@ -207,8 +204,10 @@ def relative_humidity_from_abs_humidity(
     temp_k: float, abs_humidity: float, total_pressure_pa: float
 ) -> float:
     pvsat = saturation_vapor_pressure(temp_k)
-    rh = (total_pressure_pa / pvsat) * (abs_humidity / (0.622 + abs_humidity))
-    return max(rh, EPS)
+    rh = (total_pressure_pa / max(pvsat, EPS)) * (
+        abs_humidity / max(0.622 + abs_humidity, EPS)
+    )
+    return min(max(rh, EPS), 0.999)
 
 
 def humid_air_gas_constant(
@@ -224,7 +223,7 @@ def air_density(
     temp_k: float, abs_humidity: float, total_pressure_pa: float, rs: float, rd: float
 ) -> float:
     rf = humid_air_gas_constant(temp_k, abs_humidity, total_pressure_pa, rs, rd)
-    return total_pressure_pa / (rf * temp_k)
+    return total_pressure_pa / max(rf * temp_k, EPS)
 
 
 def gab_equilibrium_moisture(
@@ -265,29 +264,39 @@ def adiabatic_saturation_temp(
     return 0.5 * (lower + upper)
 
 
+def _mixture_density(x: float, d: _Derived) -> float:
+    return d.rhos * ((1 + x) / (1 + (d.rhos / d.rhow) * x))
+
+
+def _estimate_residence_time(inputs: SimulationInput, dry_air_mass_flow_kg_s: float) -> float:
+    solids_rate_kg_s = max(inputs.feed_rate_kg_h * inputs.feed_total_solids / 3600.0, EPS)
+    air_to_solid = dry_air_mass_flow_kg_s / solids_rate_kg_s
+    dp_factor = max(inputs.droplet_size_um / 100.0, 0.5) ** 0.2
+    loading_factor = max(1.0 / max(air_to_solid, EPS), EPS) ** 0.18
+    residence = 2.5 + 6.0 * dp_factor + 8.0 * loading_factor
+    return float(np.clip(residence, 3.0, max(inputs.simulation_end_s * 0.95, 3.0)))
+
+
 def _build_derived(inputs: SimulationInput) -> _Derived:
     rs = 287.058
     rd = 461.523
     p_pa = 101000.0
-    tb0_k = inputs.inlet_air_temp_c + 273.0
-    tp0_k = inputs.feed_temp_c + 273.0
-    tu_k = inputs.ambient_temp_c + 273.0
+    tb0_k = inputs.inlet_air_temp_c + 273.15
+    tp0_k = inputs.feed_temp_c + 273.15
+    tu_k = inputs.ambient_temp_c + 273.15
     dpi_m = inputs.droplet_size_um / 1_000_000.0
-    mf_kg_s = inputs.feed_rate_kg_h / 3600.0
     y0 = inputs.inlet_abs_humidity_g_kg / 1000.0
-    ddryer_m = inputs.dryer_diameter_m
-    adryer = (pi / 4.0) * ddryer_m**2
-    x0 = (1.0 - inputs.feed_total_solids) / inputs.feed_total_solids
+    tsfeed = inputs.feed_total_solids
+    x0 = (1.0 - tsfeed) / tsfeed
+    rhoair = air_density(tb0_k, y0, p_pa, rs, rd)
+    humid_air_mass_flow_kg_s = (rhoair * inputs.air_flow_m3_h) / 3600.0
+    dry_air_mass_flow_kg_s = humid_air_mass_flow_kg_s / max(1.0 + y0, EPS)
+    solids_rate_kg_s = (inputs.feed_rate_kg_h * tsfeed) / 3600.0
+    water_rate_kg_s = (inputs.feed_rate_kg_h * (1.0 - tsfeed)) / 3600.0
+    air_to_solid_ratio = dry_air_mass_flow_kg_s / max(solids_rate_kg_s, EPS)
     rhomilk = inputs.solid_density_kg_m3 * (
         (1 + x0) / (1 + (inputs.solid_density_kg_m3 / inputs.water_density_kg_m3) * x0)
     )
-    vp0 = (pi / 6.0) * dpi_m**3
-    ms = vp0 * rhomilk * inputs.feed_total_solids
-    rhoair = air_density(tb0_k, y0, p_pa, rs, rd)
-    g_air_kg_s = (rhoair * inputs.air_flow_m3_h) / 3600.0
-    vb = (inputs.air_flow_m3_h / 3600.0) / adryer
-    udryer = pi * ddryer_m
-    aodryer = inputs.dryer_height_m * pi * ddryer_m
     rhopballoni = inputs.solid_density_kg_m3 * (
         (1 + inputs.xcrit)
         / (1 + (inputs.solid_density_kg_m3 / inputs.water_density_kg_m3) * inputs.xcrit)
@@ -301,52 +310,48 @@ def _build_derived(inputs: SimulationInput) -> _Derived:
         + inputs.fat_fraction * 1700.0
         + asche * 800.0
     )
+    effective_residence_time_s = _estimate_residence_time(inputs, dry_air_mass_flow_kg_s)
+    display_height_m = inputs.dryer_height_m if inputs.dryer_height_m > 0 else 1.0
+    display_velocity_ms = display_height_m / max(effective_residence_time_s, EPS)
     return _Derived(
-        hmax=inputs.dryer_height_m,
         tb0_k=tb0_k,
         tp0_k=tp0_k,
         tu_k=tu_k,
         dpi_m=dpi_m,
-        mf_kg_s=mf_kg_s,
-        y0=y0,
-        vluft_m3_h=inputs.air_flow_m3_h,
-        tsfeed=inputs.feed_total_solids,
+        tsfeed=tsfeed,
         x0=x0,
         xi=x0,
-        ddryer_m=ddryer_m,
-        udryer=udryer,
-        adryer=adryer,
-        aodryer=aodryer,
+        y0=y0,
         p_pa=p_pa,
         rs=rs,
         rd=rd,
-        kb=0.0262,
-        viskair=18.2 / 1_000_000.0,
+        rw=461.52,
+        gas_constant=8.314,
         cpdryair=1.0067 * 1000.0,
         cpv=1.93 * 1000.0,
-        ma=29.0,
-        dm=2.20e-05,
-        gas_constant=8.314,
         cpw=4.186 * 1000.0,
         rhos=inputs.solid_density_kg_m3,
         rhow=inputs.water_density_kg_m3,
-        mw=18.0,
-        rw=461.52,
         rhomilk=rhomilk,
-        ms=ms,
-        np_droplets=(mf_kg_s / rhomilk) / vp0,
-        vb=vb,
-        g_air_kg_s=g_air_kg_s,
-        vp0=inputs.initial_droplet_velocity_ms,
-        xcrit=inputs.xcrit,
         rhopballoni=rhopballoni,
+        xcrit=inputs.xcrit,
         prot=inputs.protein_fraction,
         lac=inputs.lactose_fraction,
         fett=inputs.fat_fraction,
         asche=asche,
         cps=cps,
-        up=inputs.heat_loss_coeff_w_m2k,
-        constant_air=inputs.constant_drying_air,
+        solids_rate_kg_s=solids_rate_kg_s,
+        water_rate_kg_s=water_rate_kg_s,
+        humid_air_mass_flow_kg_s=humid_air_mass_flow_kg_s,
+        dry_air_mass_flow_kg_s=dry_air_mass_flow_kg_s,
+        air_to_solid_ratio=air_to_solid_ratio,
+        effective_residence_time_s=effective_residence_time_s,
+        display_height_m=display_height_m,
+        display_velocity_ms=display_velocity_ms,
+        heat_loss_factor_w_kgk=inputs.heat_loss_coeff_w_m2k,
+        mass_transfer_base_ms=0.03,
+        heat_transfer_base_w_m2k=30.0,
+        nominal_air_ratio=air_to_solid_ratio,
     )
 
 
@@ -367,7 +372,7 @@ def _particle_diameter(x: float, xe: float, material: str, d: _Derived) -> float
             return base * (0.873 + (1 - 0.873) * delta)
         raise ValueError("Ungueltige Material-/TS-Kombination fuer das Schrumpfungsmodell.")
 
-    rhopballon = d.rhos * ((1 + x) / (1 + (d.rhos / d.rhow) * x))
+    rhopballon = _mixture_density(x, d)
     if x >= d.xcrit:
         return base * ((d.rhomilk - 1000.0) / max(rhopballon - 1000.0, EPS)) ** (1 / 3)
     return base * ((d.rhomilk - 1000.0) / max(d.rhopballoni - 1000.0, EPS)) ** (1 / 3)
@@ -399,17 +404,11 @@ def _material_factor(x: float, xe: float, material: str, d: _Derived) -> float:
         delta_non_negative = max(delta, 0.0)
         raw_factor = 1.335 - 0.3669 * exp(delta_non_negative**0.3011)
 
-    # Ev/Evb must not become negative; otherwise psi > 1 and the surface vapor density
-    # exceeds saturation, which is not physically admissible in this REA closure.
     factor = max(raw_factor, 0.0)
 
     if material == "SMP" and any(
         isclose(d.tsfeed, supported, rel_tol=0.0, abs_tol=1e-9) for supported in (0.2, 0.3)
     ):
-        # Chen (2008) notes that skim milk droplets with 20-30 % TS may exhibit a very short
-        # initial period with water-like surface activity. We model this as a smooth blend from
-        # a pure-water surface (Ev/Evb = 0) into the literature REA correlation after 5-10 %
-        # of the removable moisture has been depleted.
         removable_moisture = max(d.x0 - xe, EPS)
         drying_progress = (d.x0 - x) / removable_moisture
         if drying_progress <= 0.05:
@@ -421,248 +420,204 @@ def _material_factor(x: float, xe: float, material: str, d: _Derived) -> float:
     return factor
 
 
-def _ode_rhs(material: str, d: _Derived):
-    def rhs(_: float, state: np.ndarray) -> np.ndarray:
-        x, tp, tb, y, height, vp, rhopcrit = state
-
-        pvsat_tb = saturation_vapor_pressure(tb)
-        rh = relative_humidity_from_abs_humidity(tb, y, d.p_pa)
-        c_const = 0.001645 * exp(24831 / (tb * 8.314))
-        k_const = 5.710 * exp(-5118 / (tb * 8.314))
-        rhopballon = d.rhos * ((1 + x) / (1 + (d.rhos / d.rhow) * x))
-        xe = (c_const * k_const * 0.06156 * rh) / max(
-            (1 - k_const * rh) * (1 - (k_const * rh) + (c_const * k_const * rh)),
-            EPS,
-        )
-
-        dp = _particle_diameter(x, xe, material, d)
-        ap = pi * dp**2
-        mp = x * d.ms + d.ms
-        mw = mp - d.ms
-        rf = humid_air_gas_constant(tb, y, d.p_pa, d.rs, d.rd)
-        rhoair = d.p_pa / (rf * tb)
-
-        cp = (
-            ((d.ms * d.prot) / mp) * 1600.0
-            + ((d.ms * d.lac) / mp) * 1400.0
-            + ((d.ms * d.fett) / mp) * 1700.0
-            + ((d.ms * d.asche) / mp) * 800.0
-            + (mw / mp) * 4180.0
-        )
-
-        height_rate = vp
-        ur = sqrt((vp - d.vb) ** 2)
-        re = max((dp * ur * rhoair) / d.viskair, EPS)
-
-        cpair = d.cpdryair + d.cpv * y
-        pr = (cpair * d.viskair) / d.kb
-        sc = d.viskair / max(d.dm * rhoair, EPS)
-        nu = 2.04 + 0.62 * re ** 0.5 * pr ** (1 / 3)
-        sh = 1.54 + 0.54 * re ** 0.5 * sc ** (1 / 3)
-        dwm = (rhoair * d.dm) / d.ma
-
-        alpha = (nu * d.kb) / dp
-        hm = (sh * dwm * d.mw) / (dp * rhoair)
-
-        pvsat_tp = saturation_vapor_pressure(tp)
-        rhovsat_tp = pvsat_tp / (d.rw * tp)
-        rhovsat_tb = pvsat_tb / (d.rw * tb)
-        rhovb = rh * rhovsat_tb
-
-        evb = -d.gas_constant * tb * log(max(rhovb / max(rhovsat_tb, EPS), EPS))
-        matfkt = _material_factor(x, xe, material, d)
-        ev = matfkt * evb
-        psi = exp(-ev / (d.gas_constant * tp))
-        rhovs = psi * rhovsat_tp
-
-        hv = 2.792e6 - 160 * tb - 3.43 * tb**2
-        qstn = 633000.0 if x <= 0.08 else 0.0
-
-        driv_force = rhovs - rhovb if x > xe else 0.0
-        dmpdt = -hm * ap * driv_force
-        dxdt = dmpdt / d.ms
-        dtpdt = (alpha * ap * (tb - tp) + (hv + qstn) * dxdt * d.ms) / (mp * cp)
-
-        if height <= d.hmax:
-            qloss = (d.aodryer / d.hmax) * d.up * (tb - d.tu_k) * vp
-        else:
-            qloss = 0.0
-
-        if d.constant_air:
-            dydt = 0.0
-            dtbdt = 0.0
-            drhopcritdt = 0.0
-            dvpdt = 0.0
-        else:
-            dydt = -(d.np_droplets * d.ms * dxdt) / d.g_air_kg_s
-            denthalpy_dt = (d.ms * (d.cps + x * d.cpw) * dtpdt * d.np_droplets + qloss) * (
-                -1.0 / d.g_air_kg_s
-            )
-            if x >= 0.08 or x < xe:
-                dtbdt = (denthalpy_dt - dydt * (hv + d.cpv * tb)) / cpair
-            else:
-                dtbdt = (denthalpy_dt - dydt * ((hv + qstn) + d.cpv * tb)) / cpair
-
-            cd = (24.0 / re) * (1 + 0.15 * re**0.687)
-            if x >= d.xcrit:
-                dvpdt = (1 - (rhoair / rhopballon)) * 9.81 - 0.75 * (
-                    (rhoair * cd * ur * (vp - d.vb)) / (rhopballon * dp)
-                )
-                drhopcritdt = 0.0
-            else:
-                drhopcritdt = (6.0 * dmpdt) / (dp * ap)
-                dvpdt = (1 - (rhoair / rhopcrit)) * 9.81 - 0.75 * (
-                    (rhoair * cd * ur * (vp - d.vb)) / (rhopcrit * dp)
-                )
-
-        return np.array([dxdt, dtpdt, dtbdt, dydt, height_rate, dvpdt, drhopcritdt], dtype=float)
-
-    return rhs
+def _latent_heat_vaporization(temp_k: float) -> float:
+    temp_c = temp_k - 273.15
+    return max(2.501e6 - 2360.0 * temp_c, 1.9e6)
 
 
-def _diagnostic_snapshot(
+def _rea_snapshot(
     x: float,
     tp: float,
     tb: float,
     y: float,
-    vp: float,
-    xe: float,
     material: str,
     d: _Derived,
+    *,
+    air_to_solid_ratio: float,
+    heat_loss_factor_w_kgk: float,
+    transfer_scale: float = 1.0,
 ) -> dict[str, float]:
-    pvsat_tb = saturation_vapor_pressure(tb)
     rh = relative_humidity_from_abs_humidity(tb, y, d.p_pa)
-    dp = _particle_diameter(x, xe, material, d)
-    ap = pi * dp**2
-    mp = x * d.ms + d.ms
-    mw = mp - d.ms
-    rf = humid_air_gas_constant(tb, y, d.p_pa, d.rs, d.rd)
-    rhoair = d.p_pa / (rf * tb)
+    xe = gab_equilibrium_moisture(tb, y, d.p_pa)
+    dp = max(_particle_diameter(x, xe, material, d), 20e-6)
+    rho_particle = _mixture_density(x, d)
+    area_per_kg_dry = 6.0 * (1.0 + max(x, 0.0)) / max(rho_particle * dp, EPS)
 
-    cp = (
-        ((d.ms * d.prot) / mp) * 1600.0
-        + ((d.ms * d.lac) / mp) * 1400.0
-        + ((d.ms * d.fett) / mp) * 1700.0
-        + ((d.ms * d.asche) / mp) * 800.0
-        + (mw / mp) * 4180.0
+    size_factor = np.clip((d.dpi_m / dp) ** 0.2, 0.7, 1.6)
+    air_ratio_factor = np.clip(
+        max(air_to_solid_ratio, EPS) / max(d.nominal_air_ratio, EPS),
+        0.25,
+        4.0,
     )
+    transfer_multiplier = transfer_scale * (air_ratio_factor ** 0.25) * size_factor
+    hm = d.mass_transfer_base_ms * transfer_multiplier
+    alpha = d.heat_transfer_base_w_m2k * transfer_multiplier
 
-    ur = sqrt((vp - d.vb) ** 2)
-    re = max((dp * ur * rhoair) / d.viskair, EPS)
-    cpair = d.cpdryair + d.cpv * y
-    pr = (cpair * d.viskair) / d.kb
-    sc = d.viskair / max(d.dm * rhoair, EPS)
-    nu = 2.04 + 0.62 * re ** 0.5 * pr ** (1 / 3)
-    sh = 1.54 + 0.54 * re ** 0.5 * sc ** (1 / 3)
-    dwm = (rhoair * d.dm) / d.ma
-
-    alpha = (nu * d.kb) / dp
-    hm = (sh * dwm * d.mw) / (dp * rhoair)
-
+    pvsat_tb = saturation_vapor_pressure(tb)
     pvsat_tp = saturation_vapor_pressure(tp)
-    rhovsat_tp = pvsat_tp / (d.rw * tp)
-    rhovsat_tb = pvsat_tb / (d.rw * tb)
+    rhovsat_tp = pvsat_tp / max(d.rw * tp, EPS)
+    rhovsat_tb = pvsat_tb / max(d.rw * tb, EPS)
     rhovb = rh * rhovsat_tb
 
-    evb = -d.gas_constant * tb * log(max(rhovb / max(rhovsat_tb, EPS), EPS))
-    matfkt = _material_factor(x, xe, material, d)
-    ev = matfkt * evb
-    psi = exp(-ev / (d.gas_constant * tp))
+    evb = -d.gas_constant * tb * log(max(rh, EPS))
+    mat_factor = _material_factor(x, xe, material, d)
+    ev = mat_factor * evb
+    psi = exp(-ev / max(d.gas_constant * tp, EPS))
+    psi = min(max(psi, EPS), 1.0)
     rhovs = psi * rhovsat_tp
 
-    hv = 2.792e6 - 160 * tb - 3.43 * tb**2
-    qstn = 633000.0 if x <= 0.08 else 0.0
-    driv_force = rhovs - rhovb if x > xe else 0.0
-    dmpdt = -hm * ap * driv_force
-    dxdt = dmpdt / d.ms
+    driving_force = max(rhovs - rhovb, 0.0) if x > xe else 0.0
+    humidity_suppression = 1.0 / (1.0 + 80.0 * max(y, 0.0))
+    evap_rate_kg_per_kg_s = hm * area_per_kg_dry * driving_force * humidity_suppression
 
-    q_conv = alpha * ap * (tb - tp)
-    q_latent = hv * dxdt * d.ms
-    q_sorption = qstn * dxdt * d.ms
-    dtpdt = (q_conv + q_latent + q_sorption) / (mp * cp)
-    tadsat = adiabatic_saturation_temp(tb, y, d.p_pa)
+    cp_product = d.cps + max(x, 0.0) * d.cpw
+    hv = _latent_heat_vaporization(tb)
+    q_sorption_specific = 633000.0 if x <= 0.08 else 0.0
+    q_conv_w = alpha * area_per_kg_dry * (tb - tp)
+    q_latent_w = evap_rate_kg_per_kg_s * hv
+    q_sorption_w = evap_rate_kg_per_kg_s * q_sorption_specific
+    q_loss_w = heat_loss_factor_w_kgk * max(tb - d.tu_k, 0.0)
+    d_tp_dt = (q_conv_w - q_latent_w - q_sorption_w) / max(cp_product, EPS)
+
+    cp_air = d.cpdryair + max(y, 0.0) * d.cpv
+    d_y_dt = evap_rate_kg_per_kg_s / max(air_to_solid_ratio, EPS)
+    d_tb_dt = (
+        -q_conv_w
+        - q_loss_w
+        - evap_rate_kg_per_kg_s * (hv + d.cpv * max(tb - 273.15, 0.0))
+    ) / max(air_to_solid_ratio * cp_air, EPS)
 
     return {
-        "mat_factor": matfkt,
+        "Xe": xe,
+        "RH": rh,
+        "dp": dp,
+        "mat_factor": mat_factor,
         "psi": psi,
         "rhovb": rhovb,
         "rhovs": rhovs,
-        "driving_force": driv_force,
-        "q_conv_w": q_conv,
-        "q_latent_w": q_latent,
-        "q_sorption_w": q_sorption,
-        "dTpdt_K_s": dtpdt,
-        "TadSat": tadsat,
-        "Tp_minus_TadSat": tp - tadsat,
+        "driving_force": driving_force,
+        "evap_rate_kg_per_kg_s": evap_rate_kg_per_kg_s,
+        "q_conv_w": q_conv_w,
+        "q_latent_w": q_latent_w,
+        "q_sorption_w": q_sorption_w,
+        "q_loss_w": q_loss_w,
+        "dXdt": -evap_rate_kg_per_kg_s,
+        "dYdt": d_y_dt,
+        "dTpdt_K_s": d_tp_dt,
+        "dTbdt_K_s": d_tb_dt,
+        "TadSat": adiabatic_saturation_temp(tb, y, d.p_pa),
     }
 
 
-def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derived, warnings: list[str]) -> SimulationResult:
-    t = solution.t
-    states = solution.y.T
-    x = states[:, 0]
-    tp = states[:, 1]
-    tb = states[:, 2]
-    y = states[:, 3]
-    height = states[:, 4]
-    vp = states[:, 5]
-
-    rh_values: list[float] = []
-    xe_values: list[float] = []
-    dp_values: list[float] = []
-    diag_rows: list[dict[str, float]] = []
-    for x_i, tb_i, y_i in zip(x, tb, y):
-        rh_i = relative_humidity_from_abs_humidity(tb_i, y_i, d.p_pa)
-        xe_i = gab_equilibrium_moisture(tb_i, y_i, d.p_pa)
-        dp_i = _particle_diameter(x_i, xe_i, inputs.material, d)
-        rh_values.append(rh_i)
-        xe_values.append(xe_i)
-        dp_values.append(dp_i)
-    for x_i, tp_i, tb_i, y_i, vp_i, xe_i in zip(x, tp, tb, y, vp, xe_values):
-        diag_rows.append(_diagnostic_snapshot(x_i, tp_i, tb_i, y_i, vp_i, xe_i, inputs.material, d))
-
-    series = pd.DataFrame(
-        {
-            "t": t,
-            "height": height,
-            "X": x,
-            "Tp": tp,
-            "Tb": tb,
-            "Y": y,
-            "RH": rh_values,
-            "vp": vp,
-            "dp": dp_values,
-            "Xe": xe_values,
-            "mat_factor": [row["mat_factor"] for row in diag_rows],
-            "psi": [row["psi"] for row in diag_rows],
-            "rhovb": [row["rhovb"] for row in diag_rows],
-            "rhovs": [row["rhovs"] for row in diag_rows],
-            "driving_force": [row["driving_force"] for row in diag_rows],
-            "q_conv_w": [row["q_conv_w"] for row in diag_rows],
-            "q_latent_w": [row["q_latent_w"] for row in diag_rows],
-            "q_sorption_w": [row["q_sorption_w"] for row in diag_rows],
-            "dTpdt_K_s": [row["dTpdt_K_s"] for row in diag_rows],
-            "TadSat": [row["TadSat"] for row in diag_rows],
-            "Tp_minus_TadSat": [row["Tp_minus_TadSat"] for row in diag_rows],
-        }
+def _advance_stationary_state(
+    state: np.ndarray,
+    dt: float,
+    *,
+    material: str,
+    d: _Derived,
+) -> np.ndarray:
+    x, tp, tb, y = state
+    snap = _rea_snapshot(
+        x,
+        tp,
+        tb,
+        y,
+        material,
+        d,
+        air_to_solid_ratio=d.air_to_solid_ratio,
+        heat_loss_factor_w_kgk=d.heat_loss_factor_w_kgk,
     )
+    dx = snap["dXdt"] * dt
+    min_dx = -(x - snap["Xe"])
+    if dx < min_dx:
+        scale = min_dx / min(dx, -EPS)
+    else:
+        scale = 1.0
+
+    next_x = max(snap["Xe"], x + dx)
+    next_tp = tp + snap["dTpdt_K_s"] * dt * scale
+    next_tb = tb + snap["dTbdt_K_s"] * dt * scale
+    next_y = y + snap["dYdt"] * dt * scale
+    next_tp = float(np.clip(next_tp, 273.15, 473.15))
+    next_tb = float(np.clip(next_tb, d.tu_k, d.tb0_k + 15.0))
+    next_y = float(max(next_y, d.y0))
+    return np.array([next_x, next_tp, next_tb, next_y], dtype=float)
+
+
+def _run_profile(inputs: SimulationInput, label: str, d: _Derived, warnings: list[str]) -> SimulationResult:
+    t = np.linspace(0.0, inputs.simulation_end_s, inputs.time_points)
+    state = np.array([d.x0, d.tp0_k, d.tb0_k, d.y0], dtype=float)
+    rows: list[dict[str, float]] = []
+
+    for index, current_time in enumerate(t):
+        x, tp, tb, y = state
+        snapshot = _rea_snapshot(
+            x,
+            tp,
+            tb,
+            y,
+            inputs.material,
+            d,
+            air_to_solid_ratio=d.air_to_solid_ratio,
+            heat_loss_factor_w_kgk=d.heat_loss_factor_w_kgk,
+        )
+        progress = current_time / max(d.effective_residence_time_s, EPS)
+        rows.append(
+            {
+                "t": float(current_time),
+                "height": float(progress * d.display_height_m),
+                "progress": float(progress),
+                "X": float(x),
+                "Tp": float(tp),
+                "Tb": float(tb),
+                "Y": float(y),
+                "RH": float(snapshot["RH"]),
+                "vp": float(d.display_velocity_ms),
+                "dp": float(snapshot["dp"]),
+                "Xe": float(snapshot["Xe"]),
+                "mat_factor": float(snapshot["mat_factor"]),
+                "psi": float(snapshot["psi"]),
+                "rhovb": float(snapshot["rhovb"]),
+                "rhovs": float(snapshot["rhovs"]),
+                "driving_force": float(snapshot["driving_force"]),
+                "q_conv_w": float(snapshot["q_conv_w"]),
+                "q_latent_w": float(snapshot["q_latent_w"]),
+                "q_sorption_w": float(snapshot["q_sorption_w"]),
+                "dTpdt_K_s": float(snapshot["dTpdt_K_s"]),
+                "TadSat": float(snapshot["TadSat"]),
+                "Tp_minus_TadSat": float(tp - snapshot["TadSat"]),
+            }
+        )
+        if index + 1 < len(t):
+            dt = float(t[index + 1] - current_time)
+            state = _advance_stationary_state(
+                state,
+                dt,
+                material=inputs.material,
+                d=d,
+            )
+
+    series = pd.DataFrame(rows)
 
     drying_mask = series["X"] <= 0.04
     drying_time: float | None = None
     drying_height: float | None = None
+    drying_progress: float | None = None
     if drying_mask.any():
         row = series.loc[drying_mask].iloc[0]
         drying_time = float(row["t"])
         drying_height = float(row["height"])
+        drying_progress = float(row["progress"])
     else:
         warnings.append("Die Feuchteschwelle X <= 0.04 wurde innerhalb der Simulationszeit nicht erreicht.")
 
-    outlet_mask = series["height"] >= inputs.dryer_height_m
+    outlet_mask = series["progress"] >= 1.0
     outlet_time: float | None = None
     outlet_x: float | None = None
     outlet_tb: float | None = None
     outlet_tp: float | None = None
     outlet_rh: float | None = None
+    outlet_y: float | None = None
     if outlet_mask.any():
         row = series.loc[outlet_mask].iloc[0]
         outlet_time = float(row["t"])
@@ -670,8 +625,9 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
         outlet_tb = float(row["Tb"])
         outlet_tp = float(row["Tp"])
         outlet_rh = float(row["RH"])
+        outlet_y = float(row["Y"])
     else:
-        warnings.append("Die Partikelhoehe Hmax wurde innerhalb der Simulationszeit nicht erreicht.")
+        warnings.append("Die effektive Verweilzeit wurde innerhalb der Simulationszeit nicht erreicht.")
 
     tp_limit_mask = series["Tp"] > 373.15
     tp_limit_time: float | None = None
@@ -692,11 +648,13 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
     metrics = {
         "drying_time": drying_time,
         "drying_height": drying_height,
+        "drying_progress": drying_progress,
         "outlet_time": outlet_time,
         "outlet_X": outlet_x,
         "outlet_Tb": outlet_tb,
         "outlet_Tp": outlet_tp,
         "outlet_RH": outlet_rh,
+        "outlet_Y": outlet_y,
         "max_Tp": float(series["Tp"].max()),
         "time_Tp_gt_100C": tp_limit_time,
         "height_Tp_gt_100C": tp_limit_height,
@@ -708,6 +666,7 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
         "final_Tb": float(series["Tb"].iloc[-1]),
         "final_Tp": float(series["Tp"].iloc[-1]),
         "final_RH": float(series["RH"].iloc[-1]),
+        "final_Y": float(series["Y"].iloc[-1]),
     }
 
     return SimulationResult(
@@ -716,8 +675,8 @@ def _post_process(solution: Any, inputs: SimulationInput, label: str, d: _Derive
         series=series,
         metrics=metrics,
         warnings=warnings,
-        solver_status=int(solution.status),
-        solver_message=str(solution.message),
+        solver_status=0,
+        solver_message="explicit profile integration",
     )
 
 
@@ -727,31 +686,7 @@ def run_simulation(inputs: SimulationInput, label: str = "Basis") -> SimulationR
         raise ValueError(" ".join(errors))
 
     derived = _build_derived(inputs)
-    initial_state = np.array(
-        [
-            derived.x0,
-            derived.tp0_k,
-            derived.tb0_k,
-            derived.y0,
-            0.0,
-            derived.vp0,
-            derived.rhopballoni,
-        ],
-        dtype=float,
-    )
-    t_eval = np.linspace(0.0, inputs.simulation_end_s, inputs.time_points)
-    solution = solve_ivp(
-        _ode_rhs(inputs.material, derived),
-        (0.0, inputs.simulation_end_s),
-        initial_state,
-        method="BDF",
-        t_eval=t_eval,
-        rtol=1e-6,
-        atol=1e-8,
-    )
-    if not solution.success:
-        warnings.append(f"Solver-Warnung: {solution.message}")
-    return _post_process(solution, inputs, label, derived, warnings)
+    return _run_profile(inputs, label, derived, warnings)
 
 
 def run_batch(inputs: list[SimulationInput], labels: list[str] | None = None) -> list[SimulationResult]:
@@ -790,14 +725,12 @@ def results_to_excel_bytes(results: list[SimulationResult]) -> bytes:
 
 def summarize_input(inputs: SimulationInput) -> dict[str, float]:
     derived = _build_derived(inputs)
-    droplet_volume = (pi / 6.0) * derived.dpi_m**3
-    droplet_surface = pi * derived.dpi_m**2
     return {
         "initial_moisture_content": derived.x0,
-        "dryer_cross_section_m2": derived.adryer,
-        "dryer_surface_m2": derived.aodryer,
-        "air_superficial_velocity_ms": derived.vb,
-        "humid_air_mass_flow_kg_s": derived.g_air_kg_s,
+        "dry_solids_rate_kg_s": derived.solids_rate_kg_s,
+        "humid_air_mass_flow_kg_s": derived.humid_air_mass_flow_kg_s,
+        "dry_air_mass_flow_kg_s": derived.dry_air_mass_flow_kg_s,
+        "air_to_solid_ratio_kg_kg": derived.air_to_solid_ratio,
         "initial_air_density_kg_m3": air_density(
             derived.tb0_k,
             derived.y0,
@@ -805,9 +738,7 @@ def summarize_input(inputs: SimulationInput) -> dict[str, float]:
             derived.rs,
             derived.rd,
         ),
-        "droplet_volume_m3": droplet_volume,
-        "droplet_surface_m2": droplet_surface,
-        "solid_mass_per_droplet_kg": derived.ms,
-        "droplets_per_s": derived.np_droplets,
-        "air_residence_time_s": derived.hmax / max(derived.vb, EPS),
+        "effective_residence_time_s": derived.effective_residence_time_s,
+        "display_height_m": derived.display_height_m,
+        "display_velocity_ms": derived.display_velocity_ms,
     }

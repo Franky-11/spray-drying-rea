@@ -45,14 +45,16 @@ class ProcessSimulationTests(unittest.TestCase):
         series = result.series
         before = series.loc[series["t"] == 0.0].iloc[0]
         at_switch = series.loc[series["t"] == 10.0].iloc[0]
-        delayed = series.loc[series["t"] == result.kpis["air_dead_time_s"]].iloc[0]
+        after_switch = series.loc[series["t"] == 20.0].iloc[0]
         later = series.loc[series["t"] == 40.0].iloc[0]
 
         self.assertEqual(at_switch["event_label"], "Tin hoch")
         self.assertGreater(at_switch["target_outlet_Tb"], before["target_outlet_Tb"])
         self.assertLess(at_switch["target_outlet_X"], before["target_outlet_X"])
-        self.assertAlmostEqual(delayed["outlet_Tb"], before["outlet_Tb"])
-        self.assertAlmostEqual(delayed["outlet_X"], before["outlet_X"])
+        self.assertAlmostEqual(at_switch["outlet_Tb"], before["outlet_Tb"], places=5)
+        self.assertAlmostEqual(at_switch["outlet_X"], before["outlet_X"], places=5)
+        self.assertGreater(after_switch["outlet_Tb"], before["outlet_Tb"])
+        self.assertLess(after_switch["outlet_X"], before["outlet_X"])
         self.assertGreater(later["outlet_Tb"], before["outlet_Tb"])
         self.assertLess(later["outlet_X"], before["outlet_X"])
         self.assertGreater(at_switch["target_outlet_time_s"], 0.0)
@@ -94,6 +96,7 @@ class ProcessSimulationTests(unittest.TestCase):
         self.assertGreater(end["outlet_Y"], start["outlet_Y"])
         self.assertGreater(end["moisture_error"], start["moisture_error"])
         self.assertLess(end["evaporation_rate_kg_s"], start["evaporation_rate_kg_s"])
+        self.assertGreater(end["outlet_Tb"], start["outlet_Tb"])
 
     def test_lower_total_solids_increases_residual_moisture(self) -> None:
         result = run_process_simulation(

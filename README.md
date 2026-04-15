@@ -6,8 +6,8 @@ Lokale Streamlit-Anwendung zur Simulation der Tropfentrocknung in einem einfache
 
 - `app/app.py`: Streamlit-Startpunkt und Navigation zwischen den drei Seiten
 - `app/pages/overview.py`: kurze Modell- und Workflow-Einführung
-- `app/pages/simulation.py`: lineare Eingabeseite für Basisfall, Expertenparameter und Vergleichsszenarien
-- `app/pages/results.py`: technische Bewertung, Kennzahlen, Charts, Detailtabellen und Export
+- `app/pages/simulation.py`: Seite `REA-Trocknungskinetik` mit Eingaben, Berechnung, Kennzahlen, Charts, Detailtabellen und Export
+- `app/pages/process_simulation.py`: Seite `Prozesssimulation` für zeitabhängige Inputs, Störungen und Auswertung auf derselben Seite
 - `app/ui_state.py`: gemeinsame Eingabedefinitionen, Session-State-Handling und Simulationsaufruf
 - `app/results_helpers.py`: Aufbereitung für Bewertungstabellen und Diagramme
 - `core/model.py`: Rechenkern mit Eingabevalidierung, ODE-Simulation, Batch-Lauf und Datenexport
@@ -16,8 +16,9 @@ Lokale Streamlit-Anwendung zur Simulation der Tropfentrocknung in einem einfache
 
 ## Funktionen
 
-- Geführte App-Struktur mit den Seiten `Überblick`, `Simulation` und `Ergebnisse`
-- Simulation eines Basisfalls mit REA-basiertem Trocknungsmodell
+- Geführte App-Struktur mit den Seiten `Überblick`, `REA-Trocknungskinetik` und `Prozesssimulation`
+- Stationäre REA-Trocknungskinetik mit Eingaben und Ergebnissen auf einer gemeinsamen Seite
+- Zeitabhängige Prozesssimulation mit Event-Schedule, KPI-Überblick, Hauptdiagrammen und Export auf derselben Seite
 - Presets für typische Betriebspunkte wie `Standard`, `Schonende Trocknung`, `Schnelle Trocknung` und `WPC 30 % TS`
 - Optionaler Variantenvergleich mehrerer Szenarien in einem Lauf
 - Technische Bewertung vor Detailtabellen und Diagrammen

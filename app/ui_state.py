@@ -27,7 +27,6 @@ from core.model import (  # noqa: E402
 
 DEFAULT_INPUT = SimulationInput()
 BASE_FIELD_ORDER = [
-    "dryer_height_m",
     "inlet_air_temp_c",
     "droplet_size_um",
     "feed_rate_kg_h",
@@ -37,10 +36,8 @@ BASE_FIELD_ORDER = [
     "feed_temp_c",
     "feed_total_solids",
     "material",
-    "dryer_diameter_m",
     "heat_loss_coeff_w_m2k",
     "xcrit",
-    "initial_droplet_velocity_ms",
     "simulation_end_s",
     "solid_density_kg_m3",
     "water_density_kg_m3",
@@ -55,7 +52,6 @@ MATERIAL_FIELDS = [
     "feed_total_solids",
 ]
 PROCESS_FIELDS = [
-    "dryer_height_m",
     "inlet_air_temp_c",
     "feed_rate_kg_h",
     "air_flow_m3_h",
@@ -63,10 +59,8 @@ PROCESS_FIELDS = [
     "ambient_temp_c",
 ]
 EXPERT_FIELDS = [
-    "dryer_diameter_m",
     "heat_loss_coeff_w_m2k",
     "xcrit",
-    "initial_droplet_velocity_ms",
     "simulation_end_s",
     "solid_density_kg_m3",
     "water_density_kg_m3",
@@ -76,7 +70,6 @@ EXPERT_FIELDS = [
 ]
 
 FIELD_LABELS = {
-    "dryer_height_m": "Trocknerhöhe [m]",
     "inlet_air_temp_c": "Zulufttemperatur [degC]",
     "droplet_size_um": "Tropfengröße [um]",
     "feed_rate_kg_h": "Feedstrom [kg/h]",
@@ -86,10 +79,11 @@ FIELD_LABELS = {
     "feed_temp_c": "Feedtemperatur [degC]",
     "feed_total_solids": "Feed-Trockensubstanz [-]",
     "material": "Material",
-    "dryer_diameter_m": "Trocknerdurchmesser [m]",
-    "heat_loss_coeff_w_m2k": "Wärmeverlustkoeffizient Up [W/m^2K]",
+    "dryer_height_m": "Anzeigehöhe [m]",
+    "dryer_diameter_m": "Anzeigedurchmesser [m]",
+    "heat_loss_coeff_w_m2k": "Effektiver Wärmeverlustfaktor [W/kgK]",
     "xcrit": "Kritische Beladung Xcrit [-]",
-    "initial_droplet_velocity_ms": "Anfangsgeschwindigkeit Tropfen [m/s]",
+    "initial_droplet_velocity_ms": "Anfangsgeschwindigkeit [m/s]",
     "simulation_end_s": "Simulationsdauer [s]",
     "solid_density_kg_m3": "Feststoffdichte [kg/m^3]",
     "water_density_kg_m3": "Wasserdichte [kg/m^3]",
@@ -100,6 +94,7 @@ FIELD_LABELS = {
 
 FIELD_HELP = {
     "feed_total_solids": "SMP: TS < 0.2 sowie 0.2 / 0.3 / 0.5. WPC: nur 0.3.",
+    "heat_loss_coeff_w_m2k": "Einfacher effektiver Verlustterm des lumped Modells; Geometrie geht nicht mehr explizit ein.",
 }
 
 MATERIAL_COMPOSITION_DEFAULTS: dict[str, dict[str, float]] = {
@@ -141,7 +136,6 @@ PRESETS: dict[str, dict[str, Any]] = {
 }
 
 STEP_MAP = {
-    "dryer_height_m": 0.1,
     "inlet_air_temp_c": 1.0,
     "droplet_size_um": 1.0,
     "feed_rate_kg_h": 0.1,
@@ -149,6 +143,7 @@ STEP_MAP = {
     "inlet_abs_humidity_g_kg": 0.1,
     "ambient_temp_c": 1.0,
     "feed_temp_c": 1.0,
+    "dryer_height_m": 0.1,
     "dryer_diameter_m": 0.05,
     "heat_loss_coeff_w_m2k": 0.1,
     "xcrit": 0.01,
@@ -162,11 +157,11 @@ STEP_MAP = {
 }
 
 MIN_MAP = {
-    "dryer_height_m": 0.1,
     "droplet_size_um": 1.0,
     "feed_rate_kg_h": 0.1,
     "air_flow_m3_h": 1.0,
     "inlet_abs_humidity_g_kg": 0.0,
+    "dryer_height_m": 0.1,
     "dryer_diameter_m": 0.1,
     "heat_loss_coeff_w_m2k": 0.0,
     "xcrit": 0.01,
@@ -181,10 +176,20 @@ MIN_MAP = {
 
 SUMMARY_LABELS = {
     "initial_moisture_content": "Startbeladung X0",
-    "air_superficial_velocity_ms": "Luftgeschwindigkeit [m/s]",
+    "dry_solids_rate_kg_s": "Feststoffstrom [kg/s]",
     "humid_air_mass_flow_kg_s": "Luftmassenstrom [kg/s]",
-    "droplets_per_s": "Tropfenstrom [1/s]",
-    "air_residence_time_s": "Hydraulische Verweilzeit [s]",
+    "dry_air_mass_flow_kg_s": "Trockenluftstrom [kg/s]",
+    "air_to_solid_ratio_kg_kg": "Luft/Feststoff-Verhältnis [kg/kg]",
+    "effective_residence_time_s": "Effektive Verweilzeit [s]",
+}
+
+SUMMARY_KEY_ALIASES = {
+    "dry_solids_rate_kg_s": ("dry_solids_rate_kg_s", "solid_rate_kg_s"),
+    "humid_air_mass_flow_kg_s": ("humid_air_mass_flow_kg_s", "air_mass_flow_rate_kg_s"),
+    "dry_air_mass_flow_kg_s": ("dry_air_mass_flow_kg_s",),
+    "air_to_solid_ratio_kg_kg": ("air_to_solid_ratio_kg_kg",),
+    "effective_residence_time_s": ("effective_residence_time_s", "air_residence_time_s"),
+    "initial_moisture_content": ("initial_moisture_content",),
 }
 
 RESULTS_STATE_KEY = "results"
@@ -309,15 +314,19 @@ def build_override_summary_frame(base_input: SimulationInput, overrides: dict[st
 
 def build_operating_point_frame(base_input: SimulationInput) -> pd.DataFrame:
     summary = summarize_input(base_input)
+
+    def resolve_summary_value(key: str) -> float:
+        for candidate in SUMMARY_KEY_ALIASES.get(key, (key,)):
+            if candidate in summary:
+                return float(summary[candidate])
+        available = ", ".join(sorted(summary))
+        raise KeyError(f"{key} fehlt in summarize_input(). Verfügbar: {available}")
+
     return pd.DataFrame(
         [
             {
                 "Kennwert": SUMMARY_LABELS[key],
-                "Wert": (
-                    f"{summary[key]:,.0f}".replace(",", " ")
-                    if key == "droplets_per_s"
-                    else f"{summary[key]:.3f}"
-                ),
+                "Wert": f"{resolve_summary_value(key):.3f}",
             }
             for key in SUMMARY_LABELS
         ]

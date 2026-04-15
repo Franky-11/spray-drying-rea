@@ -33,9 +33,9 @@ CHART_GROUPS = {
         ("RH", "Relative Luftfeuchte", "-"),
         ("Y_gkg", "Absolute Luftfeuchte", "g/kg"),
     ],
-    "Partikel": [
+    "Produkt": [
         ("dp_um", "Partikeldurchmesser", "um"),
-        ("vp", "Tropfengeschwindigkeit", "m/s"),
+        ("mat_factor", "REA-Faktor", "-"),
     ],
 }
 
@@ -58,7 +58,9 @@ def chart_frame(results: list[SimulationResult]) -> pd.DataFrame:
 
 
 def axis_label(axis_key: str) -> str:
-    return "Höhe [m]" if axis_key == "height" else "Zeit [s]"
+    if axis_key == "progress":
+        return "Fortschritt [-]"
+    return "Zeit [s]"
 
 
 def field_display_name(field: str) -> str:
@@ -184,9 +186,15 @@ def assessment_rows(results: list[SimulationResult], target_outlet_x: float) -> 
     for result in results:
         outlet_x = result.metrics["outlet_X"]
         drying_height = result.metrics["drying_height"]
+        drying_progress = result.metrics.get("drying_progress")
         outlet_tb = result.metrics["outlet_Tb"]
         target_met = outlet_x is not None and outlet_x <= target_outlet_x
-        dried_in_tower = drying_height is not None and drying_height <= result.inputs.dryer_height_m
+        dried_in_tower = (
+            drying_progress is not None
+            and result.metrics["outlet_time"] is not None
+            and result.metrics["drying_time"] is not None
+            and float(result.metrics["drying_time"]) <= float(result.metrics["outlet_time"])
+        )
         rows.append(
             {
                 "scenario": result.label,
@@ -194,6 +202,7 @@ def assessment_rows(results: list[SimulationResult], target_outlet_x: float) -> 
                 "dried_in_tower": dried_in_tower,
                 "outlet_X": outlet_x,
                 "drying_height": drying_height,
+                "drying_progress": drying_progress,
                 "outlet_Tb_C": outlet_tb - 273.0 if outlet_tb is not None else None,
                 "drying_time": result.metrics["drying_time"],
             }
@@ -225,7 +234,7 @@ def build_executive_summary(results: list[SimulationResult], target_outlet_x: fl
         "best": best_text,
         "method": (
             "Einordnung nach Ziel-X, Trocknung vor Austritt und danach nach niedrigerer "
-            "Austrittsfeuchte sowie geringerer Trocknungshöhe."
+            "Austrittsfeuchte sowie kuerzerer Trocknungszeit."
         ),
     }
 
@@ -264,17 +273,17 @@ def build_kpi_frame(results: list[SimulationResult], target_outlet_x: float) -> 
                 "Trocknung vor Austritt": "Ja" if row["dried_in_tower"] else "Nein",
                 "Austritts-X [-]": row["outlet_X"],
                 "Austritts-Tb [degC]": row["outlet_Tb_C"],
-                "Trocknungshöhe [m]": row["drying_height"],
+                "Trocknungsfortschritt [-]": row["drying_progress"],
                 "Trocknungszeit [s]": row["drying_time"],
                 "Delta X zur Basis": (
                     None
                     if row["outlet_X"] is None or base["outlet_X"] is None
                     else row["outlet_X"] - base["outlet_X"]
                 ),
-                "Delta Trocknungshöhe [m]": (
+                "Delta Trocknungsfortschritt [-]": (
                     None
-                    if row["drying_height"] is None or base["drying_height"] is None
-                    else row["drying_height"] - base["drying_height"]
+                    if row["drying_progress"] is None or base["drying_progress"] is None
+                    else row["drying_progress"] - base["drying_progress"]
                 ),
             }
         )
@@ -292,15 +301,18 @@ def build_detailed_metrics_frame(results: list[SimulationResult]) -> pd.DataFram
         columns={
             "scenario": "Szenario",
             "drying_time": "Trocknungszeit [s]",
-            "drying_height": "Trocknungshöhe [m]",
+            "drying_height": "Anzeigehoehe bei Ziel-X [m]",
+            "drying_progress": "Trocknungsfortschritt [-]",
             "outlet_time": "Austrittszeit [s]",
             "outlet_X": "X am Austritt [-]",
             "outlet_Tb": "Tb am Austritt [degC]",
             "outlet_Tp": "Tp am Austritt [degC]",
             "outlet_RH": "RH am Austritt [-]",
+            "outlet_Y": "Y am Austritt [-]",
             "final_X": "X Ende [-]",
             "final_Tb": "Tb Ende [degC]",
             "final_Tp": "Tp Ende [degC]",
             "final_RH": "RH Ende [-]",
+            "final_Y": "Y Ende [-]",
         }
     )
