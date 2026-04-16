@@ -64,6 +64,7 @@ def _series_from_solution(
             "initial_moisture_dry_basis": algebraic.initial_moisture_dry_basis,
             "linear_slope": algebraic.linear_slope,
             "linear_intercept": algebraic.linear_intercept,
+            "shrinkage_mode": algebraic.shrinkage_mode,
             "critical_delta": algebraic.critical_delta,
             "critical_ratio": algebraic.critical_ratio,
             "activation_ratio": algebraic.activation_ratio,

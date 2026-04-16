@@ -69,6 +69,7 @@ class AlgebraicState:
     initial_moisture_dry_basis: float
     linear_slope: float
     linear_intercept: float
+    shrinkage_mode: str
     critical_delta: float
     critical_ratio: float
     activation_ratio: float
@@ -136,6 +137,7 @@ def evaluate_algebraic_state(
         moisture_dry_basis=bounded_x,
         x_b=x_b,
         feed_total_solids=inputs.feed_total_solids,
+        shrinkage_model=inputs.shrinkage_model,
         temp_particle_k=bounded_t_p_k,
         temp_air_k=t_a_k,
         rh_air=rh_air,
@@ -191,6 +193,7 @@ def evaluate_algebraic_state(
         initial_moisture_dry_basis=chew.initial_moisture_dry_basis,
         linear_slope=chew.linear_slope,
         linear_intercept=chew.linear_intercept,
+        shrinkage_mode=chew.shrinkage_mode,
         critical_delta=chew.critical_delta,
         critical_ratio=chew.critical_ratio,
         activation_ratio=chew.activation_ratio,

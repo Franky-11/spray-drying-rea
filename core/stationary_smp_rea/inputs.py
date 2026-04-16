@@ -23,6 +23,7 @@ from .particle import feed_mixture_density, initial_dry_solids_mass
 
 EPS = 1e-12
 SUPPORTED_SOLVER_METHODS = {"BDF", "RK45", "Radau"}
+ShrinkageModel = Literal["auto", "chew", "legacy_extended"]
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class StationarySMPREAInput:
     dry_solids_specific_heat_j_kg_k: float = 1500.0
     material: Literal["SMP"] = "SMP"
     x_b_model: XBModel = "langrish"
+    shrinkage_model: ShrinkageModel = "auto"
     axial_points: int = 250
     include_tau_state: bool = True
     min_particle_velocity_ms: float = 0.05
@@ -86,9 +88,9 @@ class StationarySMPREAInput:
             )
         if self.material != "SMP":
             errors.append("Der neue stationaere Kern unterstuetzt nur SMP.")
-        if not 0.30 <= self.feed_total_solids <= 0.43:
+        if not 0.20 <= self.feed_total_solids <= 0.43:
             errors.append(
-                "feed_total_solids muss fuer den referenzbasierten Chew-SMP-Kern zwischen 0.30 und 0.43 liegen."
+                "feed_total_solids muss fuer den aktuellen SMP-Kern zwischen 0.20 und 0.43 liegen."
             )
         if self.initial_droplet_velocity_ms <= 0.0:
             errors.append("initial_droplet_velocity_ms muss groesser als 0 sein.")
@@ -105,9 +107,17 @@ class StationarySMPREAInput:
             warnings.append(
                 "Die Zulufttemperatur liegt ausserhalb des typischen Auslegungsfensters von etwa 120-220 degC."
             )
-        if self.feed_total_solids < 0.37:
+        if self.feed_total_solids < 0.30:
+            warnings.append(
+                "Unter 30 wt% nutzt der Kern fuer die REA-Fruehphase den Low-Solids-Altast mit gemeinsamer Polynomialkurve und 30-wt%-Linearast."
+            )
+        if self.feed_total_solids < 0.37 and self.shrinkage_model == "chew":
             warnings.append(
                 "Der erste Kern nutzt fuer SMP-Schrumpfung unter 37 wt% den 37-wt%-Anker als konservative Naeherung."
+            )
+        if self.feed_total_solids < 0.37 and self.shrinkage_model in {"auto", "legacy_extended"}:
+            warnings.append(
+                "Unter 37 wt% nutzt die SMP-Schrumpfung den erweiterten Legacy-Zweig mit 20/30-wt%-Ankern."
             )
 
         return errors, warnings
