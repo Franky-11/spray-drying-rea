@@ -167,6 +167,9 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertLess(float(dryer_exit["h_m"]), float(pre_cyclone["h_m"]))
         self.assertEqual(pre_cyclone["section"], "outlet_duct")
         self.assertEqual(result.outlet["outlet_section"], "outlet_duct")
+        self.assertTrue(
+            any("effektive 1D-Strombahn" in warning for warning in result.warnings)
+        )
         self.assertAlmostEqual(
             float(pre_cyclone["T_a_c"]),
             float(result.outlet["outlet_T_a_c"]),

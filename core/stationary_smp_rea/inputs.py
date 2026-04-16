@@ -141,6 +141,14 @@ class StationarySMPREAInput:
             warnings.append(
                 "Unter 37 wt% nutzt die SMP-Schrumpfung den erweiterten Legacy-Zweig mit 20/30-wt%-Ankern."
             )
+        if self.cone_height_m > 0.0 or self.outlet_duct_length_m > 0.0:
+            warnings.append(
+                "Die abschnittsweise Geometrie behandelt Zylinder, Konus und Abluftrohr als effektive 1D-Strombahn mit lokalem Querschnitt; Umlenkung, Rueckmischung und Richtungswechsel werden nicht separat aufgeloest."
+            )
+        if self.outlet_duct_length_m > 0.0:
+            warnings.append(
+                "Der Reportpunkt 'pre_cyclone' liegt am Ende der effektiven Abluftrohrsektion unmittelbar vor dem Zykloneintritt."
+            )
 
         return errors, warnings
 
