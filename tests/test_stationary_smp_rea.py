@@ -8,6 +8,9 @@ from core.stationary_smp_rea import (
     build_ms400_stationary_input_from_label,
     solve_stationary_smp_profile,
 )
+from core.stationary_smp_rea.air import latent_heat_evaporation
+from core.stationary_smp_rea.balances import evaluate_rhs
+from core.stationary_smp_rea.inputs import derive_inputs
 from core.stationary_smp_rea.materials.smp_chew import (
     legacy_extended_shrinkage_ratio,
     initial_moisture_dry_basis,
@@ -209,6 +212,54 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertAlmostEqual(float(result.series["U_a_ms"].iloc[-1]), 100.0, places=9)
         self.assertAlmostEqual(float(result.series["dtau_dh"].iloc[-1]), 0.2, places=9)
         self.assertAlmostEqual(float(result.series["dU_p_dh"].abs().max()), 0.0, places=9)
+
+    def test_particle_energy_term_uses_air_side_latent_heat_and_sorption_heat(self) -> None:
+        sim_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.40,
+            fixed_particle_velocity_ms=5.0,
+            fixed_air_velocity_ms=100.0,
+            x_b_model="lin_gab",
+            axial_points=80,
+        )
+        derived = derive_inputs(sim_input)
+        result = solve_stationary_smp_profile(sim_input)
+
+        inlet = result.series.iloc[0]
+        self.assertGreater(float(inlet["dT_p_dh"]), 0.0)
+        self.assertAlmostEqual(
+            float(inlet["h_fg_j_kg"]),
+            latent_heat_evaporation(float(inlet["T_a_k"])),
+            places=6,
+        )
+
+        late_row = result.series[result.series["X"] <= 0.08].iloc[0]
+        state = [
+            float(late_row["X"]),
+            float(late_row["T_p_k"]),
+            float(late_row["Y"]),
+            float(late_row["H_h_j_kg_da"]),
+            float(late_row["U_p_ms"]),
+            float(late_row["tau_s"]),
+        ]
+        rhs = evaluate_rhs(float(late_row["h"]), state, sim_input, derived)
+        algebraic = rhs.algebraic
+        cp_product = derived.cps_j_kg_k + algebraic.X * derived.cpw_j_kg_k
+        expected = (
+            algebraic.transport.heat_transfer_coeff_w_m2_k
+            * algebraic.particle_area_m2
+            * (algebraic.T_a_k - algebraic.T_p_k)
+            + rhs.dm_p_dh_kg_m
+            * algebraic.U_p_ms
+            * (algebraic.h_fg_j_kg + algebraic.q_sorption_j_kg)
+        ) / (
+            derived.representative_dry_solids_mass_kg
+            * cp_product
+            * algebraic.U_p_ms
+        )
+
+        self.assertAlmostEqual(algebraic.q_sorption_j_kg, 633.0e3, places=6)
+        self.assertAlmostEqual(rhs.dT_p_dh, expected, places=9)
 
 
 if __name__ == "__main__":

@@ -102,6 +102,8 @@ def _series_from_solution(
             "rho_p_kg_m3": algebraic.particle_density_kg_m3,
             "m_p_kg": algebraic.particle_mass_kg,
             "A_p_m2": algebraic.particle_area_m2,
+            "h_fg_j_kg": algebraic.h_fg_j_kg,
+            "q_sorption_j_kg": algebraic.q_sorption_j_kg,
             "Re": algebraic.transport.reynolds_number,
             "Sc": algebraic.transport.schmidt_number,
             "Sh": algebraic.transport.sherwood_number,

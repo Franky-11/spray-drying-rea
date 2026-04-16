@@ -64,6 +64,7 @@ class AlgebraicState:
     particle_area_m2: float
     particle_cp_j_kg_k: float
     h_fg_j_kg: float
+    q_sorption_j_kg: float
     x_b: float
     delta: float
     initial_moisture_dry_basis: float
@@ -198,7 +199,8 @@ def evaluate_algebraic_state(
         particle_density_kg_m3=particle_density,
         particle_area_m2=particle_area(particle_diameter),
         particle_cp_j_kg_k=derived.cps_j_kg_k + bounded_x * derived.cpw_j_kg_k,
-        h_fg_j_kg=latent_heat_evaporation(bounded_t_p_k),
+        h_fg_j_kg=latent_heat_evaporation(t_a_k),
+        q_sorption_j_kg=633.0e3 if bounded_x <= 0.08 else 0.0,
         x_b=chew.x_b,
         delta=chew.delta,
         initial_moisture_dry_basis=chew.initial_moisture_dry_basis,
@@ -240,7 +242,9 @@ def evaluate_rhs(
         * algebraic.air_thermal_conductivity_w_m_k
         * algebraic.transport.nusselt_number
         * (algebraic.T_a_k - algebraic.T_p_k)
-        + dm_p_dh * algebraic.U_p_ms * algebraic.h_fg_j_kg
+        + dm_p_dh
+        * algebraic.U_p_ms
+        * (algebraic.h_fg_j_kg + algebraic.q_sorption_j_kg)
     ) / max(
         derived.representative_dry_solids_mass_kg
         * algebraic.particle_cp_j_kg_k
