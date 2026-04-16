@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 import pandas as pd
-from scipy.optimize import root
+from scipy.optimize import brentq, root
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,10 +29,11 @@ def saturation_vapor_pressure_pa(temp_c: float) -> float:
     return 133.3 * exp(18.3036 - 3816.44 / (temp_c + 229.02))
 
 
-def main() -> None:
-    sim_input = build_ms400_stationary_input_from_label("V2")
-    experiment = load_ms400_experiments().set_index("label").loc["V2"]
-
+def solve_coarse_gab_state(
+    *,
+    sim_input,
+    air_flow_m3_h: float,
+) -> dict[str, float]:
     inlet_air_temp_c = sim_input.inlet_air_temp_c
     inlet_feed_temp_c = sim_input.feed_temp_c
     inlet_humidity_ratio = sim_input.inlet_abs_humidity_g_kg / 1000.0
@@ -44,7 +45,7 @@ def main() -> None:
         inlet_humidity_ratio,
         sim_input.pressure_pa,
     )
-    humid_air_mass_flow_kg_s = inlet_air_density_kg_m3 * sim_input.air_flow_m3_h / 3600.0
+    humid_air_mass_flow_kg_s = inlet_air_density_kg_m3 * air_flow_m3_h / 3600.0
     dry_air_mass_flow_kg_s = humid_air_mass_flow_kg_s / (1.0 + inlet_humidity_ratio)
 
     feed_enthalpy_kw = dry_solids_mass_flow_kg_s * (
@@ -94,16 +95,13 @@ def main() -> None:
     outlet_psat_pa = saturation_vapor_pressure_pa(outlet_temp_c)
     outlet_rh = outlet_pv_pa / max(outlet_psat_pa, 1e-12)
 
-    row = {
-        "case_id": "V2",
-        "model_scale": "coarse_well_mixed",
-        "equilibrium_closure": "lin_gab",
+    return {
         "inlet_air_temp_c": inlet_air_temp_c,
         "inlet_feed_temp_c": inlet_feed_temp_c,
         "feed_rate_kg_h": sim_input.feed_rate_kg_h,
         "feed_total_solids": sim_input.feed_total_solids,
         "feed_moisture_db": feed_moisture_db,
-        "air_flow_m3_h": sim_input.air_flow_m3_h,
+        "air_flow_m3_h": air_flow_m3_h,
         "humid_air_mass_flow_kg_h": humid_air_mass_flow_kg_s * 3600.0,
         "dry_air_mass_flow_kg_h": dry_air_mass_flow_kg_s * 3600.0,
         "inlet_humidity_ratio_g_kg_da": 1000.0 * inlet_humidity_ratio,
@@ -114,13 +112,53 @@ def main() -> None:
         "predicted_outlet_rh_pct": 100.0 * outlet_rh,
         "predicted_outlet_pv_pa": outlet_pv_pa,
         "predicted_outlet_psat_pa": outlet_psat_pa,
-        "reference_outlet_temp_c": float(experiment["Tout_C"]),
-        "reference_outlet_moisture_wb_pct": float(experiment["powder_moisture_wb_pct"]),
-        "delta_temp_c": outlet_temp_c - float(experiment["Tout_C"]),
-        "delta_moisture_wb_pct_points": outlet_moisture_wb_pct - float(experiment["powder_moisture_wb_pct"]),
     }
 
-    pd.DataFrame([row]).to_csv(OUTPUT_PATH, index=False)
+
+def main() -> None:
+    sim_input = build_ms400_stationary_input_from_label("V2")
+    experiment = load_ms400_experiments().set_index("label").loc["V2"]
+    reference_outlet_temp_c = float(experiment["Tout_C"])
+    reference_outlet_moisture_wb_pct = float(experiment["powder_moisture_wb_pct"])
+
+    baseline_state = solve_coarse_gab_state(
+        sim_input=sim_input,
+        air_flow_m3_h=sim_input.air_flow_m3_h,
+    )
+    matched_air_flow_m3_h = brentq(
+        lambda airflow: solve_coarse_gab_state(
+            sim_input=sim_input,
+            air_flow_m3_h=airflow,
+        )["predicted_outlet_temp_c"]
+        - reference_outlet_temp_c,
+        sim_input.air_flow_m3_h,
+        1000.0,
+    )
+    matched_state = solve_coarse_gab_state(
+        sim_input=sim_input,
+        air_flow_m3_h=matched_air_flow_m3_h,
+    )
+
+    rows = []
+    for scenario, state in (
+        ("baseline_builder_airflow", baseline_state),
+        ("airflow_matched_to_reference_tout", matched_state),
+    ):
+        rows.append(
+            {
+                "case_id": "V2",
+                "scenario": scenario,
+                "model_scale": "coarse_well_mixed",
+                "equilibrium_closure": "lin_gab",
+                **state,
+                "reference_outlet_temp_c": reference_outlet_temp_c,
+                "reference_outlet_moisture_wb_pct": reference_outlet_moisture_wb_pct,
+                "delta_temp_c": state["predicted_outlet_temp_c"] - reference_outlet_temp_c,
+                "delta_moisture_wb_pct_points": state["predicted_outlet_moisture_wb_pct"] - reference_outlet_moisture_wb_pct,
+            }
+        )
+
+    pd.DataFrame(rows).to_csv(OUTPUT_PATH, index=False)
     print(f"Wrote {OUTPUT_PATH}")
 
 
