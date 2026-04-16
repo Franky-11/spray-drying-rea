@@ -55,6 +55,8 @@ class StationarySMPREAInput:
     axial_points: int = 250
     include_tau_state: bool = True
     min_particle_velocity_ms: float = 0.05
+    fixed_particle_velocity_ms: float | None = None
+    fixed_air_velocity_ms: float | None = None
     solver_method: str = "BDF"
     solver_rtol: float = 1e-6
     solver_atol: float = 1e-8
@@ -85,6 +87,8 @@ class StationarySMPREAInput:
             "cylinder_height_m": self.cylinder_height_m,
             "cylinder_diameter_m": self.cylinder_diameter_m,
             "outlet_duct_diameter_m": self.outlet_duct_diameter_m,
+            "fixed_particle_velocity_ms": self.fixed_particle_velocity_ms,
+            "fixed_air_velocity_ms": self.fixed_air_velocity_ms,
         }
         for name, value in optional_positive_fields.items():
             if value is not None and value <= 0.0:
@@ -148,6 +152,10 @@ class StationarySMPREAInput:
         if self.outlet_duct_length_m > 0.0:
             warnings.append(
                 "Der Reportpunkt 'pre_cyclone' liegt am Ende der effektiven Abluftrohrsektion unmittelbar vor dem Zykloneintritt."
+            )
+        if self.fixed_particle_velocity_ms is not None or self.fixed_air_velocity_ms is not None:
+            warnings.append(
+                "Die Geschwindigkeitsdiagnose nutzt feste Partikel- und/oder Luftgeschwindigkeiten; Drag-gekoppelte Geschwindigkeitsentwicklung und/oder lokale Kontinuitaetsgeschwindigkeit sind dabei bewusst ueberschrieben."
             )
 
         return errors, warnings

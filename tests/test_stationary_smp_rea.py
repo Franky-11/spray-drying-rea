@@ -189,6 +189,27 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         )
         self.assertGreater(sim_input.droplet_size_um, 46.0)
 
+    def test_fixed_velocity_diagnostic_overrides_air_and_particle_velocity(self) -> None:
+        result = solve_stationary_smp_profile(
+            StationarySMPREAInput(
+                inlet_air_temp_c=190.0,
+                fixed_particle_velocity_ms=5.0,
+                fixed_air_velocity_ms=100.0,
+                axial_points=80,
+            )
+        )
+
+        self.assertTrue(result.success)
+        self.assertTrue(
+            any("Geschwindigkeitsdiagnose" in warning for warning in result.warnings)
+        )
+        self.assertAlmostEqual(float(result.series["U_p_ms"].iloc[0]), 5.0, places=9)
+        self.assertAlmostEqual(float(result.series["U_p_ms"].iloc[-1]), 5.0, places=9)
+        self.assertAlmostEqual(float(result.series["U_a_ms"].iloc[0]), 100.0, places=9)
+        self.assertAlmostEqual(float(result.series["U_a_ms"].iloc[-1]), 100.0, places=9)
+        self.assertAlmostEqual(float(result.series["dtau_dh"].iloc[-1]), 0.2, places=9)
+        self.assertAlmostEqual(float(result.series["dU_p_dh"].abs().max()), 0.0, places=9)
+
 
 if __name__ == "__main__":
     unittest.main()

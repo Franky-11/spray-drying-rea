@@ -34,12 +34,17 @@ def _initial_state_vector(
     inputs: StationarySMPREAInput,
     derived: StationarySMPREADerivedInputs,
 ) -> np.ndarray:
+    initial_particle_velocity_ms = (
+        inputs.fixed_particle_velocity_ms
+        if inputs.fixed_particle_velocity_ms is not None
+        else inputs.initial_droplet_velocity_ms
+    )
     state = [
         derived.x0_dry_basis,
         derived.inlet_particle_temp_k,
         derived.inlet_humidity_ratio,
         derived.initial_air_enthalpy_j_kg_da,
-        inputs.initial_droplet_velocity_ms,
+        initial_particle_velocity_ms,
     ]
     if inputs.include_tau_state:
         state.append(0.0)

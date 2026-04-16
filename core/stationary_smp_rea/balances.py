@@ -111,7 +111,12 @@ def evaluate_algebraic_state(
     bounded_x = max(x, EPS)
     bounded_t_p_k = max(t_p_k, 250.0)
     bounded_y = max(y, EPS)
-    bounded_u_p_ms = max(u_p_ms, inputs.min_particle_velocity_ms)
+    raw_particle_velocity_ms = (
+        inputs.fixed_particle_velocity_ms
+        if inputs.fixed_particle_velocity_ms is not None
+        else u_p_ms
+    )
+    bounded_u_p_ms = max(raw_particle_velocity_ms, inputs.min_particle_velocity_ms)
 
     t_a_k = max(invert_humid_air_enthalpy(h_h, bounded_y), 250.0)
     rh_air = relative_humidity(t_a_k, bounded_y, inputs.pressure_pa)
@@ -127,12 +132,16 @@ def evaluate_algebraic_state(
     d_v = water_vapor_diffusivity(t_a_k, inputs.pressure_pa)
     local_cross_section_area_m2 = derived.geometry.cross_section_area_at(h_m)
     local_wall_area_density_m2_m = derived.geometry.wall_area_density_at(h_m)
-    u_air = air_superficial_velocity(
-        t_a_k,
-        bounded_y,
-        inputs.pressure_pa,
-        derived.dry_air_mass_flow_kg_s,
-        local_cross_section_area_m2,
+    u_air = (
+        inputs.fixed_air_velocity_ms
+        if inputs.fixed_air_velocity_ms is not None
+        else air_superficial_velocity(
+            t_a_k,
+            bounded_y,
+            inputs.pressure_pa,
+            derived.dry_air_mass_flow_kg_s,
+            local_cross_section_area_m2,
+        )
     )
     x_b = equilibrium_moisture(t_a_k, rh_air, inputs.x_b_model)
     chew = chew_material_state(
@@ -245,20 +254,23 @@ def evaluate_rhs(
         derived.dry_air_mass_flow_kg_s,
         EPS,
     )
-    dU_p_dh = (
-        (
-            (1.0 - algebraic.rho_air_kg_m3 / max(algebraic.particle_density_kg_m3, EPS))
-            * derived.gravity_m_s2
-        )
-        - (
-            0.75
-            * algebraic.rho_air_kg_m3
-            * algebraic.transport.drag_coefficient
-            * algebraic.transport.relative_velocity_ms
-            * (algebraic.U_p_ms - algebraic.U_a_ms)
-            / max(algebraic.particle_density_kg_m3 * algebraic.particle_diameter_m, EPS)
-        )
-    ) / max(algebraic.U_p_ms, EPS)
+    if inputs.fixed_particle_velocity_ms is not None:
+        dU_p_dh = 0.0
+    else:
+        dU_p_dh = (
+            (
+                (1.0 - algebraic.rho_air_kg_m3 / max(algebraic.particle_density_kg_m3, EPS))
+                * derived.gravity_m_s2
+            )
+            - (
+                0.75
+                * algebraic.rho_air_kg_m3
+                * algebraic.transport.drag_coefficient
+                * algebraic.transport.relative_velocity_ms
+                * (algebraic.U_p_ms - algebraic.U_a_ms)
+                / max(algebraic.particle_density_kg_m3 * algebraic.particle_diameter_m, EPS)
+            )
+        ) / max(algebraic.U_p_ms, EPS)
     dtau_dh = 1.0 / max(algebraic.U_p_ms, EPS) if inputs.include_tau_state else None
     return RHSState(
         algebraic=algebraic,
