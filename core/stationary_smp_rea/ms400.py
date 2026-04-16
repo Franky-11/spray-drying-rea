@@ -51,6 +51,12 @@ def _humid_air_mass_flow_to_volumetric_flow_m3_h(
     return humid_air_mass_flow_kg_h / max(rho_air, 1e-12)
 
 
+def _default_humid_air_mass_flow_kg_h(label: str) -> float:
+    if label == "V2":
+        return 304.0
+    return 200.0
+
+
 def build_ms400_stationary_input(
     experiment: pd.Series,
     *,
@@ -58,7 +64,7 @@ def build_ms400_stationary_input(
     feed_rate_kg_h: float = 17.0,
     feed_total_solids: float = 0.37,
     inlet_abs_humidity_g_kg: float = 5.7,
-    humid_air_mass_flow_kg_h: float = 200.0,
+    humid_air_mass_flow_kg_h: float | None = None,
     feed_temp_c: float = 40.0,
     ambient_temp_c: float = 20.0,
     heat_loss_coeff_w_m2k: float = 4.5,
@@ -68,6 +74,10 @@ def build_ms400_stationary_input(
     axial_points: int = 320,
 ) -> StationarySMPREAInput:
     geometry = MS400GeometryAssumption() if geometry is None else geometry
+    if humid_air_mass_flow_kg_h is None:
+        humid_air_mass_flow_kg_h = _default_humid_air_mass_flow_kg_h(
+            str(experiment["label"])
+        )
     particle_column = f"{particle_metric.lower()}_um"
     measured_particle_um = float(experiment[particle_column])
     effective_input_diameter_um = measured_particle_um / max(

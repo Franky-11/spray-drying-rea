@@ -11,6 +11,7 @@ from core.stationary_smp_rea import (
 from core.stationary_smp_rea.air import latent_heat_evaporation
 from core.stationary_smp_rea.balances import evaluate_rhs
 from core.stationary_smp_rea.inputs import derive_inputs
+from core.stationary_smp_rea.ms400 import load_ms400_experiments
 from core.stationary_smp_rea.materials.smp_chew import (
     legacy_extended_shrinkage_ratio,
     initial_moisture_dry_basis,
@@ -181,6 +182,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
     def test_ms400_builder_exposes_effective_geometry_defaults(self) -> None:
         sim_input = build_ms400_stationary_input_from_label("V2")
+        experiment = load_ms400_experiments().set_index("label").loc["V2"]
 
         self.assertEqual(sim_input.inlet_air_temp_c, 180.0)
         self.assertEqual(sim_input.feed_total_solids, 0.37)
@@ -191,6 +193,8 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             MS400GeometryAssumption().outlet_duct_diameter_m,
         )
         self.assertGreater(sim_input.droplet_size_um, 46.0)
+        self.assertAlmostEqual(experiment["d32_um"], 46.0)
+        self.assertGreater(sim_input.air_flow_m3_h, 390.0)
 
     def test_fixed_velocity_diagnostic_overrides_air_and_particle_velocity(self) -> None:
         result = solve_stationary_smp_profile(
