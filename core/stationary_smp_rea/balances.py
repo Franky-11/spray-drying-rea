@@ -125,12 +125,14 @@ def evaluate_algebraic_state(
     mu_air = dynamic_viscosity_air(t_a_k)
     k_air = thermal_conductivity_air(t_a_k)
     d_v = water_vapor_diffusivity(t_a_k, inputs.pressure_pa)
+    local_cross_section_area_m2 = derived.geometry.cross_section_area_at(h_m)
+    local_wall_area_density_m2_m = derived.geometry.wall_area_density_at(h_m)
     u_air = air_superficial_velocity(
         t_a_k,
         bounded_y,
         inputs.pressure_pa,
         derived.dry_air_mass_flow_kg_s,
-        derived.chamber_cross_section_area_m2,
+        local_cross_section_area_m2,
     )
     x_b = equilibrium_moisture(t_a_k, rh_air, inputs.x_b_model)
     chew = chew_material_state(
@@ -200,7 +202,11 @@ def evaluate_algebraic_state(
         delta_e_max_j_mol=chew.delta_e_max_j_mol,
         delta_e_j_mol=chew.delta_e_j_mol,
         psi=chew.psi,
-        q_loss_prime_w_m=derived.chamber_ua_w_k / max(inputs.dryer_height_m, EPS) * (t_a_k - derived.ambient_temp_k),
+        q_loss_prime_w_m=(
+            inputs.heat_loss_coeff_w_m2k
+            * local_wall_area_density_m2_m
+            * (t_a_k - derived.ambient_temp_k)
+        ),
         transport=transport,
     )
 

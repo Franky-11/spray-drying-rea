@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from core.stationary_smp_rea import StationarySMPREAInput, solve_stationary_smp_profile
+from core.stationary_smp_rea import (
+    MS400GeometryAssumption,
+    StationarySMPREAInput,
+    build_ms400_stationary_input_from_label,
+    solve_stationary_smp_profile,
+)
 from core.stationary_smp_rea.materials.smp_chew import (
     legacy_extended_shrinkage_ratio,
     initial_moisture_dry_basis,
@@ -126,6 +131,60 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             any("unter 30 wt%" in warning.lower() for warning in result.warnings)
         )
         self.assertLess(result.outlet["outlet_X"], result.series["X"].iloc[0])
+
+    def test_sectionwise_geometry_updates_local_air_velocity_and_pre_cyclone_report(self) -> None:
+        result = solve_stationary_smp_profile(
+            StationarySMPREAInput(
+                dryer_height_m=2.2,
+                dryer_diameter_m=1.15,
+                cylinder_height_m=2.2,
+                cone_height_m=1.0,
+                cylinder_diameter_m=1.15,
+                outlet_duct_length_m=1.0,
+                outlet_duct_diameter_m=0.20,
+                inlet_air_temp_c=180.0,
+                inlet_abs_humidity_g_kg=5.7,
+                feed_total_solids=0.37,
+                feed_rate_kg_h=17.0,
+                air_flow_m3_h=170.0,
+                droplet_size_um=64.0,
+                axial_points=180,
+            )
+        )
+
+        self.assertTrue(result.success)
+        self.assertIn("section", result.series.columns)
+        self.assertIn("A_cross_m2", result.series.columns)
+        self.assertIn("wall_area_density_m2_m", result.series.columns)
+
+        cylinder_row = result.series[result.series["section"] == "cylinder"].iloc[0]
+        duct_row = result.series[result.series["section"] == "outlet_duct"].iloc[-1]
+        self.assertLess(duct_row["A_cross_m2"], cylinder_row["A_cross_m2"])
+        self.assertGreater(duct_row["U_a_ms"], cylinder_row["U_a_ms"])
+
+        dryer_exit = result.report_points["dryer_exit"]
+        pre_cyclone = result.report_points["pre_cyclone"]
+        self.assertLess(float(dryer_exit["h_m"]), float(pre_cyclone["h_m"]))
+        self.assertEqual(pre_cyclone["section"], "outlet_duct")
+        self.assertEqual(result.outlet["outlet_section"], "outlet_duct")
+        self.assertAlmostEqual(
+            float(pre_cyclone["T_a_c"]),
+            float(result.outlet["outlet_T_a_c"]),
+            places=6,
+        )
+
+    def test_ms400_builder_exposes_effective_geometry_defaults(self) -> None:
+        sim_input = build_ms400_stationary_input_from_label("V2")
+
+        self.assertEqual(sim_input.inlet_air_temp_c, 180.0)
+        self.assertEqual(sim_input.feed_total_solids, 0.37)
+        self.assertEqual(sim_input.cylinder_height_m, MS400GeometryAssumption().cylinder_height_m)
+        self.assertEqual(sim_input.cone_height_m, MS400GeometryAssumption().cone_height_m)
+        self.assertEqual(
+            sim_input.outlet_duct_diameter_m,
+            MS400GeometryAssumption().outlet_duct_diameter_m,
+        )
+        self.assertGreater(sim_input.droplet_size_um, 46.0)
 
 
 if __name__ == "__main__":

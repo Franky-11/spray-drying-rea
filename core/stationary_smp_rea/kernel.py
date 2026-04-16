@@ -13,6 +13,23 @@ from .inputs import (
 )
 
 
+def _axial_grid(
+    inputs: StationarySMPREAInput,
+    derived: StationarySMPREADerivedInputs,
+) -> np.ndarray:
+    base_grid = np.linspace(0.0, derived.total_axial_length_m, inputs.axial_points)
+    geometry_points = np.array(
+        [
+            0.0,
+            derived.geometry.cylinder_end_h_m,
+            derived.geometry.cone_end_h_m,
+            derived.pre_cyclone_h_m,
+        ],
+        dtype=float,
+    )
+    return np.unique(np.concatenate([base_grid, geometry_points]))
+
+
 def _initial_state_vector(
     inputs: StationarySMPREAInput,
     derived: StationarySMPREADerivedInputs,
@@ -40,8 +57,13 @@ def _series_from_solution(
         state = solution_y[:, index]
         rhs = evaluate_rhs(float(h_value), state, inputs, derived)
         algebraic = rhs.algebraic
+        local_cross_section_area_m2 = derived.geometry.cross_section_area_at(float(h_value))
+        local_wall_area_density_m2_m = derived.geometry.wall_area_density_at(float(h_value))
         row: dict[str, float | None] = {
             "h": float(h_value),
+            "section": derived.geometry.section_at(float(h_value)),
+            "A_cross_m2": local_cross_section_area_m2,
+            "wall_area_density_m2_m": local_wall_area_density_m2_m,
             "X": algebraic.X,
             "T_p_k": algebraic.T_p_k,
             "T_p_c": algebraic.T_p_c,
@@ -103,6 +125,24 @@ def _series_from_solution(
     return frame
 
 
+def _report_point(frame: pd.DataFrame, h_target_m: float) -> dict[str, float | str | None]:
+    index = int((frame["h"] - h_target_m).abs().idxmin())
+    row = frame.iloc[index]
+    return {
+        "h_m": float(row["h"]),
+        "section": str(row["section"]),
+        "T_a_c": float(row["T_a_c"]),
+        "T_a_k": float(row["T_a_k"]),
+        "T_p_c": float(row["T_p_c"]),
+        "T_p_k": float(row["T_p_k"]),
+        "Y": float(row["Y"]),
+        "X": float(row["X"]),
+        "U_a_ms": float(row["U_a_ms"]),
+        "U_p_ms": float(row["U_p_ms"]),
+        "tau_s": float(row["tau_s"]) if pd.notna(row["tau_s"]) else None,
+    }
+
+
 def solve_stationary_smp_profile(
     inputs: StationarySMPREAInput,
 ) -> StationarySMPREAResult:
@@ -112,19 +152,23 @@ def solve_stationary_smp_profile(
 
     derived = derive_inputs(inputs)
     initial_state = _initial_state_vector(inputs, derived)
-    h_grid = np.linspace(0.0, inputs.dryer_height_m, inputs.axial_points)
+    h_grid = _axial_grid(inputs, derived)
     solution = solve_ivp(
         fun=lambda h_value, state: axial_rhs(h_value, state, inputs, derived),
-        t_span=(0.0, inputs.dryer_height_m),
+        t_span=(0.0, derived.total_axial_length_m),
         y0=initial_state,
         t_eval=h_grid,
         method=inputs.solver_method,
         rtol=inputs.solver_rtol,
         atol=inputs.solver_atol,
-        max_step=max(inputs.dryer_height_m / max(inputs.axial_points - 1, 1), 1e-6),
+        max_step=max(derived.total_axial_length_m / max(inputs.axial_points - 1, 1), 1e-6),
     )
     series = _series_from_solution(solution.y, h_grid, inputs, derived)
     last_row = series.iloc[-1]
+    report_points = {
+        "dryer_exit": _report_point(series, derived.dryer_exit_h_m),
+        "pre_cyclone": _report_point(series, derived.pre_cyclone_h_m),
+    }
     outlet = {
         "outlet_X": float(last_row["X"]),
         "outlet_T_p_k": float(last_row["T_p_k"]),
@@ -135,19 +179,23 @@ def solve_stationary_smp_profile(
         "outlet_H_h_j_kg_da": float(last_row["H_h_j_kg_da"]),
         "outlet_U_p_ms": float(last_row["U_p_ms"]),
         "outlet_tau_s": float(last_row["tau_s"]) if pd.notna(last_row["tau_s"]) else None,
+        "outlet_section": str(last_row["section"]),
+        "outlet_h_m": float(last_row["h"]),
         "total_q_loss_w": float(np.trapezoid(series["q_loss_prime_w_m"], series["h"])),
     }
     provenance = {
-        "coordinate": "Langrish parallel-flow height coordinate h",
+        "coordinate": "Effective 1D co-current flow-path coordinate h (cylinder, cone, optional outlet duct)",
         "balances": "Langrish (2009), Eqs. (20), (36), (41), (42)",
         "material_closure": "Chew (2013), Eqs. (11)-(13), Table 1, Table 2",
         "x_b_default": "Langrish coarsest-scale skim milk isotherm, Eq. (11)",
         "x_b_optional": "Lin, Chen, Pearce (2005) temperature-dependent GAB",
+        "geometry": "Section-wise effective geometry with local U_a(h) and wall-loss density; outlet duct uses the same 1D axial momentum simplification as the main chamber.",
     }
     return StationarySMPREAResult(
         inputs=inputs,
         series=series,
         outlet=outlet,
+        report_points=report_points,
         warnings=warnings,
         solver_status=int(solution.status),
         solver_message=solution.message,

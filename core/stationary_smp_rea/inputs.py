@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from math import pi
 from typing import Any, Literal
 
 import pandas as pd
@@ -17,6 +16,7 @@ from .air import (
     moist_air_density,
 )
 from .closures import XBModel
+from .geometry import EffectiveDryerGeometry, build_effective_dryer_geometry
 from .materials import chew_validity_warnings
 from .particle import feed_mixture_density, initial_dry_solids_mass
 
@@ -30,6 +30,11 @@ ShrinkageModel = Literal["auto", "chew", "legacy_extended"]
 class StationarySMPREAInput:
     dryer_height_m: float = 2.0
     dryer_diameter_m: float = 0.8
+    cylinder_height_m: float | None = None
+    cone_height_m: float = 0.0
+    cylinder_diameter_m: float | None = None
+    outlet_duct_length_m: float = 0.0
+    outlet_duct_diameter_m: float | None = None
     inlet_air_temp_c: float = 190.0
     droplet_size_um: float = 95.0
     feed_rate_kg_h: float = 3.0
@@ -75,6 +80,23 @@ class StationarySMPREAInput:
         for name, value in positive_fields.items():
             if value <= 0.0:
                 errors.append(f"{name} muss groesser als 0 sein.")
+
+        optional_positive_fields = {
+            "cylinder_height_m": self.cylinder_height_m,
+            "cylinder_diameter_m": self.cylinder_diameter_m,
+            "outlet_duct_diameter_m": self.outlet_duct_diameter_m,
+        }
+        for name, value in optional_positive_fields.items():
+            if value is not None and value <= 0.0:
+                errors.append(f"{name} muss groesser als 0 sein, falls gesetzt.")
+
+        nonnegative_fields = {
+            "cone_height_m": self.cone_height_m,
+            "outlet_duct_length_m": self.outlet_duct_length_m,
+        }
+        for name, value in nonnegative_fields.items():
+            if value < 0.0:
+                errors.append(f"{name} darf nicht negativ sein.")
 
         if self.heat_loss_coeff_w_m2k < 0.0:
             errors.append("heat_loss_coeff_w_m2k darf nicht negativ sein.")
@@ -134,6 +156,10 @@ class StationarySMPREADerivedInputs:
     inlet_humidity_ratio: float
     x0_dry_basis: float
     droplet_diameter_m: float
+    geometry: EffectiveDryerGeometry
+    total_axial_length_m: float
+    dryer_exit_h_m: float
+    pre_cyclone_h_m: float
     chamber_cross_section_area_m2: float
     chamber_lateral_area_m2: float
     chamber_ua_w_k: float
@@ -161,7 +187,8 @@ class StationarySMPREADerivedInputs:
 class StationarySMPREAResult:
     inputs: StationarySMPREAInput
     series: pd.DataFrame
-    outlet: dict[str, float | None]
+    outlet: dict[str, float | str | None]
+    report_points: dict[str, dict[str, float | str | None]]
     warnings: list[str]
     solver_status: int
     solver_message: str
@@ -176,8 +203,17 @@ def derive_inputs(inputs: StationarySMPREAInput) -> StationarySMPREADerivedInput
     inlet_humidity_ratio = inputs.inlet_abs_humidity_g_kg / 1000.0
     x0_dry_basis = (1.0 - inputs.feed_total_solids) / inputs.feed_total_solids
     droplet_diameter_m = inputs.droplet_size_um / 1_000_000.0
-    chamber_cross_section_area_m2 = pi * inputs.dryer_diameter_m**2 / 4.0
-    chamber_lateral_area_m2 = pi * inputs.dryer_diameter_m * inputs.dryer_height_m
+    geometry = build_effective_dryer_geometry(
+        dryer_height_m=inputs.dryer_height_m,
+        dryer_diameter_m=inputs.dryer_diameter_m,
+        cylinder_height_m=inputs.cylinder_height_m,
+        cone_height_m=inputs.cone_height_m,
+        cylinder_diameter_m=inputs.cylinder_diameter_m,
+        outlet_duct_length_m=inputs.outlet_duct_length_m,
+        outlet_duct_diameter_m=inputs.outlet_duct_diameter_m,
+    )
+    chamber_cross_section_area_m2 = geometry.cross_section_area_at(0.0)
+    chamber_lateral_area_m2 = geometry.total_wall_area_m2
     chamber_ua_w_k = chamber_lateral_area_m2 * inputs.heat_loss_coeff_w_m2k
     inlet_air_density = moist_air_density(
         inlet_air_temp_k,
@@ -209,6 +245,10 @@ def derive_inputs(inputs: StationarySMPREAInput) -> StationarySMPREADerivedInput
         inlet_humidity_ratio=inlet_humidity_ratio,
         x0_dry_basis=x0_dry_basis,
         droplet_diameter_m=droplet_diameter_m,
+        geometry=geometry,
+        total_axial_length_m=geometry.total_length_m,
+        dryer_exit_h_m=geometry.cone_end_h_m,
+        pre_cyclone_h_m=geometry.pre_cyclone_h_m,
         chamber_cross_section_area_m2=chamber_cross_section_area_m2,
         chamber_lateral_area_m2=chamber_lateral_area_m2,
         chamber_ua_w_k=chamber_ua_w_k,
