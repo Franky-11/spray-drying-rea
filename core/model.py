@@ -552,11 +552,14 @@ def _rea_snapshot(
 
     d_y_dt = evap_rate_kg_per_kg_s / max(air_to_solid_ratio, EPS)
     q_air_sensible_evap_w = evap_rate_kg_per_kg_s * d.cpv * (tb - tp)
+    d_h_air_dt = (
+        -cp_product * d_tp_dt / max(air_to_solid_ratio, EPS)
+        - q_loss_w / max(air_to_solid_ratio, EPS)
+    )
     d_tb_dt = (
-        -q_conv_w
-        - q_loss_w
-        - q_air_sensible_evap_w
-    ) / max(air_to_solid_ratio * cp_air, EPS)
+        d_h_air_dt
+        - d_y_dt * (hv + d.cpv * tb)
+    ) / max(cp_air, EPS)
 
     return {
         "Xe": xe,
@@ -580,6 +583,7 @@ def _rea_snapshot(
         "q_sorption_w": q_sorption_w,
         "q_loss_total_w": q_loss_total_w,
         "q_loss_w": q_loss_w,
+        "dH_air_dt": d_h_air_dt,
         "q_air_sensible_evap_w": q_air_sensible_evap_w,
         "dXdt": -evap_rate_kg_per_kg_s,
         "dYdt": d_y_dt,

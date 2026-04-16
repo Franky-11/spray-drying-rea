@@ -131,7 +131,7 @@ class MS400CalibrationTests(unittest.TestCase):
 
         self.assertEqual(len(residuals), 8)
 
-    def test_air_energy_balance_uses_only_sensible_evaporation_term(self) -> None:
+    def test_air_energy_balance_uses_langrish_style_enthalpy_balance(self) -> None:
         sim_input = SimulationInput(
             material="SMP",
             feed_total_solids=0.37,
@@ -154,13 +154,18 @@ class MS400CalibrationTests(unittest.TestCase):
             heat_loss_factor_w_kgk=derived.heat_loss_factor_w_kgk,
         )
 
+        cp_product = derived.cps + derived.x0 * derived.cpw
         cp_air = derived.cpdryair + derived.y0 * derived.cpv
+        expected_dh = (
+            -cp_product * snapshot["dTpdt_K_s"] / derived.air_to_solid_ratio
+            - snapshot["q_loss_w"] / derived.air_to_solid_ratio
+        )
         expected = (
-            -snapshot["q_conv_w"]
-            - snapshot["q_loss_w"]
-            - snapshot["evap_rate_kg_per_kg_s"] * derived.cpv * (derived.tb0_k - derived.tp0_k)
-        ) / (derived.air_to_solid_ratio * cp_air)
+            expected_dh
+            - snapshot["dYdt"] * (snapshot["q_latent_w"] / max(-snapshot["dXdt"], 1e-12) + derived.cpv * derived.tb0_k)
+        ) / cp_air
 
+        self.assertAlmostEqual(snapshot["dH_air_dt"], expected_dh)
         self.assertAlmostEqual(snapshot["dTbdt_K_s"], expected)
         self.assertGreater(snapshot["q_latent_w"], snapshot["q_air_sensible_evap_w"])
 
