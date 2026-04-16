@@ -3,6 +3,11 @@ from __future__ import annotations
 import unittest
 
 from core.stationary_smp_rea import StationarySMPREAInput, solve_stationary_smp_profile
+from core.stationary_smp_rea.materials.smp_chew import (
+    initial_moisture_dry_basis,
+    linear_parameters_from_initial_moisture,
+    table2_anchor_parameters,
+)
 
 
 class StationarySMPREAKernelTests(unittest.TestCase):
@@ -69,6 +74,24 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             result.outlet["outlet_X"],
             result.series["X"].iloc[0],
         )
+
+    def test_chew_table3_reproduces_table2_anchor_values(self) -> None:
+        for feed_total_solids in (0.30, 0.37, 0.40, 0.43):
+            initial_moisture = initial_moisture_dry_basis(feed_total_solids)
+            slope, intercept, critical_delta, critical_ratio = (
+                linear_parameters_from_initial_moisture(initial_moisture)
+            )
+            (
+                expected_slope,
+                expected_intercept,
+                expected_critical_delta,
+                expected_critical_ratio,
+            ) = table2_anchor_parameters(feed_total_solids)
+
+            self.assertAlmostEqual(slope, expected_slope, delta=0.01)
+            self.assertAlmostEqual(intercept, expected_intercept, delta=0.02)
+            self.assertAlmostEqual(critical_delta, expected_critical_delta, delta=0.01)
+            self.assertAlmostEqual(critical_ratio, expected_critical_ratio, delta=0.01)
 
 
 if __name__ == "__main__":

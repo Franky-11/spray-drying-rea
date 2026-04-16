@@ -66,6 +66,9 @@ class AlgebraicState:
     h_fg_j_kg: float
     x_b: float
     delta: float
+    initial_moisture_dry_basis: float
+    linear_slope: float
+    linear_intercept: float
     critical_delta: float
     critical_ratio: float
     activation_ratio: float
@@ -185,6 +188,9 @@ def evaluate_algebraic_state(
         h_fg_j_kg=latent_heat_evaporation(bounded_t_p_k),
         x_b=chew.x_b,
         delta=chew.delta,
+        initial_moisture_dry_basis=chew.initial_moisture_dry_basis,
+        linear_slope=chew.linear_slope,
+        linear_intercept=chew.linear_intercept,
         critical_delta=chew.critical_delta,
         critical_ratio=chew.critical_ratio,
         activation_ratio=chew.activation_ratio,

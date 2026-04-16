@@ -24,6 +24,9 @@ SHRINKAGE_ANCHORS = {
 class ChewMaterialState:
     delta: float
     x_b: float
+    initial_moisture_dry_basis: float
+    linear_slope: float
+    linear_intercept: float
     critical_delta: float
     critical_ratio: float
     activation_ratio: float
@@ -62,6 +65,10 @@ def _piecewise_linear_interpolate(value: float, anchors: dict[float, dict[str, f
     return anchors[sorted_keys[-1]].copy()
 
 
+def initial_moisture_dry_basis(feed_total_solids: float) -> float:
+    return (1.0 - feed_total_solids) / feed_total_solids
+
+
 def _common_polynomial(delta: float) -> float:
     bounded_delta = max(delta, 0.0)
     return (
@@ -73,19 +80,42 @@ def _common_polynomial(delta: float) -> float:
     )
 
 
-def activation_ratio(delta: float, feed_total_solids: float) -> tuple[float, float, float]:
+def linear_parameters_from_initial_moisture(
+    initial_moisture_dry_basis_value: float,
+) -> tuple[float, float, float, float]:
+    bounded_initial_moisture = max(initial_moisture_dry_basis_value, EPS)
+    slope = exp(1.202 - 1.299 * bounded_initial_moisture)
+    intercept = exp(0.3192 - 0.3628 * bounded_initial_moisture**1.5)
+    critical_delta = exp(0.8799 - 2.035 / max(bounded_initial_moisture**1.5, EPS))
+    critical_ratio = exp(-2.252 + 5.131 * exp(-bounded_initial_moisture))
+    return slope, intercept, critical_delta, critical_ratio
+
+
+def table2_anchor_parameters(feed_total_solids: float) -> tuple[float, float, float, float]:
     params = _piecewise_linear_interpolate(feed_total_solids, LINEAR_ANCHORS)
+    slope = params["slope"]
+    critical_delta = params["critical_delta"]
+    critical_ratio = params["critical_ratio"]
+    intercept = critical_ratio + slope * critical_delta
+    return slope, intercept, critical_delta, critical_ratio
+
+
+def activation_ratio(delta: float, feed_total_solids: float) -> tuple[float, float, float, float]:
+    initial_moisture = initial_moisture_dry_basis(feed_total_solids)
+    slope, intercept, critical_delta, critical_ratio = linear_parameters_from_initial_moisture(
+        initial_moisture
+    )
     bounded_delta = max(delta, 0.0)
-    if bounded_delta >= params["critical_delta"]:
-        ratio = params["critical_ratio"] - params["slope"] * (
-            bounded_delta - params["critical_delta"]
-        )
+    if bounded_delta >= critical_delta:
+        ratio = -slope * bounded_delta + intercept
     else:
         ratio = _common_polynomial(bounded_delta)
     return (
         min(max(ratio, 0.0), 1.0),
-        params["critical_delta"],
-        params["critical_ratio"],
+        slope,
+        intercept,
+        critical_delta,
+        critical_ratio,
     )
 
 
@@ -111,7 +141,8 @@ def chew_material_state(
     rh_air: float,
 ) -> ChewMaterialState:
     delta = moisture_dry_basis - x_b
-    reduced_ratio, critical_delta, critical_ratio = activation_ratio(
+    initial_moisture = initial_moisture_dry_basis(feed_total_solids)
+    reduced_ratio, slope, intercept, critical_delta, critical_ratio = activation_ratio(
         delta,
         feed_total_solids,
     )
@@ -121,6 +152,9 @@ def chew_material_state(
     return ChewMaterialState(
         delta=delta,
         x_b=x_b,
+        initial_moisture_dry_basis=initial_moisture,
+        linear_slope=slope,
+        linear_intercept=intercept,
         critical_delta=critical_delta,
         critical_ratio=critical_ratio,
         activation_ratio=reduced_ratio,
