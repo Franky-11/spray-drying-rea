@@ -1,35 +1,34 @@
 # Sprühtrockner REA
 
-Lokale Streamlit-Anwendung zur Simulation der Tropfentrocknung in einem einfachen Sprühtrockner. Das Projekt kombiniert ein REA-basiertes Trocknungsmodell mit einem testbaren Python-Rechenkern und einer interaktiven Browser-Oberfläche.
+Neuer technischer App-Neuaufbau fuer die stationaere SMP-REA-Trocknung. Der fachliche Kern unter
+`core/stationary_smp_rea/` bleibt bestehen und wird nun ueber ein React-Frontend und eine Python-API
+im Stil von `powder-caking` gekapselt.
 
 ## Projektstruktur
 
-- `app/app.py`: Streamlit-Startpunkt und Navigation zwischen den drei Seiten
-- `app/pages/overview.py`: kurze Modell- und Workflow-Einführung
-- `app/pages/simulation.py`: Seite `REA-Trocknungskinetik` mit Eingaben, Berechnung, Kennzahlen, Charts, Detailtabellen und Export
-- `app/pages/process_simulation.py`: Seite `Prozesssimulation` für zeitabhängige Inputs, Störungen und Auswertung auf derselben Seite
-- `app/ui_state.py`: gemeinsame Eingabedefinitionen, Session-State-Handling und Simulationsaufruf
-- `app/results_helpers.py`: Aufbereitung für Bewertungstabellen und Diagramme
-- `core/model.py`: Rechenkern mit Eingabevalidierung, ODE-Simulation, Batch-Lauf und Datenexport
-- `tests/test_regression.py`: Regressions- und Validierungstests fuer Standardfall, Batch-Lauf und Eingaben
-- `docs/spray_dryer_guide.html`: begleitende HTML-Dokumentation
+- `core/stationary_smp_rea/`: fachlicher stationaerer SMP-REA-Kern
+- `src/spray_drying/api.py`: FastAPI-App inklusive statischem Frontend-Serving
+- `src/spray_drying/api_service.py`: Uebersetzung zwischen API-Datenmodellen und Kern
+- `src/spray_drying/api_schemas.py`: Pydantic-DTOs fuer Defaults, Referenzfaelle und Simulation
+- `frontend/`: React + Vite + TypeScript Frontend
+- `tests/test_stationary_smp_rea.py`: Kernregressionen
+- `tests/test_api.py`: API-Shell-Tests fuer Defaults, Referenzfaelle und Simulation
 
 ## Funktionen
 
-- Geführte App-Struktur mit den Seiten `Überblick`, `REA-Trocknungskinetik` und `Prozesssimulation`
-- Stationäre REA-Trocknungskinetik mit Eingaben und Ergebnissen auf einer gemeinsamen Seite
-- Zeitabhängige Prozesssimulation mit Event-Schedule, KPI-Überblick, Hauptdiagrammen und Export auf derselben Seite
-- Presets für typische Betriebspunkte wie `Standard`, `Schonende Trocknung`, `Schnelle Trocknung` und `WPC 30 % TS`
-- Optionaler Variantenvergleich mehrerer Szenarien in einem Lauf
-- Technische Bewertung vor Detailtabellen und Diagrammen
-- Export der Ergebnisse als CSV und Excel
-- Eingabevalidierung mit Fehlern und Warnhinweisen zu Modellgrenzen
-- Frühphasen-Korrektur für `SMP` mit `TS = 0.2` und `0.3`: sehr kurze wasserartige Oberflächenphase vor dem Übergang auf die Literatur-REA-Korrelation
+- Frontend-App-Shell mit den Seiten `Start`, `Simulation` und `Modellgrundlagen`
+- Top-Bar, KPI-Band, Chart-Tabs und technische Light-Theme-Gestaltung nach `powder-caking`
+- Python-API fuer Referenzfaelle, Defaultwerte und Simulation des stationaeren SMP-Kerns
+- Referenzfaelle `V1` bis `V6` aus `ms400/psd.csv` als Ausgangspunkt fuer V1
+- Basismodus plus aufklappbarer Expertenmodus fuer zentrale Eingaben und Geometriedaten
+- KPI- und Profilstruktur fuer spaetere Vergleichsszenarien
 
 ## Voraussetzungen
 
 - Python 3.12 oder kompatibel
-- Die Abhängigkeiten aus `requirements.txt`
+- Node.js 24 oder kompatibel
+- Python-Abhaengigkeiten in `.venv`
+- Frontend-Abhaengigkeiten im Projektordner `frontend/`
 
 ## Schnellstart
 
@@ -39,29 +38,30 @@ cd spray-drying-rea
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app/app.py
+cd frontend
+npm install
+cd ..
+PYTHONPATH=src:. uvicorn spray_drying.api:app --reload
 ```
 
-Danach ist die Anwendung lokal im Browser verfügbar.
+Im Entwicklungsmodus kann das Frontend separat gestartet werden:
 
-Als begleitende Dokumentation zur App steht zusätzlich der HTML-Guide unter
-`docs/spray_dryer_guide.html` bereit. Er erläutert Bedienung, Modellannahmen,
-Gleichungen und die fachliche Einordnung der Ergebnisse.
+```bash
+cd frontend
+npm run dev
+```
 
 ## Tests ausführen
 
 ```bash
-python3 -m unittest tests.test_regression
+source .venv/bin/activate
+PYTHONPATH=src:. python -m unittest tests.test_stationary_smp_rea tests.test_api
 ```
 
 ## Verwendete Pakete
 
-- `numpy`
-- `scipy`
-- `pandas`
-- `plotly`
-- `streamlit`
-- `openpyxl`
+- Python: `numpy`, `scipy`, `pandas`, `fastapi`, `pydantic`, `uvicorn`
+- Frontend: `react`, `vite`, `typescript`, `echarts`
 
 ## Modellgrenzen
 
