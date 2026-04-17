@@ -35,15 +35,15 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["default_reference_case_label"], "V2")
         self.assertEqual(data["x_b_models"], ["langrish", "lin_gab"])
         self.assertEqual(data["solver_methods"], ["BDF", "RK45", "Radau"])
+        self.assertAlmostEqual(data["default_inputs"]["Tin"], 190.0)
+        self.assertAlmostEqual(data["default_inputs"]["feed_rate_kg_h"], 15.0)
+        self.assertAlmostEqual(data["default_inputs"]["droplet_size_um"], 65.0)
+        self.assertAlmostEqual(data["default_inputs"]["inlet_abs_humidity_g_kg"], 6.0)
+        self.assertAlmostEqual(data["default_inputs"]["feed_total_solids"], 0.37)
         labels = [item["label"] for item in data["reference_cases"]]
         self.assertEqual(labels[:3], ["V1", "V2", "V3"])
-        v2 = next(item for item in data["reference_cases"] if item["label"] == "V2")
-        self.assertAlmostEqual(v2["inputs"]["Tin"], 180.0)
-        self.assertAlmostEqual(v2["inputs"]["feed_total_solids"], 0.37)
-        self.assertAlmostEqual(v2["inputs"]["humid_air_mass_flow_kg_h"], 304.0, places=3)
 
     async def test_reference_cases_endpoint_matches_defaults(self) -> None:
         response = await self.client.get("/presets/reference-cases")
@@ -87,11 +87,12 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(data["profile"]["series"]), data["profile"]["n_points"])
         self.assertIn("x_out_minus_x_b_out", data["summary"])
         self.assertIn("RHout_pct", data["summary"])
-        self.assertGreater(data["summary"]["Tout_pre_cyclone_c"], 50.0)
+        self.assertIn("dmean_out_um", data["summary"])
+        self.assertGreater(data["summary"]["Tout_c"], 50.0)
         self.assertGreaterEqual(data["summary"]["end_moisture_wb_pct"], 0.0)
-        self.assertEqual(data["report_points"]["pre_cyclone"]["section"], "outlet_duct")
+        self.assertEqual(data["outlet"]["section"], "outlet_duct")
+        self.assertIn("dmean_out_um", data["outlet"])
         self.assertIn("total_q_loss_w", data["outlet"])
-        self.assertIn("balances", data["provenance"])
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:
         response = await self.client.post(

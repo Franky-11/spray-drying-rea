@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ChangeEvent } from 'react'
 import type { EChartsOption } from 'echarts'
 import './App.css'
 import { getHealth, getModelDefaults, simulate } from './apiClient'
@@ -9,8 +8,6 @@ import type {
   AppView,
   ChartTab,
   ModelDefaults,
-  ReferenceCasePreset,
-  SimulationReportPoint,
   SimulationResponse,
   StationaryInput,
   XBModel,
@@ -29,7 +26,6 @@ function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
   const [defaults, setDefaults] = useState<ModelDefaults | null>(null)
   const [activeView, setActiveView] = useState<AppView>('start')
-  const [selectedReferenceCaseLabel, setSelectedReferenceCaseLabel] = useState('')
   const [inputs, setInputs] = useState<StationaryInput | null>(null)
   const [targetMoistureWbPct, setTargetMoistureWbPct] = useState(4)
   const [isExpertOpen, setIsExpertOpen] = useState(false)
@@ -48,12 +44,7 @@ function App() {
         }
         setDefaults(modelDefaults)
         setApiStatus('online')
-        setSelectedReferenceCaseLabel(modelDefaults.default_reference_case_label)
-        const initialPreset = presetByLabel(
-          modelDefaults.reference_cases,
-          modelDefaults.default_reference_case_label,
-        )
-        setInputs(initialPreset.inputs)
+        setInputs(modelDefaults.default_inputs)
         setTargetMoistureWbPct(modelDefaults.default_target_moisture_wb_pct)
       })
       .catch((error: unknown) => {
@@ -68,18 +59,6 @@ function App() {
       isMounted = false
     }
   }, [])
-
-  const selectedPreset = useMemo(
-    () => (defaults ? presetByLabel(defaults.reference_cases, selectedReferenceCaseLabel) : null),
-    [defaults, selectedReferenceCaseLabel],
-  )
-  const reportPointRows: Array<{ label: string; point: SimulationReportPoint }> = result
-    ? [
-        { label: 'Trockneraustritt', point: result.report_points.dryer_exit },
-        { label: 'Vor Zyklon', point: result.report_points.pre_cyclone },
-      ]
-    : []
-  const provenanceEntries = result ? Object.entries(result.provenance) : []
 
   const canSimulate = apiStatus === 'online' && inputs !== null && !isSimulating
 
@@ -216,17 +195,6 @@ function App() {
     }
   }, [activeChartTab, result])
 
-  function applyReferenceCase(event: ChangeEvent<HTMLSelectElement>) {
-    if (!defaults) {
-      return
-    }
-    const nextLabel = event.target.value
-    setSelectedReferenceCaseLabel(nextLabel)
-    setInputs(presetByLabel(defaults.reference_cases, nextLabel).inputs)
-    setResult(null)
-    setMessage(null)
-  }
-
   function updateNumberField<Key extends NumberFieldKey>(key: Key, value: string) {
     if (!inputs || value === '') {
       return
@@ -254,6 +222,16 @@ function App() {
     setInputs({
       ...inputs,
       x_b_model: value,
+    })
+  }
+
+  function updateFeedTotalSolidsPercent(value: string) {
+    if (!inputs || value === '') {
+      return
+    }
+    setInputs({
+      ...inputs,
+      feed_total_solids: Number(value) / 100,
     })
   }
 
@@ -346,7 +324,7 @@ function App() {
                   </div>
                   <div className="start-point">
                     <span className="point-index">02</span>
-                    <p>Referenzfaelle V1 bis V6 als schneller Einstieg fuer Szenarienvergleich.</p>
+                    <p>Ein technischer Basisfall mit klaren Defaultwerten fuer schnelle Iteration.</p>
                   </div>
                   <div className="start-point">
                     <span className="point-index">03</span>
@@ -367,7 +345,7 @@ function App() {
                 </div>
                 <div>
                   <span className="label">Vorbereitet</span>
-                  <p>Basismodus, Expertenmodus, Referenzfaelle, KPI-Struktur sowie Chart-Tabs fuer die spaetere Erweiterung.</p>
+                  <p>Basismodus, Expertenmodus, KPI-Struktur sowie Chart-Tabs fuer die spaetere Erweiterung.</p>
                 </div>
               </div>
             </div>
@@ -383,18 +361,6 @@ function App() {
                   <p className="panel-meta">Struktur gemaess Implementierungsplan, im Stil von powder-caking.</p>
                 </div>
                 <div className="panel-body field-stack">
-                  <div className="field">
-                    <label htmlFor="reference-case">Referenzfall</label>
-                    <select id="reference-case" onChange={applyReferenceCase} value={selectedReferenceCaseLabel}>
-                      {defaults?.reference_cases.map((preset) => (
-                        <option key={preset.label} value={preset.label}>
-                          {preset.title}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="helper">MS400-Presets als Startpunkt fuer V1.</span>
-                  </div>
-
                   <div className="field">
                     <label htmlFor="target-moisture">Ziel-Feuchte wt% wb</label>
                     <input
@@ -422,7 +388,7 @@ function App() {
                         />
                         <NumberField
                           id="humid_air_mass_flow_kg_h"
-                          label="humid_air_mass_flow_kg_h"
+                          label="Humid air mass flow kg/h"
                           onChange={(value) => updateNumberField('humid_air_mass_flow_kg_h', value)}
                           value={inputs.humid_air_mass_flow_kg_h}
                         />
@@ -430,13 +396,13 @@ function App() {
                       <div className="field-row">
                         <NumberField
                           id="feed_rate_kg_h"
-                          label="feed_rate_kg_h"
+                          label="Feed rate kg/h"
                           onChange={(value) => updateNumberField('feed_rate_kg_h', value)}
                           value={inputs.feed_rate_kg_h}
                         />
                         <NumberField
                           id="droplet_size_um"
-                          label="droplet_size_um"
+                          label="Droplet size um"
                           onChange={(value) => updateNumberField('droplet_size_um', value)}
                           value={inputs.droplet_size_um}
                         />
@@ -444,14 +410,14 @@ function App() {
                       <div className="field-row">
                         <NumberField
                           id="inlet_abs_humidity_g_kg"
-                          label="inlet_abs_humidity_g_kg"
+                          label="Yin g/kg"
                           onChange={(value) => updateNumberField('inlet_abs_humidity_g_kg', value)}
                           value={inputs.inlet_abs_humidity_g_kg}
                         />
-                        <NumberField
+                        <PercentageField
                           id="feed_total_solids"
-                          label="feed_total_solids"
-                          onChange={(value) => updateNumberField('feed_total_solids', value)}
+                          label="Total feed solids %"
+                          onChange={updateFeedTotalSolidsPercent}
                           value={inputs.feed_total_solids}
                         />
                       </div>
@@ -554,16 +520,16 @@ function App() {
                     <button
                       className="button-secondary"
                       onClick={() => {
-                        if (!selectedPreset) {
+                        if (!defaults) {
                           return
                         }
-                        setInputs(selectedPreset.inputs)
+                        setInputs(defaults.default_inputs)
                         setResult(null)
                         setMessage(null)
                       }}
                       type="button"
                     >
-                      Referenzfall zuruecksetzen
+                      Basisfall zuruecksetzen
                     </button>
                   </div>
                 </div>
@@ -578,8 +544,8 @@ function App() {
                     status={result?.summary.target_reached ? 'success' : 'warning'}
                   />
                   <KpiTile
-                    label="Tout_pre_cyclone"
-                    value={formatKpi(result?.summary.Tout_pre_cyclone_c)}
+                    label="Tout"
+                    value={formatKpi(result?.summary.Tout_c)}
                     unit="C"
                     status="info"
                   />
@@ -602,104 +568,34 @@ function App() {
                     status={result?.summary.target_reached ? 'success' : 'warning'}
                   />
                   <KpiTile
-                    label="Hoehe bis Ziel"
-                    value={formatKpi(result?.summary.height_to_target_m)}
-                    unit="m"
+                    label="dmean_out"
+                    value={formatKpi(result?.summary.dmean_out_um)}
+                    unit="um"
                     status="info"
                   />
                 </div>
 
-                {selectedPreset && (
-                  <div className="panel">
-                    <div className="panel-header">
-                      <h2 className="panel-title">Referenzkontext</h2>
-                    </div>
-                    <div className="panel-body info-grid">
-                      <div>
-                        <span className="label">Messwert Tout</span>
-                        <p>{formatKpi(selectedPreset.measured_Tout_c)} C</p>
-                      </div>
-                      <div>
-                        <span className="label">Messwert Pulverfeuchte</span>
-                        <p>{formatKpi(selectedPreset.measured_powder_moisture_wb_pct)} wt% wb</p>
-                      </div>
-                      <div>
-                        <span className="label">Gemessenes d32</span>
-                        <p>{formatKpi(selectedPreset.measured_d32_um)} um</p>
-                      </div>
-                    </div>
+                <div className="panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">Aktuelle Simulation</h2>
                   </div>
-                )}
-
-                {result && (
-                  <div className="detail-grid">
-                    <div className="panel">
-                      <div className="panel-header">
-                        <h2 className="panel-title">Laufdetails</h2>
-                      </div>
-                      <div className="panel-body info-grid compact">
-                        <div>
-                          <span className="label">Profilpunkte</span>
-                          <p>{result.profile.n_points}</p>
-                        </div>
-                        <div>
-                          <span className="label">Axiale Laenge</span>
-                          <p>{formatKpi(result.profile.axial_length_m)} m</p>
-                        </div>
-                        <div>
-                          <span className="label">Sektionen</span>
-                          <p>{result.profile.sections.join(', ')}</p>
-                        </div>
-                        <div>
-                          <span className="label">Outlet-Feuchtereserve</span>
-                          <p>{formatKpi(result.summary.x_out_minus_x_b_out)}</p>
-                        </div>
-                        <div>
-                          <span className="label">T_p,out</span>
-                          <p>{formatKpi(result.summary.T_p_out_c)} C</p>
-                        </div>
-                        <div>
-                          <span className="label">U_p,out</span>
-                          <p>{formatKpi(result.summary.U_p_out_ms)} m/s</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="panel">
-                      <div className="panel-header">
-                        <h2 className="panel-title">Reportpunkte</h2>
-                      </div>
-                      <div className="panel-body">
-                        <table className="comparison-table">
-                          <thead>
-                            <tr>
-                              <th>Punkt</th>
-                              <th>h m</th>
-                              <th>T_a C</th>
-                              <th>T_p C</th>
-                              <th>wt% wb</th>
-                              <th>RH %</th>
-                              <th>tau s</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reportPointRows.map(({ label, point }) => (
-                              <tr key={label}>
-                                <td>{label}</td>
-                                <td>{formatKpi(point.h_m)}</td>
-                                <td>{formatKpi(point.T_a_c)}</td>
-                                <td>{formatKpi(point.T_p_c)}</td>
-                                <td>{formatKpi(point.moisture_wb_pct)}</td>
-                                <td>{formatKpi(point.RH_a_pct)}</td>
-                                <td>{formatKpi(point.tau_s)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                  <div className="panel-body parameter-summary-grid">
+                    <ParameterItem label="Tin" value={`${formatKpi(inputs.Tin)} C`} />
+                    <ParameterItem label="Yin" value={`${formatKpi(inputs.inlet_abs_humidity_g_kg)} g/kg`} />
+                    <ParameterItem label="Feed rate" value={`${formatKpi(inputs.feed_rate_kg_h)} kg/h`} />
+                    <ParameterItem label="Droplet size" value={`${formatKpi(inputs.droplet_size_um)} um`} />
+                    <ParameterItem label="Feed solids" value={`${formatKpi(inputs.feed_total_solids * 100)} %`} />
+                    <ParameterItem label="Target moisture" value={`${formatKpi(targetMoistureWbPct)} wt% wb`} />
+                    <ParameterItem
+                      label="Turm"
+                      value={`${formatKpi(inputs.dryer_height_m)} m x ${formatKpi(inputs.dryer_diameter_m)} m`}
+                    />
+                    <ParameterItem
+                      label="Konus / Duct"
+                      value={`${formatKpi(inputs.cone_height_m)} m / ${formatKpi(inputs.outlet_duct_length_m)} m`}
+                    />
                   </div>
-                )}
+                </div>
 
                 {message && <Banner tone="danger" text={message} />}
                 {result?.warnings.map((warning) => (
@@ -752,64 +648,48 @@ function App() {
                         <thead>
                           <tr>
                             <th>KPI</th>
-                            <th>Simulation</th>
-                            <th>Referenz</th>
+                            <th>Basisfall</th>
                           </tr>
                         </thead>
                         <tbody>
                           <tr>
                             <td>Endfeuchte wt% wb</td>
                             <td>{formatKpi(result.summary.end_moisture_wb_pct)}</td>
-                            <td>{formatKpi(selectedPreset?.measured_powder_moisture_wb_pct ?? null)}</td>
                           </tr>
                           <tr>
-                            <td>Tout_pre_cyclone C</td>
-                            <td>{formatKpi(result.summary.Tout_pre_cyclone_c)}</td>
-                            <td>{formatKpi(selectedPreset?.measured_Tout_c ?? null)}</td>
+                            <td>Tout C</td>
+                            <td>{formatKpi(result.summary.Tout_c)}</td>
                           </tr>
                           <tr>
                             <td>x_out - x_b,out</td>
                             <td>{formatKpi(result.summary.x_out_minus_x_b_out)}</td>
-                            <td>n/a</td>
                           </tr>
                           <tr>
                             <td>T_p,out C</td>
                             <td>{formatKpi(result.summary.T_p_out_c)}</td>
-                            <td>n/a</td>
                           </tr>
                           <tr>
                             <td>U_p,out m/s</td>
                             <td>{formatKpi(result.summary.U_p_out_ms)}</td>
-                            <td>n/a</td>
+                          </tr>
+                          <tr>
+                            <td>dmean_out um</td>
+                            <td>{formatKpi(result.summary.dmean_out_um)}</td>
                           </tr>
                           <tr>
                             <td>Gesamt-Waermeverlust W</td>
                             <td>{formatKpi(result.outlet.total_q_loss_w)}</td>
-                            <td>n/a</td>
                           </tr>
                         </tbody>
                       </table>
                     )}
+                    {result && activeChartTab === 'comparison' && (
+                      <p className="helper comparison-note">
+                        Diese Tabelle zeigt aktuell nur den Basisfall. Mehrere Szenarien werden im naechsten Schritt hier gegenuebergestellt.
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                {result && (
-                  <div className="panel">
-                    <div className="panel-header">
-                      <h2 className="panel-title">Provenienz und Modellpfade</h2>
-                    </div>
-                    <div className="panel-body">
-                      <dl className="provenance-list">
-                        {provenanceEntries.map(([key, value]) => (
-                          <div className="provenance-row" key={key}>
-                            <dt>{key}</dt>
-                            <dd>{value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  </div>
-                )}
               </section>
             </div>
           </section>
@@ -860,7 +740,7 @@ function App() {
                 <div>
                   <h3>Pflicht-KPIs</h3>
                   <ul className="flat-list">
-                    <li><code>Tout_pre_cyclone</code>, <code>RHout</code>, <code>tau_out</code></li>
+                    <li><code>Tout</code>, <code>RHout</code>, <code>tau_out</code></li>
                     <li>Endfeuchte, Zielerreichung, Zeit und Hoehe bis Ziel</li>
                   </ul>
                 </div>
@@ -963,19 +843,42 @@ function Banner({ text, tone }: { text: string; tone: 'warning' | 'danger' }) {
   return <div className={`banner ${tone}`}>{text}</div>
 }
 
-function presetByLabel(referenceCases: ReferenceCasePreset[], label: string): ReferenceCasePreset {
-  const preset = referenceCases.find((item) => item.label === label)
-  if (!preset) {
-    return referenceCases[0]
-  }
-  return preset
-}
-
 function formatKpi(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return 'n/a'
   }
   return value.toFixed(Math.abs(value) >= 10 ? 1 : 2)
+}
+
+function ParameterItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="parameter-item">
+      <span className="label">{label}</span>
+      <p>{value}</p>
+    </div>
+  )
+}
+
+interface PercentageFieldProps {
+  id: string
+  label: string
+  value: number
+  onChange: (value: string) => void
+}
+
+function PercentageField({ id, label, value, onChange }: PercentageFieldProps) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        step="0.1"
+        type="number"
+        value={(value * 100).toFixed(1)}
+      />
+    </div>
+  )
 }
 
 export default App

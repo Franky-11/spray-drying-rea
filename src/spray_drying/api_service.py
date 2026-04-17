@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from core.stationary_smp_rea import (
+    MS400GeometryAssumption,
     StationarySMPREAInput,
     build_ms400_stationary_input,
     derive_inputs,
@@ -18,8 +19,6 @@ from .api_schemas import (
     ReferenceCasePresetDTO,
     SimulationOutletDTO,
     SimulationProfileDTO,
-    SimulationReportPointDTO,
-    SimulationReportPointsDTO,
     SimulationRequestDTO,
     SimulationResponseDTO,
     SimulationSeriesPointDTO,
@@ -29,7 +28,6 @@ from .api_schemas import (
 )
 
 
-DEFAULT_REFERENCE_CASE_LABEL = "V2"
 DEFAULT_TARGET_MOISTURE_WB_PCT = 4.0
 MS400_PSD_PATH = Path(__file__).resolve().parents[2] / "ms400" / "psd.csv"
 SOLVER_METHODS = ["BDF", "RK45", "Radau"]
@@ -38,8 +36,8 @@ SOLVER_METHODS = ["BDF", "RK45", "Radau"]
 def get_model_defaults() -> ModelDefaultsDTO:
     reference_cases = list_reference_cases()
     return ModelDefaultsDTO(
-        default_reference_case_label=DEFAULT_REFERENCE_CASE_LABEL,
         default_target_moisture_wb_pct=DEFAULT_TARGET_MOISTURE_WB_PCT,
+        default_inputs=build_default_input_dto(),
         x_b_models=list(X_B_MODELS),
         solver_methods=SOLVER_METHODS,
         reference_cases=reference_cases,
@@ -73,14 +71,13 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
 
     target_row = _first_target_row(frame, request.target_moisture_wb_pct)
     outlet_row = frame.iloc[-1]
-    dryer_exit_row = _nearest_row(frame, float(result.report_points["dryer_exit"]["h_m"]))
-    pre_cyclone_row = _nearest_row(frame, float(result.report_points["pre_cyclone"]["h_m"]))
     profile_series = [_series_point_from_row(row) for _, row in frame.iterrows()]
     derived = derive_inputs(model_input)
+    dmean_out_um = float(outlet_row["d_p_m"]) * 1_000_000.0
 
     summary = SimulationSummaryDTO(
         end_moisture_wb_pct=float(outlet_row["moisture_wb_pct"]),
-        Tout_pre_cyclone_c=float(pre_cyclone_row["T_a_c"]),
+        Tout_c=float(outlet_row["T_a_c"]),
         RHout_pct=float(outlet_row["RH_a_pct"]),
         tau_out_s=float(outlet_row["tau_s"]) if pd.notna(outlet_row["tau_s"]) else None,
         target_moisture_wb_pct=request.target_moisture_wb_pct,
@@ -90,6 +87,7 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
         x_out_minus_x_b_out=float(outlet_row["X"] - outlet_row["x_b"]),
         T_p_out_c=float(outlet_row["T_p_c"]),
         U_p_out_ms=float(outlet_row["U_p_ms"]),
+        dmean_out_um=dmean_out_um,
         solver_success=bool(result.success),
         solver_message=str(result.solver_message),
     )
@@ -105,12 +103,8 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
         T_p_c=float(outlet_row["T_p_c"]),
         RH_a_pct=float(outlet_row["RH_a_pct"]),
         U_p_ms=float(outlet_row["U_p_ms"]),
+        dmean_out_um=dmean_out_um,
         total_q_loss_w=float(result.outlet["total_q_loss_w"]),
-    )
-
-    report_points = SimulationReportPointsDTO(
-        dryer_exit=_report_point_from_row(dryer_exit_row),
-        pre_cyclone=_report_point_from_row(pre_cyclone_row),
     )
 
     profile = SimulationProfileDTO(
@@ -125,11 +119,38 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
     return SimulationResponseDTO(
         summary=summary,
         outlet=outlet,
-        report_points=report_points,
         profile=profile,
         warnings=list(result.warnings),
-        provenance={str(key): str(value) for key, value in result.provenance.items()},
         inputs=request.inputs,
+    )
+
+
+def build_default_input_dto() -> StationaryInputDTO:
+    geometry = MS400GeometryAssumption()
+    return StationaryInputDTO(
+        Tin=190.0,
+        humid_air_mass_flow_kg_h=200.0,
+        feed_rate_kg_h=15.0,
+        droplet_size_um=65.0,
+        inlet_abs_humidity_g_kg=6.0,
+        feed_total_solids=0.37,
+        heat_loss_coeff_w_m2k=1.4,
+        x_b_model="lin_gab",
+        nozzle_delta_p_bar=47.0,
+        nozzle_velocity_coefficient=0.60,
+        dryer_diameter_m=geometry.cylinder_diameter_m,
+        dryer_height_m=geometry.cylinder_height_m,
+        cylinder_height_m=geometry.cylinder_height_m,
+        cone_height_m=geometry.cone_height_m,
+        outlet_duct_length_m=geometry.outlet_duct_length_m,
+        outlet_duct_diameter_m=geometry.outlet_duct_diameter_m,
+        feed_temp_c=40.0,
+        ambient_temp_c=20.0,
+        pressure_pa=101325.0,
+        axial_points=320,
+        solver_method="BDF",
+        solver_rtol=1e-6,
+        solver_atol=1e-8,
     )
 
 
@@ -203,12 +224,6 @@ def _first_target_row(frame: pd.DataFrame, target_moisture_wb_pct: float) -> pd.
         return None
     return target_rows.iloc[0]
 
-
-def _nearest_row(frame: pd.DataFrame, h_target_m: float) -> pd.Series:
-    index = int((frame["h"] - h_target_m).abs().idxmin())
-    return frame.iloc[index]
-
-
 def _series_point_from_row(row: pd.Series) -> SimulationSeriesPointDTO:
     return SimulationSeriesPointDTO(
         h_m=float(row["h"]),
@@ -224,24 +239,6 @@ def _series_point_from_row(row: pd.Series) -> SimulationSeriesPointDTO:
         U_a_ms=float(row["U_a_ms"]),
         U_p_ms=float(row["U_p_ms"]),
     )
-
-
-def _report_point_from_row(row: pd.Series) -> SimulationReportPointDTO:
-    return SimulationReportPointDTO(
-        h_m=float(row["h"]),
-        section=str(row["section"]),
-        tau_s=float(row["tau_s"]) if pd.notna(row["tau_s"]) else None,
-        moisture_wb_pct=float(row["moisture_wb_pct"]),
-        X=float(row["X"]),
-        x_b=float(row["x_b"]),
-        T_a_c=float(row["T_a_c"]),
-        T_p_c=float(row["T_p_c"]),
-        RH_a_pct=float(row["RH_a_pct"]),
-        U_a_ms=float(row["U_a_ms"]),
-        U_p_ms=float(row["U_p_ms"]),
-    )
-
-
 def _optional_series_float(row: pd.Series | None, key: str) -> float | None:
     if row is None:
         return None

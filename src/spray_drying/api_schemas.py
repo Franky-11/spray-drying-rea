@@ -50,8 +50,8 @@ class ReferenceCasePresetDTO(BaseModel):
 
 
 class ModelDefaultsDTO(BaseModel):
-    default_reference_case_label: str
     default_target_moisture_wb_pct: float
+    default_inputs: StationaryInputDTO
     x_b_models: list[str]
     solver_methods: list[str]
     reference_cases: list[ReferenceCasePresetDTO]
@@ -81,27 +81,6 @@ class SimulationSeriesPointDTO(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-class SimulationReportPointDTO(BaseModel):
-    h_m: float
-    section: str
-    tau_s: float | None
-    moisture_wb_pct: float
-    X: float
-    x_b: float
-    T_a_c: float
-    T_p_c: float
-    RH_a_pct: float
-    U_a_ms: float
-    U_p_ms: float
-
-    model_config = ConfigDict(protected_namespaces=())
-
-
-class SimulationReportPointsDTO(BaseModel):
-    dryer_exit: SimulationReportPointDTO
-    pre_cyclone: SimulationReportPointDTO
-
-
 class SimulationOutletDTO(BaseModel):
     h_m: float
     section: str
@@ -113,6 +92,7 @@ class SimulationOutletDTO(BaseModel):
     T_p_c: float
     RH_a_pct: float
     U_p_ms: float
+    dmean_out_um: float
     total_q_loss_w: float
 
     model_config = ConfigDict(protected_namespaces=())
@@ -131,7 +111,7 @@ class SimulationProfileDTO(BaseModel):
 
 class SimulationSummaryDTO(BaseModel):
     end_moisture_wb_pct: float
-    Tout_pre_cyclone_c: float
+    Tout_c: float
     RHout_pct: float
     tau_out_s: float | None
     target_moisture_wb_pct: float
@@ -141,6 +121,7 @@ class SimulationSummaryDTO(BaseModel):
     x_out_minus_x_b_out: float
     T_p_out_c: float
     U_p_out_ms: float
+    dmean_out_um: float
     solver_success: bool
     solver_message: str
 
@@ -148,10 +129,8 @@ class SimulationSummaryDTO(BaseModel):
 class SimulationResponseDTO(BaseModel):
     summary: SimulationSummaryDTO
     outlet: SimulationOutletDTO
-    report_points: SimulationReportPointsDTO
     profile: SimulationProfileDTO
     warnings: list[str]
-    provenance: dict[str, str]
     inputs: StationaryInputDTO
 
     model_config = ConfigDict(protected_namespaces=())

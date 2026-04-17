@@ -43,8 +43,8 @@ export interface ReferenceCasePreset {
 }
 
 export interface ModelDefaults {
-  default_reference_case_label: string
   default_target_moisture_wb_pct: number
+  default_inputs: StationaryInput
   x_b_models: XBModel[]
   solver_methods: Array<'BDF' | 'RK45' | 'Radau'>
   reference_cases: ReferenceCasePreset[]
@@ -70,25 +70,6 @@ export interface SimulationSeriesPoint {
   U_p_ms: number
 }
 
-export interface SimulationReportPoint {
-  h_m: number
-  section: string
-  tau_s: number | null
-  moisture_wb_pct: number
-  X: number
-  x_b: number
-  T_a_c: number
-  T_p_c: number
-  RH_a_pct: number
-  U_a_ms: number
-  U_p_ms: number
-}
-
-export interface SimulationReportPoints {
-  dryer_exit: SimulationReportPoint
-  pre_cyclone: SimulationReportPoint
-}
-
 export interface SimulationOutlet {
   h_m: number
   section: string
@@ -100,6 +81,7 @@ export interface SimulationOutlet {
   T_p_c: number
   RH_a_pct: number
   U_p_ms: number
+  dmean_out_um: number
   total_q_loss_w: number
 }
 
@@ -114,7 +96,7 @@ export interface SimulationProfile {
 
 export interface SimulationSummary {
   end_moisture_wb_pct: number
-  Tout_pre_cyclone_c: number
+  Tout_c: number
   RHout_pct: number
   tau_out_s: number | null
   target_moisture_wb_pct: number
@@ -124,6 +106,7 @@ export interface SimulationSummary {
   x_out_minus_x_b_out: number
   T_p_out_c: number
   U_p_out_ms: number
+  dmean_out_um: number
   solver_success: boolean
   solver_message: string
 }
@@ -131,9 +114,7 @@ export interface SimulationSummary {
 export interface SimulationResponse {
   summary: SimulationSummary
   outlet: SimulationOutlet
-  report_points: SimulationReportPoints
   profile: SimulationProfile
   warnings: string[]
-  provenance: Record<string, string>
   inputs: StationaryInput
 }
