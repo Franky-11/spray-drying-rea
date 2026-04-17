@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from .air import moist_air_density
+from .closures import XBModel
 from .inputs import StationarySMPREAInput
 
 
@@ -65,6 +66,7 @@ def build_ms400_stationary_input(
     feed_total_solids: float = 0.37,
     inlet_abs_humidity_g_kg: float = 5.7,
     humid_air_mass_flow_kg_h: float | None = None,
+    x_b_model: XBModel = "lin_gab",
     feed_temp_c: float = 40.0,
     ambient_temp_c: float = 20.0,
     heat_loss_coeff_w_m2k: float = 4.5,
@@ -106,6 +108,7 @@ def build_ms400_stationary_input(
         ambient_temp_c=ambient_temp_c,
         feed_temp_c=feed_temp_c,
         feed_total_solids=feed_total_solids,
+        x_b_model=x_b_model,
         pressure_pa=pressure_pa,
         heat_loss_coeff_w_m2k=heat_loss_coeff_w_m2k,
         axial_points=axial_points,

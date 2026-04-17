@@ -186,6 +186,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
         self.assertEqual(sim_input.inlet_air_temp_c, 180.0)
         self.assertEqual(sim_input.feed_total_solids, 0.37)
+        self.assertEqual(sim_input.x_b_model, "lin_gab")
         self.assertEqual(sim_input.cylinder_height_m, MS400GeometryAssumption().cylinder_height_m)
         self.assertEqual(sim_input.cone_height_m, MS400GeometryAssumption().cone_height_m)
         self.assertEqual(
