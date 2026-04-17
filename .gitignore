@@ -14,6 +14,7 @@ htmlcov/
 design
 docs/ui_refactor_plan.md
 docs/image_prompts/
+docs/_local/
 assets/generated_images/*
 !assets/generated_images/.gitkeep
 docs/process_simulation.md
