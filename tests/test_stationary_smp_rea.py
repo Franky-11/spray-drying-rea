@@ -9,6 +9,7 @@ from core.stationary_smp_rea import (
     solve_stationary_smp_profile,
 )
 from core.stationary_smp_rea.air import latent_heat_evaporation
+from core.stationary_smp_rea.air import T_REF_K
 from core.stationary_smp_rea.balances import evaluate_rhs
 from core.stationary_smp_rea.inputs import derive_inputs
 from core.stationary_smp_rea.ms400 import load_ms400_experiments
@@ -265,6 +266,42 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
         self.assertAlmostEqual(algebraic.q_sorption_j_kg, 633.0e3, places=6)
         self.assertAlmostEqual(rhs.dT_p_dh, expected, places=9)
+
+    def test_air_enthalpy_balance_includes_particle_liquid_water_enthalpy_change(self) -> None:
+        sim_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            fixed_particle_velocity_ms=5.0,
+            fixed_air_velocity_ms=100.0,
+            heat_loss_coeff_w_m2k=0.0,
+            x_b_model="lin_gab",
+            axial_points=80,
+        )
+        derived = derive_inputs(sim_input)
+        result = solve_stationary_smp_profile(sim_input)
+
+        row = result.series[result.series["X"] < result.series["X"].iloc[0]].iloc[0]
+        state = [
+            float(row["X"]),
+            float(row["T_p_k"]),
+            float(row["Y"]),
+            float(row["H_h_j_kg_da"]),
+            float(row["U_p_ms"]),
+            float(row["tau_s"]),
+        ]
+        rhs = evaluate_rhs(float(row["h"]), state, sim_input, derived)
+        algebraic = rhs.algebraic
+        dry_basis_ratio = (
+            derived.dry_solids_mass_flow_kg_s / derived.dry_air_mass_flow_kg_s
+        )
+        expected = -dry_basis_ratio * (
+            algebraic.particle_cp_j_kg_k * rhs.dT_p_dh
+            + derived.cpw_j_kg_k * (algebraic.T_p_k - T_REF_K) * rhs.dX_dh
+        )
+
+        self.assertLess(rhs.dX_dh, 0.0)
+        self.assertGreater(algebraic.T_p_k, T_REF_K)
+        self.assertAlmostEqual(rhs.dH_h_dh, expected, places=9)
 
 
 if __name__ == "__main__":

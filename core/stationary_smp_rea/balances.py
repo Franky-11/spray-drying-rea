@@ -6,6 +6,7 @@ import numpy as np
 
 from .air import (
     CP_WATER_VAPOR,
+    T_REF_K,
     air_superficial_velocity,
     dynamic_viscosity_air,
     invert_humid_air_enthalpy,
@@ -252,9 +253,15 @@ def evaluate_rhs(
         EPS,
     )
     dY_dh = -derived.dry_solids_mass_flow_kg_s / max(derived.dry_air_mass_flow_kg_s, EPS) * dX_dh
+    particle_enthalpy_moisture_term_dh = derived.cpw_j_kg_k * (
+        algebraic.T_p_k - T_REF_K
+    ) * dX_dh
     dH_h_dh = -(
         derived.dry_solids_mass_flow_kg_s / max(derived.dry_air_mass_flow_kg_s, EPS)
-    ) * algebraic.particle_cp_j_kg_k * dT_p_dh - algebraic.q_loss_prime_w_m / max(
+    ) * (
+        algebraic.particle_cp_j_kg_k * dT_p_dh
+        + particle_enthalpy_moisture_term_dh
+    ) - algebraic.q_loss_prime_w_m / max(
         derived.dry_air_mass_flow_kg_s,
         EPS,
     )
