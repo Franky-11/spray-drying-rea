@@ -279,6 +279,12 @@ button:disabled {
   gap: 16px;
 }
 
+.detail-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .kpi-grid {
   background: var(--border-subtle);
   border: 1px solid var(--border-subtle);
@@ -330,6 +336,11 @@ button:disabled {
   border-left-color: var(--danger);
 }
 
+.export-row {
+  margin-bottom: 8px;
+  padding-top: 0;
+}
+
 .tab-row {
   display: flex;
   flex-wrap: wrap;
@@ -377,6 +388,39 @@ button:disabled {
   padding-left: 18px;
 }
 
+.info-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.provenance-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.provenance-row {
+  border-bottom: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 4px;
+  padding-bottom: 12px;
+}
+
+.provenance-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.provenance-row dt {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.provenance-row dd {
+  margin: 0;
+}
+
 @media (max-width: 900px) {
   .top-bar {
     align-items: stretch;
@@ -400,6 +444,7 @@ button:disabled {
 
   .layout,
   .start-grid,
+  .detail-grid,
   .info-grid,
   .basics-grid,
   .field-row,

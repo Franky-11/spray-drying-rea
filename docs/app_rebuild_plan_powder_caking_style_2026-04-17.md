@@ -1,5 +1,41 @@
 # Implementierungsplan fuer den UI/UX-Neuaufbau der Spray-Drying-App
 
+## Statusstand 2026-04-17
+
+### Gesamtstatus
+
+- `Phase 0` `done`
+- `Phase 1` `done`
+- `Phase 2` `in progress`
+- `Phase 3` `planned`
+- `Phase 4` `planned`
+- `Phase 5` `planned`
+
+### Bereits umgesetzt
+
+- `frontend/` als eigenstaendiges `React + Vite + TypeScript`-Projekt angelegt
+- technische App-Shell mit Top-Bar und Navigation `Start / Simulation / Modellgrundlagen`
+- Python-API unter `src/spray_drying/` angelegt
+- `health`, `model/defaults`, `presets/reference-cases` und `simulate` angebunden
+- V1-Eingabestruktur fuer Basismodus und Expertenmodus im Frontend vorbereitet
+- Einzel-Szenario fuer den stationaeren SMP-REA-Kern ueber die neue UI ausfuehrbar
+- KPI-Band, Chart-Tabs, Reportpunkte und Ergebnisexport fuer den Einzel-Lauf angebunden
+- API liefert nun strukturierte Resultate mit `summary`, `outlet`, `report_points`, `profile`, `warnings`, `provenance`
+- lokale Python- und Frontend-Checks laufen erfolgreich
+
+### Aktuell in Arbeit
+
+- Phase 2 fachlich abschliessen und die Einzel-Szenario-Seite weiter in Richtung produktiver V1-Arbeitsseite haerten
+- API-/Frontend-Struktur so stabilisieren, dass Vergleichsszenarien ohne Umbau anschliessbar sind
+
+### Noch geplant
+
+- serverseitiger Vergleichsmodus `compare` fuer mehrere Szenarien
+- Delta- und Vergleichstabellen ueber mehrere Faelle
+- Modellgrundlagen-Seite fachlich inhaltlich ausbauen
+- moegliche CSS-Weiterstrukturierung in `frontend/src/styles/` gemaess Zielbild
+- spaetere V1+-Themen wie Sweep-Modus, gespeicherte Szenariensets und groessere Prozesssimulation bewusst spaeter
+
 ## Zielbild
 
 Die bestehende UI wird nicht weiterentwickelt. Die App wird neu aufgesetzt und soll sich in Stack,
@@ -521,6 +557,8 @@ Unterer Bereich:
 
 ## Phase 0: Dokumentation und Einfrieren des aktuellen Kerns
 
+Status: `done`
+
 Ziel:
 
 - Fine-Kern fachlich nicht mehr aufbrechen
@@ -533,6 +571,8 @@ Aufgaben:
 - aktuelle Streamlit-/Alt-UI nicht mehr erweitern
 
 ## Phase 1: Technisches Grundgeruest
+
+Status: `done`
 
 Ziel:
 
@@ -556,6 +596,8 @@ Akzeptanz:
 
 ## Phase 2: Einzel-Szenario fuer Trocknungskinetik
 
+Status: `in progress`
+
 Ziel:
 
 - ein Simulationslauf reproduzierbar ueber die neue UI
@@ -567,6 +609,8 @@ Aufgaben:
 - Formular fuer Einzel-Szenario
 - KPI-Ausgabe
 - Profilplot
+- Reportpunkte, strukturierte Ergebnisdaten und Export fuer den Einzel-Lauf
+- fachliche Abnahme gegen Referenzlaeufe fuer `V2` und weitere MS400-Faelle
 
 Akzeptanz:
 
@@ -574,6 +618,8 @@ Akzeptanz:
 - Resultate stimmen mit Python-Referenzlauf des neuen Kerns ueberein
 
 ## Phase 3: Vergleichsszenarien
+
+Status: `planned`
 
 Ziel:
 
@@ -594,6 +640,8 @@ Akzeptanz:
 
 ## Phase 4: Modellgrundlagen-Seite
 
+Status: `planned`
+
 Ziel:
 
 - wissenschaftlich saubere, knappe In-App-Dokumentation
@@ -609,6 +657,8 @@ Akzeptanz:
 - keine externe Dokumentensuche fuer die Kernlogik noetig
 
 ## Phase 5: Verfeinerung
+
+Status: `planned`
 
 Erst nach stabiler V1:
 
@@ -629,18 +679,18 @@ Erst nach stabiler V1:
 
 ## Konkrete offene Architekturentscheidungen
 
-Diese Punkte muessen vor der eigentlichen Umsetzung kurz festgezogen werden:
+Status heute:
 
-1. Python-API-Paketname im aktuellen Repo
-2. Ob das Frontend unter `frontend/` direkt im Repo lebt
-3. Ob React Router direkt in V1 genutzt wird oder einfache View-Navigation zuerst reicht
-4. Ob `compare` serverseitig als Batch-Endpoint oder clientseitig ueber mehrere `simulate`-Calls laeuft
+1. Python-API-Paketname: `done` als `spray_drying`
+2. Frontend lebt unter `frontend/`: `done`
+3. Fuer V1 wird einfache View-Navigation genutzt, kein React Router: `done`
+4. `compare`-Strategie: `planned`, aktuell noch nicht umgesetzt
 
 Empfehlung:
 
 1. `frontend/` direkt im Repo
-2. React Router direkt nutzen
-3. Batch-Endpoint `compare` von Anfang an serverseitig anbieten
+2. einfache View-Navigation bis zum Vergleichsmodus beibehalten
+3. Batch-Endpoint `compare` serverseitig in Phase 3 anbieten
 
 ## Erste Umsetzungsreihenfolge
 
@@ -656,12 +706,9 @@ Empfohlene konkrete Reihenfolge:
 
 ## Empfehlung zum naechsten Arbeitsschritt
 
-Der naechste sinnvolle Schritt ist **nicht** direkt UI-Politur, sondern das technische Grundgeruest:
+Der naechste sinnvolle Schritt nach dem aktuellen Stand ist **Phase 3 vorbereiten**:
 
-- `frontend/` scaffolden
-- Python-API-Schicht fuer den neuen Kern anlegen
-- minimale Navigation `Start / Simulation / Modellgrundlagen`
-- Basismodus und Expertenmodus im Inputmodell frueh mitdenken
-- `powder-caking`-Designartefakte direkt als Ausgangsbasis fuer Tokens und Layout nutzen
-
-Danach kann die eigentliche Simulationsseite iterativ aufgebaut werden.
+- Szenariozustand im Frontend von Einzelfall auf Basisszenario plus Vergleichsarray erweitern
+- serverseitigen `compare`-Endpoint definieren
+- KPI-Matrix und ueberlagerte Profilplots fuer mehrere Szenarien aufbauen
+- Delta-Darstellung gegen das Basisszenario einziehen

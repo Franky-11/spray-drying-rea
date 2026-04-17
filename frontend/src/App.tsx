@@ -3,12 +3,14 @@ import type { ChangeEvent } from 'react'
 import type { EChartsOption } from 'echarts'
 import './App.css'
 import { getHealth, getModelDefaults, simulate } from './apiClient'
+import { downloadSimulationJson, downloadSimulationProfileCsv } from './exportUtils'
 import type {
   ApiStatus,
   AppView,
   ChartTab,
   ModelDefaults,
   ReferenceCasePreset,
+  SimulationReportPoint,
   SimulationResponse,
   StationaryInput,
   XBModel,
@@ -71,6 +73,13 @@ function App() {
     () => (defaults ? presetByLabel(defaults.reference_cases, selectedReferenceCaseLabel) : null),
     [defaults, selectedReferenceCaseLabel],
   )
+  const reportPointRows: Array<{ label: string; point: SimulationReportPoint }> = result
+    ? [
+        { label: 'Trockneraustritt', point: result.report_points.dryer_exit },
+        { label: 'Vor Zyklon', point: result.report_points.pre_cyclone },
+      ]
+    : []
+  const provenanceEntries = result ? Object.entries(result.provenance) : []
 
   const canSimulate = apiStatus === 'online' && inputs !== null && !isSimulating
 
@@ -78,6 +87,7 @@ function App() {
     if (!result) {
       return null
     }
+    const profileSeries = result.profile.series
 
     const common = {
       animation: false,
@@ -113,14 +123,14 @@ function App() {
             type: 'line',
             showSymbol: false,
             lineStyle: { width: 2 },
-            data: result.series.map((row) => [row.h_m, row.moisture_wb_pct]),
+            data: profileSeries.map((row) => [row.h_m, row.moisture_wb_pct]),
           },
           {
             name: 'Ziel',
             type: 'line',
             showSymbol: false,
             lineStyle: { width: 2, type: 'dashed' },
-            data: result.series.map((row) => [row.h_m, result.summary.target_moisture_wb_pct]),
+            data: profileSeries.map((row) => [row.h_m, result.summary.target_moisture_wb_pct]),
           },
         ],
       }
@@ -140,14 +150,14 @@ function App() {
             type: 'line',
             showSymbol: false,
             lineStyle: { width: 2 },
-            data: result.series.map((row) => [row.h_m, row.T_a_c]),
+            data: profileSeries.map((row) => [row.h_m, row.T_a_c]),
           },
           {
             name: 'Partikel',
             type: 'line',
             showSymbol: false,
             lineStyle: { width: 2 },
-            data: result.series.map((row) => [row.h_m, row.T_p_c]),
+            data: profileSeries.map((row) => [row.h_m, row.T_p_c]),
           },
         ],
       }
@@ -167,14 +177,14 @@ function App() {
             type: 'line',
             showSymbol: false,
             lineStyle: { width: 2 },
-            data: result.series.map((row) => [row.h_m, row.x_b]),
+            data: profileSeries.map((row) => [row.h_m, row.x_b]),
           },
           {
             name: 'psi',
             type: 'line',
             showSymbol: false,
             lineStyle: { width: 2 },
-            data: result.series.map((row) => [row.h_m, row.psi]),
+            data: profileSeries.map((row) => [row.h_m, row.psi]),
           },
         ],
       }
@@ -193,14 +203,14 @@ function App() {
           type: 'line',
           showSymbol: false,
           lineStyle: { width: 2 },
-          data: result.series.map((row) => [row.h_m, row.U_a_ms]),
+          data: profileSeries.map((row) => [row.h_m, row.U_a_ms]),
         },
         {
           name: 'U_p',
           type: 'line',
           showSymbol: false,
           lineStyle: { width: 2 },
-          data: result.series.map((row) => [row.h_m, row.U_p_ms]),
+          data: profileSeries.map((row) => [row.h_m, row.U_p_ms]),
         },
       ],
     }
@@ -621,6 +631,76 @@ function App() {
                   </div>
                 )}
 
+                {result && (
+                  <div className="detail-grid">
+                    <div className="panel">
+                      <div className="panel-header">
+                        <h2 className="panel-title">Laufdetails</h2>
+                      </div>
+                      <div className="panel-body info-grid compact">
+                        <div>
+                          <span className="label">Profilpunkte</span>
+                          <p>{result.profile.n_points}</p>
+                        </div>
+                        <div>
+                          <span className="label">Axiale Laenge</span>
+                          <p>{formatKpi(result.profile.axial_length_m)} m</p>
+                        </div>
+                        <div>
+                          <span className="label">Sektionen</span>
+                          <p>{result.profile.sections.join(', ')}</p>
+                        </div>
+                        <div>
+                          <span className="label">Outlet-Feuchtereserve</span>
+                          <p>{formatKpi(result.summary.x_out_minus_x_b_out)}</p>
+                        </div>
+                        <div>
+                          <span className="label">T_p,out</span>
+                          <p>{formatKpi(result.summary.T_p_out_c)} C</p>
+                        </div>
+                        <div>
+                          <span className="label">U_p,out</span>
+                          <p>{formatKpi(result.summary.U_p_out_ms)} m/s</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="panel">
+                      <div className="panel-header">
+                        <h2 className="panel-title">Reportpunkte</h2>
+                      </div>
+                      <div className="panel-body">
+                        <table className="comparison-table">
+                          <thead>
+                            <tr>
+                              <th>Punkt</th>
+                              <th>h m</th>
+                              <th>T_a C</th>
+                              <th>T_p C</th>
+                              <th>wt% wb</th>
+                              <th>RH %</th>
+                              <th>tau s</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportPointRows.map(({ label, point }) => (
+                              <tr key={label}>
+                                <td>{label}</td>
+                                <td>{formatKpi(point.h_m)}</td>
+                                <td>{formatKpi(point.T_a_c)}</td>
+                                <td>{formatKpi(point.T_p_c)}</td>
+                                <td>{formatKpi(point.moisture_wb_pct)}</td>
+                                <td>{formatKpi(point.RH_a_pct)}</td>
+                                <td>{formatKpi(point.tau_s)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {message && <Banner tone="danger" text={message} />}
                 {result?.warnings.map((warning) => (
                   <Banner key={warning} tone="warning" text={warning} />
@@ -643,6 +723,24 @@ function App() {
                         </button>
                       ))}
                     </div>
+                    {result && (
+                      <div className="button-row export-row">
+                        <button
+                          className="button-secondary"
+                          onClick={() => downloadSimulationProfileCsv(result)}
+                          type="button"
+                        >
+                          Profil als CSV exportieren
+                        </button>
+                        <button
+                          className="button-secondary"
+                          onClick={() => downloadSimulationJson(result)}
+                          type="button"
+                        >
+                          Ergebnis als JSON exportieren
+                        </button>
+                      </div>
+                    )}
                     {!result && (
                       <div className="empty-state">
                         <p>Die Chart-Struktur ist angelegt. Nach dem ersten Lauf erscheinen hier KPI-, Profil- und Vergleichsdaten.</p>
@@ -684,11 +782,34 @@ function App() {
                             <td>{formatKpi(result.summary.U_p_out_ms)}</td>
                             <td>n/a</td>
                           </tr>
+                          <tr>
+                            <td>Gesamt-Waermeverlust W</td>
+                            <td>{formatKpi(result.outlet.total_q_loss_w)}</td>
+                            <td>n/a</td>
+                          </tr>
                         </tbody>
                       </table>
                     )}
                   </div>
                 </div>
+
+                {result && (
+                  <div className="panel">
+                    <div className="panel-header">
+                      <h2 className="panel-title">Provenienz und Modellpfade</h2>
+                    </div>
+                    <div className="panel-body">
+                      <dl className="provenance-list">
+                        {provenanceEntries.map(([key, value]) => (
+                          <div className="provenance-row" key={key}>
+                            <dt>{key}</dt>
+                            <dd>{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  </div>
+                )}
               </section>
             </div>
           </section>

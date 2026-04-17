@@ -81,6 +81,54 @@ class SimulationSeriesPointDTO(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
+class SimulationReportPointDTO(BaseModel):
+    h_m: float
+    section: str
+    tau_s: float | None
+    moisture_wb_pct: float
+    X: float
+    x_b: float
+    T_a_c: float
+    T_p_c: float
+    RH_a_pct: float
+    U_a_ms: float
+    U_p_ms: float
+
+    model_config = ConfigDict(protected_namespaces=())
+
+
+class SimulationReportPointsDTO(BaseModel):
+    dryer_exit: SimulationReportPointDTO
+    pre_cyclone: SimulationReportPointDTO
+
+
+class SimulationOutletDTO(BaseModel):
+    h_m: float
+    section: str
+    tau_s: float | None
+    moisture_wb_pct: float
+    X: float
+    x_b: float
+    T_a_c: float
+    T_p_c: float
+    RH_a_pct: float
+    U_p_ms: float
+    total_q_loss_w: float
+
+    model_config = ConfigDict(protected_namespaces=())
+
+
+class SimulationProfileDTO(BaseModel):
+    n_points: int
+    axial_length_m: float
+    dryer_exit_h_m: float
+    pre_cyclone_h_m: float
+    sections: list[str]
+    series: list[SimulationSeriesPointDTO]
+
+    model_config = ConfigDict(protected_namespaces=())
+
+
 class SimulationSummaryDTO(BaseModel):
     end_moisture_wb_pct: float
     Tout_pre_cyclone_c: float
@@ -99,8 +147,11 @@ class SimulationSummaryDTO(BaseModel):
 
 class SimulationResponseDTO(BaseModel):
     summary: SimulationSummaryDTO
-    series: list[SimulationSeriesPointDTO]
+    outlet: SimulationOutletDTO
+    report_points: SimulationReportPointsDTO
+    profile: SimulationProfileDTO
     warnings: list[str]
+    provenance: dict[str, str]
     inputs: StationaryInputDTO
 
     model_config = ConfigDict(protected_namespaces=())

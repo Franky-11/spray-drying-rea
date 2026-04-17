@@ -16,6 +16,10 @@ from core.stationary_smp_rea.air import moist_air_density
 from .api_schemas import (
     ModelDefaultsDTO,
     ReferenceCasePresetDTO,
+    SimulationOutletDTO,
+    SimulationProfileDTO,
+    SimulationReportPointDTO,
+    SimulationReportPointsDTO,
     SimulationRequestDTO,
     SimulationResponseDTO,
     SimulationSeriesPointDTO,
@@ -69,27 +73,14 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
 
     target_row = _first_target_row(frame, request.target_moisture_wb_pct)
     outlet_row = frame.iloc[-1]
-    pre_cyclone = result.report_points["pre_cyclone"]
-    series = [
-        SimulationSeriesPointDTO(
-            h_m=float(row["h"]),
-            section=str(row["section"]),
-            tau_s=float(row["tau_s"]) if pd.notna(row["tau_s"]) else None,
-            moisture_wb_pct=float(row["moisture_wb_pct"]),
-            X=float(row["X"]),
-            T_a_c=float(row["T_a_c"]),
-            T_p_c=float(row["T_p_c"]),
-            RH_a_pct=float(row["RH_a_pct"]),
-            x_b=float(row["x_b"]),
-            psi=float(row["psi"]),
-            U_a_ms=float(row["U_a_ms"]),
-            U_p_ms=float(row["U_p_ms"]),
-        )
-        for _, row in frame.iterrows()
-    ]
+    dryer_exit_row = _nearest_row(frame, float(result.report_points["dryer_exit"]["h_m"]))
+    pre_cyclone_row = _nearest_row(frame, float(result.report_points["pre_cyclone"]["h_m"]))
+    profile_series = [_series_point_from_row(row) for _, row in frame.iterrows()]
+    derived = derive_inputs(model_input)
+
     summary = SimulationSummaryDTO(
         end_moisture_wb_pct=float(outlet_row["moisture_wb_pct"]),
-        Tout_pre_cyclone_c=float(pre_cyclone["T_a_c"]),
+        Tout_pre_cyclone_c=float(pre_cyclone_row["T_a_c"]),
         RHout_pct=float(outlet_row["RH_a_pct"]),
         tau_out_s=float(outlet_row["tau_s"]) if pd.notna(outlet_row["tau_s"]) else None,
         target_moisture_wb_pct=request.target_moisture_wb_pct,
@@ -102,10 +93,42 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
         solver_success=bool(result.success),
         solver_message=str(result.solver_message),
     )
+
+    outlet = SimulationOutletDTO(
+        h_m=float(outlet_row["h"]),
+        section=str(outlet_row["section"]),
+        tau_s=float(outlet_row["tau_s"]) if pd.notna(outlet_row["tau_s"]) else None,
+        moisture_wb_pct=float(outlet_row["moisture_wb_pct"]),
+        X=float(outlet_row["X"]),
+        x_b=float(outlet_row["x_b"]),
+        T_a_c=float(outlet_row["T_a_c"]),
+        T_p_c=float(outlet_row["T_p_c"]),
+        RH_a_pct=float(outlet_row["RH_a_pct"]),
+        U_p_ms=float(outlet_row["U_p_ms"]),
+        total_q_loss_w=float(result.outlet["total_q_loss_w"]),
+    )
+
+    report_points = SimulationReportPointsDTO(
+        dryer_exit=_report_point_from_row(dryer_exit_row),
+        pre_cyclone=_report_point_from_row(pre_cyclone_row),
+    )
+
+    profile = SimulationProfileDTO(
+        n_points=len(profile_series),
+        axial_length_m=float(derived.total_axial_length_m),
+        dryer_exit_h_m=float(derived.dryer_exit_h_m),
+        pre_cyclone_h_m=float(derived.pre_cyclone_h_m),
+        sections=[str(section) for section in frame["section"].drop_duplicates().tolist()],
+        series=profile_series,
+    )
+
     return SimulationResponseDTO(
         summary=summary,
-        series=series,
+        outlet=outlet,
+        report_points=report_points,
+        profile=profile,
         warnings=list(result.warnings),
+        provenance={str(key): str(value) for key, value in result.provenance.items()},
         inputs=request.inputs,
     )
 
@@ -179,6 +202,44 @@ def _first_target_row(frame: pd.DataFrame, target_moisture_wb_pct: float) -> pd.
     if target_rows.empty:
         return None
     return target_rows.iloc[0]
+
+
+def _nearest_row(frame: pd.DataFrame, h_target_m: float) -> pd.Series:
+    index = int((frame["h"] - h_target_m).abs().idxmin())
+    return frame.iloc[index]
+
+
+def _series_point_from_row(row: pd.Series) -> SimulationSeriesPointDTO:
+    return SimulationSeriesPointDTO(
+        h_m=float(row["h"]),
+        section=str(row["section"]),
+        tau_s=float(row["tau_s"]) if pd.notna(row["tau_s"]) else None,
+        moisture_wb_pct=float(row["moisture_wb_pct"]),
+        X=float(row["X"]),
+        T_a_c=float(row["T_a_c"]),
+        T_p_c=float(row["T_p_c"]),
+        RH_a_pct=float(row["RH_a_pct"]),
+        x_b=float(row["x_b"]),
+        psi=float(row["psi"]),
+        U_a_ms=float(row["U_a_ms"]),
+        U_p_ms=float(row["U_p_ms"]),
+    )
+
+
+def _report_point_from_row(row: pd.Series) -> SimulationReportPointDTO:
+    return SimulationReportPointDTO(
+        h_m=float(row["h"]),
+        section=str(row["section"]),
+        tau_s=float(row["tau_s"]) if pd.notna(row["tau_s"]) else None,
+        moisture_wb_pct=float(row["moisture_wb_pct"]),
+        X=float(row["X"]),
+        x_b=float(row["x_b"]),
+        T_a_c=float(row["T_a_c"]),
+        T_p_c=float(row["T_p_c"]),
+        RH_a_pct=float(row["RH_a_pct"]),
+        U_a_ms=float(row["U_a_ms"]),
+        U_p_ms=float(row["U_p_ms"]),
+    )
 
 
 def _optional_series_float(row: pd.Series | None, key: str) -> float | None:

@@ -83,11 +83,15 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["summary"]["solver_success"])
-        self.assertGreater(len(data["series"]), 50)
+        self.assertGreater(data["profile"]["n_points"], 50)
+        self.assertEqual(len(data["profile"]["series"]), data["profile"]["n_points"])
         self.assertIn("x_out_minus_x_b_out", data["summary"])
         self.assertIn("RHout_pct", data["summary"])
         self.assertGreater(data["summary"]["Tout_pre_cyclone_c"], 50.0)
         self.assertGreaterEqual(data["summary"]["end_moisture_wb_pct"], 0.0)
+        self.assertEqual(data["report_points"]["pre_cyclone"]["section"], "outlet_duct")
+        self.assertIn("total_q_loss_w", data["outlet"])
+        self.assertIn("balances", data["provenance"])
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:
         response = await self.client.post(

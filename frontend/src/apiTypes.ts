@@ -70,6 +70,48 @@ export interface SimulationSeriesPoint {
   U_p_ms: number
 }
 
+export interface SimulationReportPoint {
+  h_m: number
+  section: string
+  tau_s: number | null
+  moisture_wb_pct: number
+  X: number
+  x_b: number
+  T_a_c: number
+  T_p_c: number
+  RH_a_pct: number
+  U_a_ms: number
+  U_p_ms: number
+}
+
+export interface SimulationReportPoints {
+  dryer_exit: SimulationReportPoint
+  pre_cyclone: SimulationReportPoint
+}
+
+export interface SimulationOutlet {
+  h_m: number
+  section: string
+  tau_s: number | null
+  moisture_wb_pct: number
+  X: number
+  x_b: number
+  T_a_c: number
+  T_p_c: number
+  RH_a_pct: number
+  U_p_ms: number
+  total_q_loss_w: number
+}
+
+export interface SimulationProfile {
+  n_points: number
+  axial_length_m: number
+  dryer_exit_h_m: number
+  pre_cyclone_h_m: number
+  sections: string[]
+  series: SimulationSeriesPoint[]
+}
+
 export interface SimulationSummary {
   end_moisture_wb_pct: number
   Tout_pre_cyclone_c: number
@@ -88,7 +130,10 @@ export interface SimulationSummary {
 
 export interface SimulationResponse {
   summary: SimulationSummary
-  series: SimulationSeriesPoint[]
+  outlet: SimulationOutlet
+  report_points: SimulationReportPoints
+  profile: SimulationProfile
   warnings: string[]
+  provenance: Record<string, string>
   inputs: StationaryInput
 }
