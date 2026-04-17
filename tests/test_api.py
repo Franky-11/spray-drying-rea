@@ -40,6 +40,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["Tin"], 190.0)
         self.assertAlmostEqual(data["default_inputs"]["feed_rate_kg_h"], 15.0)
         self.assertAlmostEqual(data["default_inputs"]["droplet_size_um"], 65.0)
+        self.assertAlmostEqual(data["default_inputs"]["humid_air_mass_flow_kg_h"], 300.0)
         self.assertAlmostEqual(data["default_inputs"]["inlet_abs_humidity_g_kg"], 6.0)
         self.assertAlmostEqual(data["default_inputs"]["feed_total_solids"], 0.37)
         labels = [item["label"] for item in data["reference_cases"]]

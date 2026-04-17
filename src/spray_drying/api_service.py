@@ -31,6 +31,10 @@ from .api_schemas import (
 DEFAULT_TARGET_MOISTURE_WB_PCT = 4.0
 MS400_PSD_PATH = Path(__file__).resolve().parents[2] / "ms400" / "psd.csv"
 SOLVER_METHODS = ["BDF", "RK45", "Radau"]
+SUPPRESSED_UI_WARNINGS = {
+    "Die abschnittsweise Geometrie behandelt Zylinder, Konus und Abluftrohr als effektive 1D-Strombahn mit lokalem Querschnitt; Umlenkung, Rueckmischung und Richtungswechsel werden nicht separat aufgeloest.",
+    "Der Reportpunkt 'pre_cyclone' liegt am Ende der effektiven Abluftrohrsektion unmittelbar vor dem Zykloneintritt.",
+}
 
 
 def get_model_defaults() -> ModelDefaultsDTO:
@@ -120,7 +124,7 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
         summary=summary,
         outlet=outlet,
         profile=profile,
-        warnings=list(result.warnings),
+        warnings=[warning for warning in result.warnings if warning not in SUPPRESSED_UI_WARNINGS],
         inputs=request.inputs,
     )
 
@@ -129,7 +133,7 @@ def build_default_input_dto() -> StationaryInputDTO:
     geometry = MS400GeometryAssumption()
     return StationaryInputDTO(
         Tin=190.0,
-        humid_air_mass_flow_kg_h=200.0,
+        humid_air_mass_flow_kg_h=300.0,
         feed_rate_kg_h=15.0,
         droplet_size_um=65.0,
         inlet_abs_humidity_g_kg=6.0,

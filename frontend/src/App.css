@@ -194,6 +194,18 @@
   gap: 6px;
 }
 
+.field-note {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  display: flex;
+  font-size: 12px;
+  line-height: 16px;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
 label {
   color: var(--text-primary);
   font-size: 12px;

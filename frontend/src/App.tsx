@@ -474,40 +474,42 @@ function App() {
                             onChange={(value) => updateNumberField('dryer_diameter_m', value)}
                             value={inputs.dryer_diameter_m}
                           />
-                          <NumberField
-                            id="dryer_height_m"
-                            label="dryer_height_m"
-                            onChange={(value) => updateNumberField('dryer_height_m', value)}
-                            value={inputs.dryer_height_m}
-                          />
-                        </div>
-                        <div className="field-row">
                           <NullableNumberField
                             id="cylinder_height_m"
                             label="cylinder_height_m"
                             onChange={(value) => updateNullableNumberField('cylinder_height_m', value)}
                             value={inputs.cylinder_height_m}
                           />
+                        </div>
+                        <div className="field-row">
                           <NumberField
                             id="cone_height_m"
                             label="cone_height_m"
                             onChange={(value) => updateNumberField('cone_height_m', value)}
                             value={inputs.cone_height_m}
                           />
-                        </div>
-                        <div className="field-row">
                           <NumberField
                             id="outlet_duct_length_m"
                             label="outlet_duct_length_m"
                             onChange={(value) => updateNumberField('outlet_duct_length_m', value)}
                             value={inputs.outlet_duct_length_m}
                           />
+                        </div>
+                        <div className="field-row">
                           <NullableNumberField
                             id="outlet_duct_diameter_m"
                             label="outlet_duct_diameter_m"
                             onChange={(value) => updateNullableNumberField('outlet_duct_diameter_m', value)}
                             value={inputs.outlet_duct_diameter_m}
                           />
+                          <div className="field">
+                            <label>Geometriehinweis</label>
+                            <div className="field-note">
+                              Fuer die UI wird die segmentierte Geometrie direkt ueber Zylinderhoehe,
+                              Konushoehe und Abluftrohr beschrieben. `dryer_height_m` ist intern nur
+                              ein Legacy-Feld und wird hier bewusst nicht separat gefuehrt.
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -587,8 +589,8 @@ function App() {
                     <ParameterItem label="Feed solids" value={`${formatKpi(inputs.feed_total_solids * 100)} %`} />
                     <ParameterItem label="Target moisture" value={`${formatKpi(targetMoistureWbPct)} wt% wb`} />
                     <ParameterItem
-                      label="Turm"
-                      value={`${formatKpi(inputs.dryer_height_m)} m x ${formatKpi(inputs.dryer_diameter_m)} m`}
+                      label="Zylinder"
+                      value={`${formatKpi(inputs.cylinder_height_m ?? inputs.dryer_height_m)} m x ${formatKpi(inputs.dryer_diameter_m)} m`}
                     />
                     <ParameterItem
                       label="Konus / Duct"
@@ -777,7 +779,6 @@ type NumberFieldKey =
   | 'nozzle_delta_p_bar'
   | 'nozzle_velocity_coefficient'
   | 'dryer_diameter_m'
-  | 'dryer_height_m'
   | 'cone_height_m'
   | 'outlet_duct_length_m'
 
