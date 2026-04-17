@@ -69,7 +69,7 @@ def build_ms400_stationary_input(
     x_b_model: XBModel = "lin_gab",
     feed_temp_c: float = 40.0,
     ambient_temp_c: float = 20.0,
-    heat_loss_coeff_w_m2k: float = 1.0,
+    heat_loss_coeff_w_m2k: float = 1.4,
     pressure_pa: float = 101325.0,
     particle_metric: str = "d32",
     particle_backcalc_exponent: float = 1.0 / 3.0,
