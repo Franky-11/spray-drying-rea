@@ -24,7 +24,6 @@ class StationaryInputDTO(BaseModel):
     nozzle_delta_p_bar: float = Field(gt=0)
     nozzle_velocity_coefficient: float = Field(gt=0)
     dryer_diameter_m: float = Field(gt=0)
-    dryer_height_m: float = Field(gt=0)
     cylinder_height_m: float | None = Field(default=None, gt=0)
     cone_height_m: float = Field(ge=0)
     outlet_duct_length_m: float = Field(ge=0)

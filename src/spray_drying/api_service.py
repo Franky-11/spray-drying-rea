@@ -143,7 +143,6 @@ def build_default_input_dto() -> StationaryInputDTO:
         nozzle_delta_p_bar=47.0,
         nozzle_velocity_coefficient=0.60,
         dryer_diameter_m=geometry.cylinder_diameter_m,
-        dryer_height_m=geometry.cylinder_height_m,
         cylinder_height_m=geometry.cylinder_height_m,
         cone_height_m=geometry.cone_height_m,
         outlet_duct_length_m=geometry.outlet_duct_length_m,
@@ -172,7 +171,6 @@ def _dto_from_stationary_input(model_input: StationarySMPREAInput) -> Stationary
         nozzle_delta_p_bar=model_input.nozzle_delta_p_bar,
         nozzle_velocity_coefficient=model_input.nozzle_velocity_coefficient,
         dryer_diameter_m=model_input.dryer_diameter_m,
-        dryer_height_m=model_input.dryer_height_m,
         cylinder_height_m=model_input.cylinder_height_m,
         cone_height_m=model_input.cone_height_m,
         outlet_duct_length_m=model_input.outlet_duct_length_m,
@@ -195,10 +193,13 @@ def _dto_to_stationary_input(input_dto: StationaryInputDTO) -> StationarySMPREAI
         input_dto.pressure_pa,
     )
     air_flow_m3_h = input_dto.humid_air_mass_flow_kg_h / max(density, 1e-12)
+    cylinder_height_m = input_dto.cylinder_height_m
+    if cylinder_height_m is None:
+        raise ValueError("cylinder_height_m muss fuer die segmentierte Geometrie gesetzt sein.")
     return StationarySMPREAInput(
-        dryer_height_m=input_dto.dryer_height_m,
+        dryer_height_m=cylinder_height_m,
         dryer_diameter_m=input_dto.dryer_diameter_m,
-        cylinder_height_m=input_dto.cylinder_height_m,
+        cylinder_height_m=cylinder_height_m,
         cone_height_m=input_dto.cone_height_m,
         outlet_duct_length_m=input_dto.outlet_duct_length_m,
         outlet_duct_diameter_m=input_dto.outlet_duct_diameter_m,
@@ -228,6 +229,7 @@ def _first_target_row(frame: pd.DataFrame, target_moisture_wb_pct: float) -> pd.
         return None
     return target_rows.iloc[0]
 
+
 def _series_point_from_row(row: pd.Series) -> SimulationSeriesPointDTO:
     return SimulationSeriesPointDTO(
         h_m=float(row["h"]),
@@ -243,6 +245,8 @@ def _series_point_from_row(row: pd.Series) -> SimulationSeriesPointDTO:
         U_a_ms=float(row["U_a_ms"]),
         U_p_ms=float(row["U_p_ms"]),
     )
+
+
 def _optional_series_float(row: pd.Series | None, key: str) -> float | None:
     if row is None:
         return None

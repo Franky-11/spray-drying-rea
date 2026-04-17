@@ -506,8 +506,8 @@ function App() {
                             <label>Geometriehinweis</label>
                             <div className="field-note">
                               Fuer die UI wird die segmentierte Geometrie direkt ueber Zylinderhoehe,
-                              Konushoehe und Abluftrohr beschrieben. `dryer_height_m` ist intern nur
-                              ein Legacy-Feld und wird hier bewusst nicht separat gefuehrt.
+                              Konushoehe und Abluftrohr beschrieben. Eine separate Gesamt-Turmhoehe
+                              wird in der App nicht mehr gepflegt.
                             </div>
                           </div>
                         </div>
@@ -590,7 +590,7 @@ function App() {
                     <ParameterItem label="Target moisture" value={`${formatKpi(targetMoistureWbPct)} wt% wb`} />
                     <ParameterItem
                       label="Zylinder"
-                      value={`${formatKpi(inputs.cylinder_height_m ?? inputs.dryer_height_m)} m x ${formatKpi(inputs.dryer_diameter_m)} m`}
+                      value={`${formatKpi(inputs.cylinder_height_m)} m x ${formatKpi(inputs.dryer_diameter_m)} m`}
                     />
                     <ParameterItem
                       label="Konus / Duct"

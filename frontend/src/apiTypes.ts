@@ -19,7 +19,6 @@ export interface StationaryInput {
   nozzle_delta_p_bar: number
   nozzle_velocity_coefficient: number
   dryer_diameter_m: number
-  dryer_height_m: number
   cylinder_height_m: number | null
   cone_height_m: number
   outlet_duct_length_m: number
