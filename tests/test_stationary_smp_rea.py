@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from core.stationary_smp_rea import (
@@ -10,6 +11,7 @@ from core.stationary_smp_rea import (
 )
 from core.stationary_smp_rea.air import latent_heat_evaporation
 from core.stationary_smp_rea.air import T_REF_K
+from core.stationary_smp_rea.air import moist_air_density
 from core.stationary_smp_rea.balances import evaluate_rhs
 from core.stationary_smp_rea.inputs import derive_inputs
 from core.stationary_smp_rea.ms400 import load_ms400_experiments
@@ -302,6 +304,37 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertLess(rhs.dX_dh, 0.0)
         self.assertGreater(algebraic.T_p_k, T_REF_K)
         self.assertAlmostEqual(rhs.dH_h_dh, expected, places=9)
+
+    def test_drying_stops_once_local_equilibrium_moisture_is_reached(self) -> None:
+        base_input = build_ms400_stationary_input_from_label("V2")
+        air_flow_m3_h = 304.0 / moist_air_density(
+            base_input.inlet_air_temp_c + 273.15,
+            base_input.inlet_abs_humidity_g_kg / 1000.0,
+            base_input.pressure_pa,
+        )
+        sim_input = replace(
+            base_input,
+            air_flow_m3_h=air_flow_m3_h,
+            feed_rate_kg_h=14.0,
+            heat_loss_coeff_w_m2k=2.0,
+        )
+        derived = derive_inputs(sim_input)
+        result = solve_stationary_smp_profile(sim_input)
+
+        late_row = result.series.iloc[-1]
+        self.assertLessEqual(float(late_row["X"]), float(late_row["x_b"]))
+
+        state = [
+            float(late_row["X"]),
+            float(late_row["T_p_k"]),
+            float(late_row["Y"]),
+            float(late_row["H_h_j_kg_da"]),
+            float(late_row["U_p_ms"]),
+            float(late_row["tau_s"]),
+        ]
+        rhs = evaluate_rhs(float(late_row["h"]), state, sim_input, derived)
+        self.assertAlmostEqual(rhs.dm_p_dh_kg_m, 0.0, places=12)
+        self.assertAlmostEqual(rhs.dX_dh, 0.0, places=12)
 
 
 if __name__ == "__main__":

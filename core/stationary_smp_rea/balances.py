@@ -230,11 +230,19 @@ def evaluate_rhs(
     derived: StationarySMPREADerivedInputs,
 ) -> RHSState:
     algebraic = evaluate_algebraic_state(h_m, state_vector, inputs, derived)
-    dm_p_dh = -(
+    raw_dm_p_dh = -(
         algebraic.transport.mass_transfer_coeff_ms
         * algebraic.particle_area_m2
         / max(algebraic.U_p_ms, EPS)
         * (algebraic.rho_v_surface_kg_m3 - algebraic.rho_v_air_kg_m3)
+    )
+    # Enforce zero drying rate once the local equilibrium moisture is reached.
+    # The current REA closure is only calibrated on the drying side (X >= X_b),
+    # so we must not continue evaporating once X drops to or below X_b.
+    dm_p_dh = (
+        0.0
+        if algebraic.X <= algebraic.x_b and raw_dm_p_dh < 0.0
+        else raw_dm_p_dh
     )
     dX_dh = dm_p_dh / max(derived.representative_dry_solids_mass_kg, EPS)
     dT_p_dh = (
