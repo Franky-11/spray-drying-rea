@@ -74,6 +74,9 @@ class AlgebraicState:
     shrinkage_mode: str
     critical_delta: float
     critical_ratio: float
+    normalized_delta: float
+    activation_ratio_base: float
+    activation_ratio_add: float
     activation_ratio: float
     delta_e_max_j_mol: float
     delta_e_j_mol: float
@@ -210,6 +213,9 @@ def evaluate_algebraic_state(
         shrinkage_mode=chew.shrinkage_mode,
         critical_delta=chew.critical_delta,
         critical_ratio=chew.critical_ratio,
+        normalized_delta=chew.normalized_delta,
+        activation_ratio_base=chew.activation_ratio_base,
+        activation_ratio_add=chew.activation_ratio_add,
         activation_ratio=chew.activation_ratio,
         delta_e_max_j_mol=chew.delta_e_max_j_mol,
         delta_e_j_mol=chew.delta_e_j_mol,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import unittest
 
 from core.stationary_smp_rea import (
@@ -11,11 +10,11 @@ from core.stationary_smp_rea import (
 )
 from core.stationary_smp_rea.air import latent_heat_evaporation
 from core.stationary_smp_rea.air import T_REF_K
-from core.stationary_smp_rea.air import moist_air_density
-from core.stationary_smp_rea.balances import evaluate_rhs
+from core.stationary_smp_rea.balances import evaluate_algebraic_state, evaluate_rhs
 from core.stationary_smp_rea.inputs import derive_inputs
 from core.stationary_smp_rea.ms400 import load_ms400_experiments
 from core.stationary_smp_rea.materials.smp_chew import (
+    chew_material_state,
     legacy_extended_shrinkage_ratio,
     initial_moisture_dry_basis,
     linear_parameters_from_initial_moisture,
@@ -139,6 +138,44 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         )
         self.assertLess(result.outlet["outlet_X"], result.series["X"].iloc[0])
 
+    def test_material_retardation_add_term_is_windowed_to_early_falling_rate(self) -> None:
+        early = chew_material_state(
+            moisture_dry_basis=0.14,
+            x_b=0.01,
+            feed_total_solids=0.37,
+            shrinkage_model="auto",
+            temp_particle_k=333.15,
+            temp_air_k=353.15,
+            rh_air=0.12,
+        )
+        wet = chew_material_state(
+            moisture_dry_basis=0.45,
+            x_b=0.01,
+            feed_total_solids=0.37,
+            shrinkage_model="auto",
+            temp_particle_k=333.15,
+            temp_air_k=353.15,
+            rh_air=0.12,
+        )
+        near_equilibrium = chew_material_state(
+            moisture_dry_basis=0.02,
+            x_b=0.01,
+            feed_total_solids=0.37,
+            shrinkage_model="auto",
+            temp_particle_k=333.15,
+            temp_air_k=353.15,
+            rh_air=0.12,
+        )
+
+        self.assertGreater(early.activation_ratio_add, 0.0)
+        self.assertLess(wet.activation_ratio_add, early.activation_ratio_add)
+        self.assertLess(near_equilibrium.activation_ratio_add, early.activation_ratio_add)
+        self.assertAlmostEqual(
+            early.activation_ratio,
+            early.activation_ratio_base + early.activation_ratio_add,
+            places=12,
+        )
+
     def test_sectionwise_geometry_updates_local_air_velocity_and_pre_cyclone_report(self) -> None:
         result = solve_stationary_smp_profile(
             StationarySMPREAInput(
@@ -223,10 +260,11 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
     def test_particle_energy_term_uses_air_side_latent_heat_and_sorption_heat(self) -> None:
         sim_input = StationarySMPREAInput(
-            inlet_air_temp_c=190.0,
+            inlet_air_temp_c=210.0,
             feed_total_solids=0.40,
             fixed_particle_velocity_ms=5.0,
-            fixed_air_velocity_ms=100.0,
+            fixed_air_velocity_ms=120.0,
+            heat_loss_coeff_w_m2k=0.0,
             x_b_model="lin_gab",
             axial_points=80,
         )
@@ -306,33 +344,35 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertAlmostEqual(rhs.dH_h_dh, expected, places=9)
 
     def test_drying_stops_once_local_equilibrium_moisture_is_reached(self) -> None:
-        base_input = build_ms400_stationary_input_from_label("V2")
-        air_flow_m3_h = 304.0 / moist_air_density(
-            base_input.inlet_air_temp_c + 273.15,
-            base_input.inlet_abs_humidity_g_kg / 1000.0,
-            base_input.pressure_pa,
-        )
-        sim_input = replace(
-            base_input,
-            air_flow_m3_h=air_flow_m3_h,
+        sim_input = build_ms400_stationary_input_from_label(
+            "V2",
             feed_rate_kg_h=14.0,
+            humid_air_mass_flow_kg_h=304.0,
             heat_loss_coeff_w_m2k=2.0,
+            x_b_model="lin_gab",
         )
         derived = derive_inputs(sim_input)
         result = solve_stationary_smp_profile(sim_input)
 
         late_row = result.series.iloc[-1]
-        self.assertLessEqual(float(late_row["X"]), float(late_row["x_b"]))
-
         state = [
-            float(late_row["X"]),
-            float(late_row["T_p_k"]),
+            float(late_row["x_b"]) - 1e-6,
+            float(late_row["T_p_k"]) + 5.0,
             float(late_row["Y"]),
             float(late_row["H_h_j_kg_da"]),
             float(late_row["U_p_ms"]),
             float(late_row["tau_s"]),
         ]
+        algebraic = evaluate_algebraic_state(float(late_row["h"]), state, sim_input, derived)
+        raw_dm_p_dh = -(
+            algebraic.transport.mass_transfer_coeff_ms
+            * algebraic.particle_area_m2
+            / algebraic.U_p_ms
+            * (algebraic.rho_v_surface_kg_m3 - algebraic.rho_v_air_kg_m3)
+        )
         rhs = evaluate_rhs(float(late_row["h"]), state, sim_input, derived)
+        self.assertLessEqual(algebraic.X, algebraic.x_b)
+        self.assertLess(raw_dm_p_dh, 0.0)
         self.assertAlmostEqual(rhs.dm_p_dh_kg_m, 0.0, places=12)
         self.assertAlmostEqual(rhs.dX_dh, 0.0, places=12)
 

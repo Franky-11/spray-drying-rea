@@ -7,6 +7,9 @@ from math import exp, log
 EPS = 1e-12
 R_GAS = 8.314
 POLY_COEFFS = (1.0, -1.305, 0.7097, -0.1721, 0.0151)
+EARLY_FALLING_RATE_ADD_GAIN = 1.29
+EARLY_FALLING_RATE_WINDOW_CENTER = 0.12
+EARLY_FALLING_RATE_WINDOW_WIDTH = 0.025
 LINEAR_ANCHORS = {
     0.30: {"slope": 0.1617, "critical_delta": 1.362, "critical_ratio": 0.172},
     0.37: {"slope": 0.3595, "critical_delta": 0.969, "critical_ratio": 0.265},
@@ -32,6 +35,9 @@ class ChewMaterialState:
     linear_intercept: float
     critical_delta: float
     critical_ratio: float
+    normalized_delta: float
+    activation_ratio_base: float
+    activation_ratio_add: float
     activation_ratio: float
     delta_e_max_j_mol: float
     delta_e_j_mol: float
@@ -84,6 +90,14 @@ def _common_polynomial(delta: float) -> float:
     )
 
 
+def _sigmoid(value: float) -> float:
+    if value >= 0.0:
+        exp_term = exp(-value)
+        return 1.0 / (1.0 + exp_term)
+    exp_term = exp(value)
+    return exp_term / (1.0 + exp_term)
+
+
 def linear_parameters_from_initial_moisture(
     initial_moisture_dry_basis_value: float,
 ) -> tuple[float, float, float, float]:
@@ -132,6 +146,28 @@ def activation_ratio(delta: float, feed_total_solids: float) -> tuple[float, flo
         critical_delta,
         critical_ratio,
     )
+
+
+def _early_falling_rate_activation_ratio_add(
+    delta: float,
+    x_b: float,
+    initial_moisture_dry_basis_value: float,
+) -> tuple[float, float]:
+    bounded_delta = max(delta, 0.0)
+    moisture_span = max(initial_moisture_dry_basis_value - x_b, EPS)
+    normalized_delta = min(max(bounded_delta / moisture_span, 0.0), 1.0)
+    # Switch on a material-side REA penalty only after the early falling-rate
+    # regime is entered; the linear delta factor makes it fade back out near x_b.
+    early_falling_rate_window = _sigmoid(
+        (EARLY_FALLING_RATE_WINDOW_CENTER - normalized_delta)
+        / EARLY_FALLING_RATE_WINDOW_WIDTH
+    )
+    activation_ratio_add = (
+        EARLY_FALLING_RATE_ADD_GAIN
+        * bounded_delta
+        * early_falling_rate_window
+    )
+    return min(max(activation_ratio_add, 0.0), 1.0), normalized_delta
 
 
 def chew_shrinkage_ratio(delta: float, feed_total_solids: float) -> float:
@@ -198,12 +234,18 @@ def chew_material_state(
 ) -> ChewMaterialState:
     delta = moisture_dry_basis - x_b
     initial_moisture = initial_moisture_dry_basis(feed_total_solids)
-    reduced_ratio, slope, intercept, critical_delta, critical_ratio = activation_ratio(
+    reduced_ratio_base, slope, intercept, critical_delta, critical_ratio = activation_ratio(
         delta,
         feed_total_solids,
     )
+    reduced_ratio_add, normalized_delta = _early_falling_rate_activation_ratio_add(
+        delta,
+        x_b,
+        initial_moisture,
+    )
+    reduced_ratio_total = min(max(reduced_ratio_base + reduced_ratio_add, 0.0), 1.0)
     delta_e_max = equilibrium_activation_energy_max(temp_air_k, rh_air)
-    delta_e = reduced_ratio * delta_e_max
+    delta_e = reduced_ratio_total * delta_e_max
     psi = exp(-delta_e / max(R_GAS * temp_particle_k, EPS))
     shrinkage_value, shrinkage_mode = shrinkage_ratio(
         delta,
@@ -219,7 +261,10 @@ def chew_material_state(
         linear_intercept=intercept,
         critical_delta=critical_delta,
         critical_ratio=critical_ratio,
-        activation_ratio=reduced_ratio,
+        normalized_delta=normalized_delta,
+        activation_ratio_base=reduced_ratio_base,
+        activation_ratio_add=reduced_ratio_add,
+        activation_ratio=reduced_ratio_total,
         delta_e_max_j_mol=delta_e_max,
         delta_e_j_mol=delta_e,
         psi=min(max(psi, 0.0), 1.0),
