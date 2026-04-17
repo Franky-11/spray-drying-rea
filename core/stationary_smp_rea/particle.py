@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from math import pi
+from math import pi, sqrt
 
 
 EPS = 1e-12
@@ -10,6 +10,15 @@ def feed_mixture_density(x_dry_basis: float, dry_solids_density_kg_m3: float, wa
     return (1.0 + x_dry_basis) / (
         (1.0 / dry_solids_density_kg_m3) + (x_dry_basis / water_density_kg_m3)
     )
+
+
+def pressure_nozzle_exit_velocity(
+    delta_p_bar: float,
+    liquid_density_kg_m3: float,
+    velocity_coefficient: float,
+) -> float:
+    delta_p_pa = max(delta_p_bar, EPS) * 1.0e5
+    return velocity_coefficient * sqrt(2.0 * delta_p_pa / max(liquid_density_kg_m3, EPS))
 
 
 def initial_dry_solids_mass(

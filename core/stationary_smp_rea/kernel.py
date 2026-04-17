@@ -37,7 +37,7 @@ def _initial_state_vector(
     initial_particle_velocity_ms = (
         inputs.fixed_particle_velocity_ms
         if inputs.fixed_particle_velocity_ms is not None
-        else inputs.initial_droplet_velocity_ms
+        else derived.initial_droplet_velocity_ms
     )
     state = [
         derived.x0_dry_basis,

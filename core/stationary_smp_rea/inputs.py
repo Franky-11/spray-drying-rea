@@ -18,7 +18,11 @@ from .air import (
 from .closures import XBModel
 from .geometry import EffectiveDryerGeometry, build_effective_dryer_geometry
 from .materials import chew_validity_warnings
-from .particle import feed_mixture_density, initial_dry_solids_mass
+from .particle import (
+    feed_mixture_density,
+    initial_dry_solids_mass,
+    pressure_nozzle_exit_velocity,
+)
 
 
 EPS = 1e-12
@@ -43,7 +47,9 @@ class StationarySMPREAInput:
     ambient_temp_c: float = 20.0
     feed_temp_c: float = 40.0
     feed_total_solids: float = 0.40
-    initial_droplet_velocity_ms: float = 30.0
+    initial_droplet_velocity_ms: float | None = None
+    nozzle_delta_p_bar: float = 47.0
+    nozzle_velocity_coefficient: float = 0.60
     pressure_pa: float = 101325.0
     heat_loss_coeff_w_m2k: float = 4.5
     dry_solids_density_kg_m3: float = 1400.0
@@ -76,6 +82,8 @@ class StationarySMPREAInput:
             "water_density_kg_m3": self.water_density_kg_m3,
             "dry_solids_specific_heat_j_kg_k": self.dry_solids_specific_heat_j_kg_k,
             "min_particle_velocity_ms": self.min_particle_velocity_ms,
+            "nozzle_delta_p_bar": self.nozzle_delta_p_bar,
+            "nozzle_velocity_coefficient": self.nozzle_velocity_coefficient,
             "solver_rtol": self.solver_rtol,
             "solver_atol": self.solver_atol,
         }
@@ -87,6 +95,7 @@ class StationarySMPREAInput:
             "cylinder_height_m": self.cylinder_height_m,
             "cylinder_diameter_m": self.cylinder_diameter_m,
             "outlet_duct_diameter_m": self.outlet_duct_diameter_m,
+            "initial_droplet_velocity_ms": self.initial_droplet_velocity_ms,
             "fixed_particle_velocity_ms": self.fixed_particle_velocity_ms,
             "fixed_air_velocity_ms": self.fixed_air_velocity_ms,
         }
@@ -118,8 +127,6 @@ class StationarySMPREAInput:
             errors.append(
                 "feed_total_solids muss fuer den aktuellen SMP-Kern zwischen 0.20 und 0.43 liegen."
             )
-        if self.initial_droplet_velocity_ms <= 0.0:
-            errors.append("initial_droplet_velocity_ms muss groesser als 0 sein.")
         for name, value in {
             "inlet_air_temp_c": self.inlet_air_temp_c,
             "feed_temp_c": self.feed_temp_c,
@@ -186,6 +193,7 @@ class StationarySMPREADerivedInputs:
     air_to_solids_ratio_kg_kg: float
     initial_air_enthalpy_j_kg_da: float
     initial_particle_density_kg_m3: float
+    initial_droplet_velocity_ms: float
     representative_dry_solids_mass_kg: float
     representative_initial_particle_mass_kg: float
     cpa_j_kg_k: float
@@ -254,6 +262,15 @@ def derive_inputs(inputs: StationarySMPREAInput) -> StationarySMPREADerivedInput
     )
     representative_initial_particle_mass_kg = representative_dry_solids_mass_kg * (1.0 + x0_dry_basis)
     initial_air_enthalpy_j_kg_da = humid_air_enthalpy(inlet_air_temp_k, inlet_humidity_ratio)
+    initial_droplet_velocity_ms = (
+        inputs.initial_droplet_velocity_ms
+        if inputs.initial_droplet_velocity_ms is not None
+        else pressure_nozzle_exit_velocity(
+            inputs.nozzle_delta_p_bar,
+            initial_density,
+            inputs.nozzle_velocity_coefficient,
+        )
+    )
     return StationarySMPREADerivedInputs(
         inlet_air_temp_k=inlet_air_temp_k,
         inlet_particle_temp_k=inlet_particle_temp_k,
@@ -275,6 +292,7 @@ def derive_inputs(inputs: StationarySMPREAInput) -> StationarySMPREADerivedInput
         air_to_solids_ratio_kg_kg=air_to_solids_ratio,
         initial_air_enthalpy_j_kg_da=initial_air_enthalpy_j_kg_da,
         initial_particle_density_kg_m3=initial_density,
+        initial_droplet_velocity_ms=initial_droplet_velocity_ms,
         representative_dry_solids_mass_kg=representative_dry_solids_mass_kg,
         representative_initial_particle_mass_kg=representative_initial_particle_mass_kg,
         cpa_j_kg_k=CP_DRY_AIR,

@@ -21,6 +21,7 @@ from core.stationary_smp_rea.materials.smp_chew import (
     low_solids_activation_parameters,
     table2_anchor_parameters,
 )
+from core.stationary_smp_rea.particle import pressure_nozzle_exit_velocity
 
 
 class StationarySMPREAKernelTests(unittest.TestCase):
@@ -236,6 +237,23 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertGreater(sim_input.droplet_size_um, 46.0)
         self.assertAlmostEqual(experiment["d32_um"], 46.0)
         self.assertGreater(sim_input.air_flow_m3_h, 390.0)
+
+    def test_pressure_nozzle_default_initial_velocity_uses_feed_density(self) -> None:
+        sim_input = StationarySMPREAInput(
+            feed_total_solids=0.37,
+            nozzle_delta_p_bar=47.0,
+            nozzle_velocity_coefficient=0.60,
+        )
+        derived = derive_inputs(sim_input)
+
+        expected = pressure_nozzle_exit_velocity(
+            sim_input.nozzle_delta_p_bar,
+            derived.initial_particle_density_kg_m3,
+            sim_input.nozzle_velocity_coefficient,
+        )
+
+        self.assertAlmostEqual(derived.initial_droplet_velocity_ms, expected, places=12)
+        self.assertGreater(derived.initial_droplet_velocity_ms, 30.0)
 
     def test_fixed_velocity_diagnostic_overrides_air_and_particle_velocity(self) -> None:
         result = solve_stationary_smp_profile(
