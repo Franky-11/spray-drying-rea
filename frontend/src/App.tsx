@@ -354,7 +354,7 @@ function App() {
 
         {activeView === 'simulation' && inputs && (
           <section className="simulation-page">
-            <div className="layout">
+            <div className="layout simulation-top-layout">
               <section className="panel">
                 <div className="panel-header">
                   <h2 className="panel-title">Simulationseingaben</h2>
@@ -603,97 +603,100 @@ function App() {
                 {result?.warnings.map((warning) => (
                   <Banner key={warning} tone="warning" text={warning} />
                 ))}
-
-                <div className="panel chart-panel">
-                  <div className="panel-header">
-                    <h2 className="panel-title">Profile und Vergleich</h2>
-                  </div>
-                  <div className="panel-body">
-                    <div className="tab-row">
-                      {chartTabs.map((tab) => (
-                        <button
-                          key={tab.id}
-                          className={activeChartTab === tab.id ? 'tab active' : 'tab'}
-                          onClick={() => setActiveChartTab(tab.id)}
-                          type="button"
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                    {result && (
-                      <div className="button-row export-row">
-                        <button
-                          className="button-secondary"
-                          onClick={() => downloadSimulationProfileCsv(result)}
-                          type="button"
-                        >
-                          Profil als CSV exportieren
-                        </button>
-                        <button
-                          className="button-secondary"
-                          onClick={() => downloadSimulationJson(result)}
-                          type="button"
-                        >
-                          Ergebnis als JSON exportieren
-                        </button>
-                      </div>
-                    )}
-                    {!result && (
-                      <div className="empty-state">
-                        <p>Die Chart-Struktur ist angelegt. Nach dem ersten Lauf erscheinen hier KPI-, Profil- und Vergleichsdaten.</p>
-                      </div>
-                    )}
-                    {result && activeChartTab !== 'comparison' && chartOption && <LineChart option={chartOption} />}
-                    {result && activeChartTab === 'comparison' && (
-                      <table className="comparison-table">
-                        <thead>
-                          <tr>
-                            <th>KPI</th>
-                            <th>Basisfall</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>Endfeuchte wt% wb</td>
-                            <td>{formatKpi(result.summary.end_moisture_wb_pct)}</td>
-                          </tr>
-                          <tr>
-                            <td>Tout C</td>
-                            <td>{formatKpi(result.summary.Tout_c)}</td>
-                          </tr>
-                          <tr>
-                            <td>x_out - x_b,out</td>
-                            <td>{formatKpi(result.summary.x_out_minus_x_b_out)}</td>
-                          </tr>
-                          <tr>
-                            <td>T_p,out C</td>
-                            <td>{formatKpi(result.summary.T_p_out_c)}</td>
-                          </tr>
-                          <tr>
-                            <td>U_p,out m/s</td>
-                            <td>{formatKpi(result.summary.U_p_out_ms)}</td>
-                          </tr>
-                          <tr>
-                            <td>dmean_out um</td>
-                            <td>{formatKpi(result.summary.dmean_out_um)}</td>
-                          </tr>
-                          <tr>
-                            <td>Gesamt-Waermeverlust W</td>
-                            <td>{formatKpi(result.outlet.total_q_loss_w)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    )}
-                    {result && activeChartTab === 'comparison' && (
-                      <p className="helper comparison-note">
-                        Diese Tabelle zeigt aktuell nur den Basisfall. Mehrere Szenarien werden im naechsten Schritt hier gegenuebergestellt.
-                      </p>
-                    )}
-                  </div>
-                </div>
               </section>
             </div>
+
+            <section className="panel chart-panel">
+              <div className="panel-header panel-header-split">
+                <div>
+                  <h2 className="panel-title">Profile und Vergleich</h2>
+                  <p className="panel-meta">Ein Tab pro Auswertung, damit jedes Diagramm die volle Breite nutzen kann.</p>
+                </div>
+                {result && (
+                  <div className="panel-actions">
+                    <button
+                      className="button-secondary"
+                      onClick={() => downloadSimulationProfileCsv(result)}
+                      type="button"
+                    >
+                      Profil als CSV exportieren
+                    </button>
+                    <button
+                      className="button-secondary"
+                      onClick={() => downloadSimulationJson(result)}
+                      type="button"
+                    >
+                      Ergebnis als JSON exportieren
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="panel-body">
+                <div className="tab-row">
+                  {chartTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      className={activeChartTab === tab.id ? 'tab active' : 'tab'}
+                      onClick={() => setActiveChartTab(tab.id)}
+                      type="button"
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {!result && (
+                  <div className="empty-state">
+                    <p>Die Chart-Struktur ist angelegt. Nach dem ersten Lauf erscheinen hier KPI-, Profil- und Vergleichsdaten.</p>
+                  </div>
+                )}
+                {result && activeChartTab !== 'comparison' && chartOption && <LineChart option={chartOption} />}
+                {result && activeChartTab === 'comparison' && (
+                  <table className="comparison-table">
+                    <thead>
+                      <tr>
+                        <th>KPI</th>
+                        <th>Basisfall</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Endfeuchte wt% wb</td>
+                        <td>{formatKpi(result.summary.end_moisture_wb_pct)}</td>
+                      </tr>
+                      <tr>
+                        <td>Tout C</td>
+                        <td>{formatKpi(result.summary.Tout_c)}</td>
+                      </tr>
+                      <tr>
+                        <td>x_out - x_b,out</td>
+                        <td>{formatKpi(result.summary.x_out_minus_x_b_out)}</td>
+                      </tr>
+                      <tr>
+                        <td>T_p,out C</td>
+                        <td>{formatKpi(result.summary.T_p_out_c)}</td>
+                      </tr>
+                      <tr>
+                        <td>U_p,out m/s</td>
+                        <td>{formatKpi(result.summary.U_p_out_ms)}</td>
+                      </tr>
+                      <tr>
+                        <td>dmean_out um</td>
+                        <td>{formatKpi(result.summary.dmean_out_um)}</td>
+                      </tr>
+                      <tr>
+                        <td>Gesamt-Waermeverlust W</td>
+                        <td>{formatKpi(result.outlet.total_q_loss_w)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+                {result && activeChartTab === 'comparison' && (
+                  <p className="helper comparison-note">
+                    Diese Tabelle zeigt aktuell nur den Basisfall. Mehrere Szenarien werden im naechsten Schritt hier gegenuebergestellt.
+                  </p>
+                )}
+              </div>
+            </section>
           </section>
         )}
 
