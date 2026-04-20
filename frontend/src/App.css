@@ -99,6 +99,18 @@
   gap: 24px;
 }
 
+.model-intro-body {
+  display: grid;
+  gap: 16px;
+}
+
+.model-lead {
+  font-size: 18px;
+  line-height: 28px;
+  margin: 0;
+  max-width: 980px;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
@@ -561,6 +573,127 @@ button:disabled {
   color: var(--success);
 }
 
+.process-summary {
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0 0 20px;
+  max-width: 980px;
+}
+
+.process-chain {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.process-chain li,
+.model-card,
+.formula-section,
+.model-assumption {
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.process-chain li {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.process-chain h3,
+.model-card h3,
+.formula-section h3,
+.model-assumption h3 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  margin: 0;
+}
+
+.process-chain p,
+.model-card p,
+.formula-section p,
+.model-assumption p {
+  margin: 0;
+}
+
+.process-index {
+  align-items: center;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 600;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.model-card-grid,
+.formula-section-grid,
+.model-assumptions {
+  display: grid;
+  gap: 16px;
+}
+
+.model-card-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.formula-section-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.model-assumptions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formula-rendered {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.equation-line,
+.inline-equation {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.equation-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  line-height: 1.6;
+}
+
+.equation-note {
+  color: var(--text-secondary);
+}
+
+.math-frac {
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  line-height: 1.2;
+  min-width: 28px;
+  vertical-align: middle;
+}
+
+.math-frac span:first-child {
+  border-bottom: 1px solid currentColor;
+  padding: 0 4px 2px;
+}
+
+.math-frac span:last-child {
+  padding: 2px 4px 0;
+}
+
 .flat-list {
   display: grid;
   gap: 8px;
@@ -607,6 +740,10 @@ button:disabled {
   .start-grid,
   .info-grid,
   .basics-grid,
+  .process-chain,
+  .model-card-grid,
+  .formula-section-grid,
+  .model-assumptions,
   .parameter-summary-grid,
   .field-row,
   .kpi-grid,

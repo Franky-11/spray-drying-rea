@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { EChartsOption, SeriesOption } from 'echarts'
 import './App.css'
 import { compare, getHealth, getModelDefaults } from './apiClient'
@@ -913,76 +913,364 @@ function App() {
           </section>
         )}
 
-        {activeView === 'model' && (
-          <section className="model-page">
-            <div className="panel">
-              <div className="panel-header">
-                <h1 className="panel-title">Modellgrundlagen</h1>
-              </div>
-              <div className="panel-body info-grid">
-                <div>
-                  <span className="label">Kern</span>
-                  <p>Verwendet wird ausschliesslich der stationaere SMP-REA-Kern unter <code>core/stationary_smp_rea/</code>.</p>
-                </div>
-                <div>
-                  <span className="label">Koordinate</span>
-                  <p>Die Berechnung laeuft entlang einer effektiven 1D-Stroembahn ueber Zylinder, Konus und optionales Abluftrohr.</p>
-                </div>
-                <div>
-                  <span className="label">V1-Fokus</span>
-                  <p>Die Seite dokumentiert Inputs, KPI-Definitionen und Modellgrenzen, nicht die Prozesssimulation.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-header">
-                <h2 className="panel-title">Eingaben und Outputs</h2>
-              </div>
-              <div className="panel-body basics-grid">
-                <div>
-                  <h3>Basismodus</h3>
-                  <ul className="flat-list">
-                    <li><code>Tin</code>, <code>humid_air_mass_flow_kg_h</code>, <code>feed_rate_kg_h</code></li>
-                    <li><code>droplet_size_um</code>, <code>inlet_abs_humidity_g_kg</code>, <code>feed_total_solids</code></li>
-                  </ul>
-                </div>
-                <div>
-                  <h3>Expertenmodus</h3>
-                  <ul className="flat-list">
-                    <li><code>heat_loss_coeff_w_m2k</code>, <code>x_b_model</code></li>
-                    <li><code>nozzle_delta_p_bar</code>, <code>nozzle_velocity_coefficient</code></li>
-                    <li>Turm- und Geometriedaten fuer Zylinder, Konus und Abluftrohr</li>
-                  </ul>
-                </div>
-                <div>
-                  <h3>Pflicht-KPIs</h3>
-                  <ul className="flat-list">
-                    <li><code>Tout</code>, <code>RHout</code>, <code>tau_out</code></li>
-                    <li>Endfeuchte, Zielerreichung, Zeit und Hoehe bis Ziel</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-header">
-                <h2 className="panel-title">Technische Hinweise</h2>
-              </div>
-              <div className="panel-body">
-                <ul className="flat-list">
-                  <li>Der API-Layer konvertiert <code>humid_air_mass_flow_kg_h</code> intern in den fuer den Kern benoetigten Volumenstrom.</li>
-                  <li><code>x_b_model</code> kann zwischen <code>langrish</code> und <code>lin_gab</code> umgeschaltet werden.</li>
-                  <li>Die neue App-Struktur ist fuer Vergleichsszenarien, KPI-Matrix und ueberlagerte Profilplots ausgelegt.</li>
-                </ul>
-              </div>
-            </div>
-          </section>
-        )}
+        {activeView === 'model' && <ModelFoundationView />}
       </main>
     </>
   )
 }
+
+function ModelFoundationView() {
+  return (
+    <section className="model-page">
+      <section className="panel model-intro" aria-labelledby="model-title">
+        <div className="panel-body model-intro-body">
+          <div>
+            <p className="eyebrow">Modellgrundlagen</p>
+            <h1 id="model-title" className="start-title">
+              Stationaere SMP-REA-Trocknung
+            </h1>
+          </div>
+          <p className="model-lead">
+            Der Kern koppelt Gleichgewichtsfeuchte, REA-Retardierung, Schrumpfung, Stoff- und Energiebilanzen
+            sowie Partikelbewegung entlang einer effektiven axialen Strombahn vom Eintritt bis zum Ausgang am
+            Zyklon.
+          </p>
+        </div>
+      </section>
+
+      <section className="panel model-section" aria-labelledby="process-title">
+        <div className="panel-header">
+          <h2 id="process-title" className="panel-title">
+            Rechenschema
+          </h2>
+          <p className="panel-meta">Von den Eingaben bis zu den KPI-Werten am Zyklonausgang</p>
+        </div>
+        <div className="panel-body">
+          <p className="process-summary">
+            Die Rechnung laeuft nicht als CFD-Modell, sondern entlang der axialen Koordinate{' '}
+            <span className="inline-equation">h</span> ueber Zylinder, Konus und Abluftrohr. Pro Position werden
+            lokale Geometrie, Luftzustand, Materialschluss und Transportgroessen aktualisiert und anschliessend
+            axial integriert.
+          </p>
+          <ol className="process-chain">
+            {modelProcessSteps.map((step) => (
+              <li key={step.title}>
+                <span className="process-index">{step.index}</span>
+                <div>
+                  <h3>{step.title}</h3>
+                  <p>{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="panel model-section" aria-labelledby="state-title">
+        <div className="panel-header">
+          <h2 id="state-title" className="panel-title">
+            Zustandsvektor und Ausgang
+          </h2>
+          <p className="panel-meta">Was entlang der axialen Koordinate tatsaechlich geloest wird</p>
+        </div>
+        <div className="panel-body model-card-grid">
+          <article className="model-card">
+            <h3>Axiale Koordinate</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                h = 0 ... h<sub>out</sub>
+              </EquationLine>
+            </div>
+            <p>
+              Die Gleichungen werden entlang der effektiven 1D-Strombahn geloest. Zylinder, Konus und
+              Abluftrohr liefern dafuer den lokalen Querschnitt <span className="inline-equation">A(h)</span>.
+            </p>
+          </article>
+          <article className="model-card">
+            <h3>Zustandsvektor</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                y(h) = [X, T<sub>p</sub>, Y, H<sub>h</sub>, U<sub>p</sub>, τ]
+              </EquationLine>
+            </div>
+            <p>
+              Geloest werden Partikelfeuchte, Partikeltemperatur, Luftfeuchte, Luftenthalpie,
+              Partikelgeschwindigkeit und die Flugzeit.
+            </p>
+          </article>
+          <article className="model-card">
+            <h3>Ausgang am Zyklon</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                h<sub>out</sub> = h<sub>pre-cyclone</sub>
+              </EquationLine>
+            </div>
+            <p>
+              Der Ausgang ist als Ende des effektiven Abluftrohrs direkt vor dem Zykloneintritt definiert. Dort
+              werden <code>Tout</code>, <code>RHout</code>, <code>tau_out</code>, Endfeuchte und{' '}
+              <code>dmean_out</code> ausgewertet.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="panel model-section" aria-labelledby="equations-title">
+        <div className="panel-header">
+          <h2 id="equations-title" className="panel-title">
+            Gleichungen nach Sektionen
+          </h2>
+          <p className="panel-meta">Nur die tragenden Modellgleichungen, nicht jede Hilfskorrelation im Detail</p>
+        </div>
+        <div className="panel-body formula-section-grid">
+          <article className="formula-section">
+            <h3>Eingang und abgeleitete Anfangsgroessen</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                X<sub>0</sub> = <Fraction denominator={<span>feed_total_solids</span>} numerator={<span>1 - feed_total_solids</span>} />
+              </EquationLine>
+              <EquationLine>
+                H<sub>h,in</sub> = c<sub>p,da</sub>(T<sub>in</sub> - T<sub>ref</sub>) + Y<sub>in</sub>[λ<sub>ref</sub> + c<sub>p,v</sub>(T<sub>in</sub> - T<sub>ref</sub>)]
+              </EquationLine>
+              <EquationLine>
+                U<sub>p,0</sub> = C<sub>v</sub> √(2 Δp / ρ<sub>l</sub>)
+              </EquationLine>
+            </div>
+            <p className="equation-note">
+              Aus den UI-Eingaben werden zunaechst Trockenbasisfeuchte, Luftenthalpie und eine
+              nozzle-basierte Anfangsgeschwindigkeit des Tropfens abgeleitet.
+            </p>
+          </article>
+
+          <article className="formula-section">
+            <h3>Lokaler Luftzustand und Geometrie</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                U<sub>a</sub>(h) = <Fraction denominator={<span>ρ<sub>a</sub>(h) A(h)</span>} numerator={<span>ṁ<sub>ha</sub></span>} />
+              </EquationLine>
+              <EquationLine>
+                RH<sub>a</sub> = <Fraction denominator={<span>p<sub>sat</sub>(T<sub>a</sub>)</span>} numerator={<span>p<sub>v</sub>(Y, p)</span>} />
+              </EquationLine>
+              <EquationLine>
+                x<sub>b</sub> = f(T<sub>a</sub>, RH<sub>a</sub>, x_b_model)
+              </EquationLine>
+            </div>
+            <p className="equation-note">
+              Der lokale Querschnitt aus Zylinder, Konus und Abluftrohr bestimmt die Luftgeschwindigkeit. Die
+              Gleichgewichtsfeuchte wird ueber das gewaehlte <code>x_b_model</code> geschlossen.
+            </p>
+          </article>
+
+          <article className="formula-section">
+            <h3>REA und Materialschluss</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                δ = X - x<sub>b</sub>
+              </EquationLine>
+              <EquationLine>
+                ψ = exp[-ΔE / (R T<sub>p</sub>)]
+              </EquationLine>
+              <EquationLine>
+                ρ<sub>v,s</sub> = ψ ρ<sub>v,sat</sub>(T<sub>p</sub>)
+              </EquationLine>
+              <EquationLine>
+                d<sub>p</sub> = d<sub>p,0</sub> s(δ, x<sub>b</sub>, solids)
+              </EquationLine>
+            </div>
+            <p className="equation-note">
+              Das REA-Glied bremst die Oberflaechenverdampfung ueber die Aktivierungsenergie. Parallel dazu wird
+              der Partikeldurchmesser ueber das hinterlegte Schrumpfmodell aktualisiert.
+            </p>
+          </article>
+
+          <article className="formula-section">
+            <h3>Stoffbilanz des Partikels</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dm<sub>p</sub></span>} /> = -{' '}
+                <Fraction denominator={<span>U<sub>p</sub></span>} numerator={<span>k<sub>m</sub> A<sub>p</sub></span>} />{' '}
+                (ρ<sub>v,s</sub> - ρ<sub>v,a</sub>)
+              </EquationLine>
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dX</span>} /> = <Fraction denominator={<span>m<sub>s,dry</sub></span>} numerator={<span>dm<sub>p</sub></span>} />
+              </EquationLine>
+              <EquationLine>
+                X ≤ x<sub>b</sub> ⇒ <Fraction denominator={<span>dh</span>} numerator={<span>dm<sub>p</sub></span>} /> = 0
+              </EquationLine>
+            </div>
+            <p className="equation-note">
+              Sobald die lokale Gleichgewichtsfeuchte erreicht ist, wird der Trocknungsfluss im Kern auf null
+              begrenzt, damit keine unphysikalische Weiterverdampfung entsteht.
+            </p>
+          </article>
+
+          <article className="formula-section">
+            <h3>Energiebilanzen</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dT<sub>p</sub></span>} /> = <Fraction denominator={<span>m<sub>s,dry</sub> c<sub>p,p</sub> U<sub>p</sub></span>} numerator={<span>π d<sub>p</sub> k<sub>a</sub> Nu (T<sub>a</sub> - T<sub>p</sub>) + dm<sub>p</sub>/dh · U<sub>p</sub>(h<sub>fg</sub> + q<sub>sorp</sub>)</span>} />
+              </EquationLine>
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dY</span>} /> = - <Fraction denominator={<span>ṁ<sub>da</sub></span>} numerator={<span>ṁ<sub>s,dry</sub></span>} /> <Fraction denominator={<span>dh</span>} numerator={<span>dX</span>} />
+              </EquationLine>
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dH<sub>h</sub></span>} /> = -{' '}
+                <Fraction denominator={<span>ṁ<sub>da</sub></span>} numerator={<span>ṁ<sub>s,dry</sub></span>} />{' '}
+                (c<sub>p,p</sub> dT<sub>p</sub>/dh + c<sub>p,w</sub>(T<sub>p</sub> - T<sub>ref</sub>) dX/dh) - q&apos;<sub>loss</sub> / ṁ<sub>da</sub>
+              </EquationLine>
+            </div>
+            <p className="equation-note">
+              Die Partikelbilanz koppelt konvektiven Waermeuebergang und Verdampfungsenthalpie. Die Luftseite wird
+              ueber Feuchte- und Enthalpiebilanz nachgezogen.
+            </p>
+          </article>
+
+          <article className="formula-section">
+            <h3>Transport, Bewegung und Flugzeit</h3>
+            <div className="formula-rendered">
+              <EquationLine>
+                Re = <Fraction denominator={<span>μ<sub>a</sub></span>} numerator={<span>ρ<sub>a</sub> |U<sub>p</sub> - U<sub>a</sub>| d<sub>p</sub></span>} />
+              </EquationLine>
+              <EquationLine>
+                Sh = 2 + 0.6 Re<sup>0.5</sup> Sc<sup>1/3</sup>, Nu = 2 + 0.6 Re<sup>0.5</sup> Pr<sup>1/3</sup>
+              </EquationLine>
+              <EquationLine>
+                k<sub>m</sub> = <Fraction denominator={<span>d<sub>p</sub></span>} numerator={<span>Sh D<sub>v</sub></span>} />
+              </EquationLine>
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dU<sub>p</sub></span>} /> = <Fraction denominator={<span>U<sub>p</sub></span>} numerator={<span>[(1 - ρ<sub>a</sub>/ρ<sub>p</sub>) g] - F<sub>D</sub></span>} />
+              </EquationLine>
+              <EquationLine>
+                <Fraction denominator={<span>dh</span>} numerator={<span>dτ</span>} /> = <Fraction denominator={<span>1</span>} numerator={<span>U<sub>p</sub></span>} />
+              </EquationLine>
+            </div>
+            <p className="equation-note">
+              Stoff- und Waermeuebergang werden ueber Sherwood- und Nusselt-Korrelationen geschlossen. Die
+              Partikelgeschwindigkeit treibt gleichzeitig den Aufenthaltszeitaufbau.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="panel model-section" aria-labelledby="kpi-title">
+        <div className="panel-header">
+          <h2 id="kpi-title" className="panel-title">
+            Eingangsgroessen und KPIs
+          </h2>
+          <p className="panel-meta">Was die UI sichtbar fuehrt und wie der Ausgang definiert ist</p>
+        </div>
+        <div className="panel-body basics-grid">
+          <div>
+            <h3>Basismodus</h3>
+            <ul className="flat-list">
+              <li><code>Tin</code>, <code>humid_air_mass_flow_kg_h</code>, <code>feed_rate_kg_h</code></li>
+              <li><code>droplet_size_um</code>, <code>inlet_abs_humidity_g_kg</code>, <code>feed_total_solids</code></li>
+            </ul>
+          </div>
+          <div>
+            <h3>Expertenmodus</h3>
+            <ul className="flat-list">
+              <li><code>heat_loss_coeff_w_m2k</code>, <code>x_b_model</code></li>
+              <li><code>nozzle_delta_p_bar</code>, <code>nozzle_velocity_coefficient</code></li>
+              <li>Segmentierte Geometrie fuer Zylinder, Konus und Abluftrohr</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Pflicht-KPIs</h3>
+            <ul className="flat-list">
+              <li><code>Tout</code>, <code>RHout</code>, <code>tau_out</code>, <code>dmean_out</code></li>
+              <li>Endfeuchte, Zielerreichung, Zeit und Hoehe bis Ziel</li>
+              <li>Expertenkontext: <code>x_out - x_b,out</code>, <code>T_p,out</code>, <code>U_p,out</code></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel model-section" aria-labelledby="assumptions-title">
+        <div className="panel-header">
+          <h2 id="assumptions-title" className="panel-title">
+            Annahmen und Grenzen
+          </h2>
+          <p className="panel-meta">Wo das V1-Modell bewusst vereinfacht und wo es aktuell endet</p>
+        </div>
+        <div className="panel-body model-assumptions">
+          {modelAssumptions.map((item) => (
+            <article className="model-assumption" key={item.title}>
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    </section>
+  )
+}
+
+const modelProcessSteps = [
+  {
+    index: '01',
+    title: 'UI-Eingaben und Anfangsgroessen',
+    description:
+      'Aus Tin, Luftmassenstrom, Feedrate, Tropfengroesse, Yin, solids und den Geometriedaten werden Anfangsfeuchte, Luftenthalpie, Dichte und nozzle-basierte Tropfengeschwindigkeit abgeleitet.',
+  },
+  {
+    index: '02',
+    title: 'Lokale Geometrie entlang h',
+    description:
+      'Zylinder, Konus und Abluftrohr liefern den lokalen Querschnitt A(h), die Wandflaeche pro Laenge und damit lokale Luftgeschwindigkeit und Waermeverlust.',
+  },
+  {
+    index: '03',
+    title: 'Luftzustand und Gleichgewichtsfeuchte',
+    description:
+      'Aus Y und H_h wird lokal T_a berechnet. Daraus folgen RH_a und die Gleichgewichtsfeuchte x_b ueber das gewaehlte Isothermenmodell.',
+  },
+  {
+    index: '04',
+    title: 'REA und Schrumpfung',
+    description:
+      'Die lokale Differenz delta = X - x_b bestimmt ueber die REA-Aktivierungsenergie die Oberflaechenretardierung psi und ueber das Schrumpfmodell den aktuellen Partikeldurchmesser.',
+  },
+  {
+    index: '05',
+    title: 'Stoff-, Energie- und Bewegungsbilanzen',
+    description:
+      'Mit den lokalen Transportkoeffizienten werden dX/dh, dT_p/dh, dY/dh, dH_h/dh, dU_p/dh und dτ/dh aufgestellt und entlang h integriert.',
+  },
+  {
+    index: '06',
+    title: 'Ausgang und KPI-Auswertung',
+    description:
+      'Am Ende des effektiven Abluftrohrs direkt vor dem Zyklon werden Tout, RHout, tau_out, Endfeuchte, Zielerreichung und dmean_out ausgewertet.',
+  },
+]
+
+const modelAssumptions = [
+  {
+    title: 'Effektive 1D-Strombahn',
+    description:
+      'Zylinder, Konus und Abluftrohr werden als abschnittsweise 1D-Strombahn mit lokalem Querschnitt behandelt. Rueckmischung, Umlenkung und echte 3D-Struktur werden nicht separat aufgeloest.',
+  },
+  {
+    title: 'Stationaerer Betrieb',
+    description:
+      'Die Rechnung ist stationaer in h formuliert. Dynamische Veraenderungen des Gesamtsystems, Stoerungen oder zeitlich wechselnde Fahrweisen sind nicht Teil des V1-Kerns.',
+  },
+  {
+    title: 'REA nur auf der Trocknungsseite',
+    description:
+      'Sobald X lokal auf x_b faellt, wird der weitere Trocknungsfluss abgeschnitten. Eine Rueckbefeuchtung oder ein symmetrischer REA-Pfad ist im aktuellen Kern nicht kalibriert.',
+  },
+  {
+    title: 'Materialschluss fuer SMP',
+    description:
+      'Die REA- und Schrumpfungsschluesse sind fuer den aktuellen SMP-Kontext parametrisiert. Chew-basierte Schrumpfung ist direkt im Bereich 37-43 wt% solids verankert; darunter greift der Legacy-Extended-Pfad.',
+  },
+  {
+    title: 'Kein Tg- oder Stickiness-Modell in V1',
+    description:
+      'Die aktuelle App bewertet noch keine Glasuebergangs- oder Stickiness-Risiken. Die Turmvorschau zeigt derzeit nur die Position entlang h, nicht bereits kritische Anhaftungszonen.',
+  },
+]
 
 type NumberFieldKey =
   | 'Tin'
@@ -1065,6 +1353,19 @@ function ComparisonRow({ label, scenarios, baseScenario, selector }: ComparisonR
         )
       })}
     </tr>
+  )
+}
+
+function EquationLine({ children }: { children: ReactNode }) {
+  return <div className="equation-line">{children}</div>
+}
+
+function Fraction({ numerator, denominator }: { numerator: ReactNode; denominator: ReactNode }) {
+  return (
+    <span className="math-frac">
+      <span>{numerator}</span>
+      <span>{denominator}</span>
+    </span>
   )
 }
 
