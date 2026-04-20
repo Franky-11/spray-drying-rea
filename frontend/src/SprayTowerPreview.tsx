@@ -76,9 +76,9 @@ function SprayTowerPreview({ scenario, hoveredHeightM }: SprayTowerPreviewProps)
         ].join(' ')
 
   return (
-    <aside className="tower-panel" aria-label="Spruehturm-Vorschau">
+    <aside className="tower-panel" aria-label="Spray tower preview">
       <div className="tower-panel-header">
-        <h3 className="panel-title">Turmposition</h3>
+        <h3 className="panel-title">Tower Position</h3>
         <span className="tower-scenario-label">{scenario.label}</span>
       </div>
       <div className="tower-panel-body">
@@ -89,30 +89,30 @@ function SprayTowerPreview({ scenario, hoveredHeightM }: SprayTowerPreviewProps)
           {progressPath && <path className="tower-progress" d={progressPath} />}
           {progressPoint && <circle className="tower-marker" cx={progressPoint.x} cy={progressPoint.y} r="6" />}
           <text className="tower-label" x={centerX + cylinderHalfWidth + 16} y={topY + 16}>
-            Zylinder
+            Cylinder
           </text>
           <text className="tower-label" x={centerX + cylinderHalfWidth + 16} y={cylinderBottomY + 8}>
-            Konus
+            Cone
           </text>
           <text className="tower-label" x={centerX + 30} y={coneBottomY - outletHalfWidth - 10}>
-            Abluftrohr
+            Outlet duct
           </text>
         </svg>
         <div className="tower-stats">
           <div className="tower-stat">
-            <span className="label">Aktuelle Hoehe</span>
-            <strong>{clampedHeight === null ? 'Plot hovern' : `${formatValue(clampedHeight)} m`}</strong>
+            <span className="label">Current Height</span>
+            <strong>{clampedHeight === null ? 'Hover over plot' : `${formatValue(clampedHeight)} m`}</strong>
           </div>
           <div className="tower-stat">
-            <span className="label">Abschnitt</span>
-            <strong>{activePoint?.section ?? 'n/a'}</strong>
+            <span className="label">Section</span>
+            <strong>{activePoint ? formatSectionLabel(activePoint.section) : 'n/a'}</strong>
           </div>
           <div className="tower-stat">
-            <span className="label">Turmlaenge</span>
+            <span className="label">Tower Length</span>
             <strong>{formatValue(totalHeightM)} m</strong>
           </div>
           <div className="tower-stat">
-            <span className="label">Geometrie</span>
+            <span className="label">Geometry</span>
             <strong>
               {formatValue(cylinderHeight)} / {formatValue(coneHeight)} / {formatValue(outletDuctLength)} m
             </strong>
@@ -171,6 +171,19 @@ function clamp(value: number, min: number, max: number): number {
 
 function formatValue(value: number): string {
   return value.toFixed(value >= 10 ? 1 : 2)
+}
+
+function formatSectionLabel(section: string): string {
+  switch (section) {
+    case 'cylinder':
+      return 'Cylinder'
+    case 'cone':
+      return 'Cone'
+    case 'outlet_duct':
+      return 'Outlet duct'
+    default:
+      return section
+  }
 }
 
 export default SprayTowerPreview

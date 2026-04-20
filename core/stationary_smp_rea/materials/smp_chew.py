@@ -50,11 +50,11 @@ def chew_validity_warnings(feed_total_solids: float) -> list[str]:
     warnings: list[str] = []
     if not 0.20 <= feed_total_solids <= 0.43:
         warnings.append(
-            "Der aktuelle SMP-Kern ist fuer 20-43 wt% freigeschaltet; Chew-Table-3 selbst ist aber nur fuer 30-43 wt% direkt verankert."
+            "The current SMP core is enabled for 20-43 wt%; however, Chew Table 3 itself is directly anchored only for 30-43 wt%."
         )
     if feed_total_solids < 0.37:
         warnings.append(
-            "Chew-Schrumpfung ist nur fuer 37-43 wt% direkt verankert."
+            "Chew shrinkage is directly anchored only for 37-43 wt%."
         )
     return warnings
 

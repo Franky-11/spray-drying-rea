@@ -23,12 +23,12 @@ const MAX_SCENARIOS = 4
 const SCENARIO_COLORS = ['#0f62fe', '#8a3ffc', '#009d9a', '#fa4d56']
 
 const chartTabs: Array<{ id: ChartTab; label: string }> = [
-  { id: 'moisture', label: 'Feuchte' },
-  { id: 'temperature', label: 'Temperatur' },
-  { id: 'equilibrium', label: 'Gleichgewicht und Material' },
-  { id: 'particle', label: 'Partikelgroesse' },
-  { id: 'velocity', label: 'Geschwindigkeit' },
-  { id: 'comparison', label: 'Vergleichstabelle' },
+  { id: 'moisture', label: 'Moisture' },
+  { id: 'temperature', label: 'Temperature' },
+  { id: 'equilibrium', label: 'Equilibrium and Material' },
+  { id: 'particle', label: 'Particle Diameter' },
+  { id: 'velocity', label: 'Velocity' },
+  { id: 'comparison', label: 'Comparison Table' },
 ]
 
 interface ScenarioDraft {
@@ -65,7 +65,7 @@ function App() {
         setScenarios([
           buildScenario(
             BASE_SCENARIO_ID,
-            'Basisfall',
+            'Base case',
             modelDefaults.default_inputs,
             modelDefaults.default_target_moisture_wb_pct,
           ),
@@ -76,7 +76,7 @@ function App() {
           return
         }
         setApiStatus('offline')
-        setMessage(error instanceof Error ? error.message : 'API nicht erreichbar')
+        setMessage(error instanceof Error ? error.message : 'API unavailable')
       })
 
     return () => {
@@ -129,7 +129,7 @@ function App() {
       tooltip: { trigger: 'axis' as const },
       xAxis: {
         type: 'value' as const,
-        name: 'Hoehe m',
+        name: 'Axial position (m)',
         nameLocation: 'middle' as const,
         nameGap: 30,
         axisLabel: { color: '#525252', fontSize: 12 },
@@ -153,7 +153,7 @@ function App() {
       if (sameTarget) {
         series.push(
           buildLineSeries(
-            'Ziel',
+            'Target',
             baseProfile.map((row) => [row.h_m, scenarioResults[0].summary.target_moisture_wb_pct]),
             '#525252',
             'dashed',
@@ -164,7 +164,7 @@ function App() {
         ...common,
         yAxis: {
           ...common.yAxis,
-          name: 'wt% wb',
+          name: 'Powder moisture (wt% wb)',
         },
         series,
       }
@@ -175,18 +175,18 @@ function App() {
         ...common,
         yAxis: {
           ...common.yAxis,
-          name: 'Temperatur C',
+          name: 'Temperature (degC)',
         },
         series: scenarioResults.flatMap((scenario, index) => {
           const color = SCENARIO_COLORS[index % SCENARIO_COLORS.length]
           return [
             buildLineSeries(
-              `${scenario.label} Luft`,
+              `${scenario.label} air`,
               scenario.profile.series.map((row) => [row.h_m, row.T_a_c]),
               color,
             ),
             buildLineSeries(
-              `${scenario.label} Partikel`,
+              `${scenario.label} particle`,
               scenario.profile.series.map((row) => [row.h_m, row.T_p_c]),
               color,
               'dashed',
@@ -201,7 +201,7 @@ function App() {
         ...common,
         yAxis: {
           ...common.yAxis,
-          name: 'Modellgroessen',
+          name: 'x_b / psi',
         },
         series: scenarioResults.flatMap((scenario, index) => {
           const color = SCENARIO_COLORS[index % SCENARIO_COLORS.length]
@@ -227,7 +227,7 @@ function App() {
         ...common,
         yAxis: {
           ...common.yAxis,
-          name: 'Partikelgroesse um',
+          name: 'Particle diameter (um)',
         },
         series: scenarioResults.map((scenario, index) =>
           buildLineSeries(
@@ -243,7 +243,7 @@ function App() {
       ...common,
       yAxis: {
         ...common.yAxis,
-        name: 'Geschwindigkeit m/s',
+        name: 'Velocity (m/s)',
       },
       series: scenarioResults.flatMap((scenario, index) => {
         const color = SCENARIO_COLORS[index % SCENARIO_COLORS.length]
@@ -366,7 +366,7 @@ function App() {
     const scenarioNumber = nextScenarioNumber
     const nextScenario = buildScenario(
       `scenario-${scenarioNumber}`,
-      `Variante ${scenarioNumber}`,
+      `Scenario ${scenarioNumber}`,
       copyFrom.inputs,
       copyFrom.target_moisture_wb_pct,
     )
@@ -426,7 +426,7 @@ function App() {
       setActiveView('simulation')
       activateChartTab('moisture')
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : 'Simulation fehlgeschlagen')
+      setMessage(error instanceof Error ? error.message : 'Simulation failed')
       setComparisonResult(null)
     } finally {
       setIsSimulating(false)
@@ -437,11 +437,11 @@ function App() {
     <>
       <header className="top-bar">
         <div className="brand">
-          <span className="brand-title">Drying Kinetic SMP</span>
+          <span className="brand-title">Spray Drying REA</span>
         </div>
-        <nav className="top-nav" aria-label="Seiten">
+        <nav className="top-nav" aria-label="Pages">
           <button className={activeView === 'start' ? 'active' : ''} onClick={() => setActiveView('start')} type="button">
-            Start
+            Get started
           </button>
           <button
             className={activeView === 'simulation' ? 'active' : ''}
@@ -451,12 +451,12 @@ function App() {
             Simulation
           </button>
           <button className={activeView === 'model' ? 'active' : ''} onClick={() => setActiveView('model')} type="button">
-            Modellgrundlagen
+            Model Foundations
           </button>
         </nav>
         {message && (
           <div className={`api-status ${apiStatus === 'offline' ? 'offline' : 'error'}`}>
-            <span className="status-label">Fehler</span>
+            <span className="status-label">Error</span>
             <strong>{message}</strong>
           </div>
         )}
@@ -470,12 +470,12 @@ function App() {
             <div className="layout simulation-top-layout">
               <section className="panel">
                 <div className="panel-header">
-                  <h2 className="panel-title">Simulationseingaben</h2>
+                  <h2 className="panel-title">Simulation Inputs</h2>
                 </div>
                 <div className="panel-body field-stack">
                   <section className="subsection scenario-section">
                     <div className="subsection-header">
-                      <h3>Szenarien</h3>
+                      <h3>Scenarios</h3>
                     </div>
                     <div className="scenario-list">
                       {scenarios.map((scenario) => (
@@ -486,27 +486,27 @@ function App() {
                           type="button"
                         >
                           <span>{scenario.label}</span>
-                          <small>{scenario.scenario_id === BASE_SCENARIO_ID ? 'Basis' : 'Vergleich'}</small>
+                          <small>{scenario.scenario_id === BASE_SCENARIO_ID ? 'Base' : 'Comparison'}</small>
                         </button>
                       ))}
                     </div>
                     <div className="button-row">
                       <button className="button-secondary" disabled={!canAddScenario} onClick={() => addScenario(baseScenario ?? activeScenario)} type="button">
-                        Vergleichsszenario anlegen
+                        Add Comparison Scenario
                       </button>
                       <button className="button-secondary" disabled={!canAddScenario} onClick={() => addScenario(activeScenario)} type="button">
-                        Aktives duplizieren
+                        Duplicate Active
                       </button>
                       <button className="button-secondary" disabled={!canDeleteScenario} onClick={removeActiveScenario} type="button">
-                        Aktives entfernen
+                        Remove Active
                       </button>
                     </div>
-                    <span className="helper">Bis zu drei Vergleichsszenarien zusaetzlich zum Basisfall.</span>
+                    <span className="helper">Up to three comparison scenarios in addition to the base case.</span>
                   </section>
 
                   <div className="field-row">
                     <div className="field">
-                      <label htmlFor="scenario-label">Szenarioname</label>
+                      <label htmlFor="scenario-label">Scenario Name</label>
                       <input
                         id="scenario-label"
                         onChange={(event) => updateScenarioLabel(event.target.value)}
@@ -515,7 +515,7 @@ function App() {
                       />
                     </div>
                     <div className="field">
-                      <label htmlFor="target-moisture">Ziel-Feuchte wt% wb</label>
+                      <label htmlFor="target-moisture">Target Powder Moisture (wt% wb)</label>
                       <input
                         id="target-moisture"
                         min="0"
@@ -529,14 +529,19 @@ function App() {
 
                   <section className="subsection">
                     <div className="subsection-header">
-                      <h3>Basismodus</h3>
+                      <h3>Core Inputs</h3>
                     </div>
                     <div className="field-stack">
                       <div className="field-row">
-                        <NumberField id="Tin" label="Tin C" onChange={(value) => updateNumberField('Tin', value)} value={activeScenario.inputs.Tin} />
+                        <NumberField
+                          id="Tin"
+                          label="Inlet Air Temperature Tin (degC)"
+                          onChange={(value) => updateNumberField('Tin', value)}
+                          value={activeScenario.inputs.Tin}
+                        />
                         <NumberField
                           id="humid_air_mass_flow_kg_h"
-                          label="Humid air mass flow kg/h"
+                          label="Humid Air Mass Flow (kg/h)"
                           onChange={(value) => updateNumberField('humid_air_mass_flow_kg_h', value)}
                           value={activeScenario.inputs.humid_air_mass_flow_kg_h}
                         />
@@ -544,13 +549,13 @@ function App() {
                       <div className="field-row">
                         <NumberField
                           id="feed_rate_kg_h"
-                          label="Feed rate kg/h"
+                          label="Feed Rate (kg/h)"
                           onChange={(value) => updateNumberField('feed_rate_kg_h', value)}
                           value={activeScenario.inputs.feed_rate_kg_h}
                         />
                         <NumberField
                           id="droplet_size_um"
-                          label="Droplet size um"
+                          label="Droplet Diameter (um)"
                           onChange={(value) => updateNumberField('droplet_size_um', value)}
                           value={activeScenario.inputs.droplet_size_um}
                         />
@@ -558,13 +563,13 @@ function App() {
                       <div className="field-row">
                         <NumberField
                           id="inlet_abs_humidity_g_kg"
-                          label="Yin g/kg"
+                          label="Inlet Absolute Humidity Yin (g/kg)"
                           onChange={(value) => updateNumberField('inlet_abs_humidity_g_kg', value)}
                           value={activeScenario.inputs.inlet_abs_humidity_g_kg}
                         />
                         <PercentageField
                           id="feed_total_solids"
-                          label="Total feed solids %"
+                          label="Feed Total Solids (wt%)"
                           onChange={updateFeedTotalSolidsPercent}
                           value={activeScenario.inputs.feed_total_solids}
                         />
@@ -574,39 +579,39 @@ function App() {
 
                   <section className="subsection">
                     <button className="section-toggle" onClick={() => setIsExpertOpen((current) => !current)} type="button">
-                      Expertenmodus {isExpertOpen ? 'schliessen' : 'oeffnen'}
+                      {isExpertOpen ? 'Close Expert Inputs' : 'Open Expert Inputs'}
                     </button>
                     {isExpertOpen && (
                       <div className="field-stack expert-fields">
                         <div className="field-row">
                           <NumberField
                             id="heat_loss_coeff_w_m2k"
-                            label="heat_loss_coeff_w_m2k"
+                            label="Heat Loss Coefficient Up (W/m2/K)"
                             onChange={(value) => updateNumberField('heat_loss_coeff_w_m2k', value)}
                             value={activeScenario.inputs.heat_loss_coeff_w_m2k}
                           />
                           <div className="field">
-                            <label htmlFor="x_b_model">x_b_model</label>
+                            <label htmlFor="x_b_model">Equilibrium Moisture Model</label>
                             <select
                               id="x_b_model"
                               onChange={(event) => updateXBModel(event.target.value as XBModel)}
                               value={activeScenario.inputs.x_b_model}
                             >
-                              <option value="langrish">langrish</option>
-                              <option value="lin_gab">lin_gab</option>
+                              <option value="langrish">Langrish</option>
+                              <option value="lin_gab">Temperature-dependent GAB</option>
                             </select>
                           </div>
                         </div>
                         <div className="field-row">
                           <NumberField
                             id="nozzle_delta_p_bar"
-                            label="nozzle_delta_p_bar"
+                            label="Nozzle Pressure Drop (bar)"
                             onChange={(value) => updateNumberField('nozzle_delta_p_bar', value)}
                             value={activeScenario.inputs.nozzle_delta_p_bar}
                           />
                           <NumberField
                             id="nozzle_velocity_coefficient"
-                            label="nozzle_velocity_coefficient"
+                            label="Nozzle Velocity Coefficient"
                             onChange={(value) => updateNumberField('nozzle_velocity_coefficient', value)}
                             value={activeScenario.inputs.nozzle_velocity_coefficient}
                           />
@@ -614,13 +619,13 @@ function App() {
                         <div className="field-row">
                           <NumberField
                             id="dryer_diameter_m"
-                            label="dryer_diameter_m"
+                            label="Dryer Diameter (m)"
                             onChange={(value) => updateNumberField('dryer_diameter_m', value)}
                             value={activeScenario.inputs.dryer_diameter_m}
                           />
                           <NullableNumberField
                             id="cylinder_height_m"
-                            label="cylinder_height_m"
+                            label="Cylinder Height (m)"
                             onChange={(value) => updateNullableNumberField('cylinder_height_m', value)}
                             value={activeScenario.inputs.cylinder_height_m}
                           />
@@ -628,13 +633,13 @@ function App() {
                         <div className="field-row">
                           <NumberField
                             id="cone_height_m"
-                            label="cone_height_m"
+                            label="Cone Height (m)"
                             onChange={(value) => updateNumberField('cone_height_m', value)}
                             value={activeScenario.inputs.cone_height_m}
                           />
                           <NumberField
                             id="outlet_duct_length_m"
-                            label="outlet_duct_length_m"
+                            label="Outlet Duct Length (m)"
                             onChange={(value) => updateNumberField('outlet_duct_length_m', value)}
                             value={activeScenario.inputs.outlet_duct_length_m}
                           />
@@ -642,14 +647,14 @@ function App() {
                         <div className="field-row">
                           <NullableNumberField
                             id="outlet_duct_diameter_m"
-                            label="outlet_duct_diameter_m"
+                            label="Outlet Duct Diameter (m)"
                             onChange={(value) => updateNullableNumberField('outlet_duct_diameter_m', value)}
                             value={activeScenario.inputs.outlet_duct_diameter_m}
                           />
                           <div className="field">
-                            <label>Geometriehinweis</label>
+                            <label>Geometry Note</label>
                             <div className="field-note">
-                              Die segmentierte Geometrie wird direkt ueber Zylinderhoehe, Konushoehe und Abluftrohr beschrieben.
+                              The segmented geometry is defined directly by cylinder height, cone height, and the outlet duct.
                             </div>
                           </div>
                         </div>
@@ -659,10 +664,10 @@ function App() {
 
                   <div className="button-row">
                     <button className="button-primary" disabled={!canSimulate} onClick={runComparison} type="button">
-                      {isSimulating ? 'Simulation laeuft' : 'Vergleich rechnen'}
+                      {isSimulating ? 'Simulation Running' : 'Run Comparison'}
                     </button>
                     <button className="button-secondary" onClick={resetActiveScenario} type="button">
-                      {activeScenario.scenario_id === BASE_SCENARIO_ID ? 'Basisfall zuruecksetzen' : 'Aktives Szenario zuruecksetzen'}
+                      {activeScenario.scenario_id === BASE_SCENARIO_ID ? 'Reset Base Case' : 'Reset Active Scenario'}
                     </button>
                   </div>
                 </div>
@@ -671,47 +676,47 @@ function App() {
               <section className="result-band">
                 <div className="kpi-grid">
                   <KpiTile
-                    label="Endfeuchte"
+                    label="Final Powder Moisture"
                     value={formatKpi(activeScenarioResult?.summary.end_moisture_wb_pct)}
                     unit="wt% wb"
                     status={activeScenarioResult?.summary.target_reached ? 'success' : 'warning'}
                   />
-                  <KpiTile label="Tout" value={formatKpi(activeScenarioResult?.summary.Tout_c)} unit="C" status="info" />
-                  <KpiTile label="RHout" value={formatKpi(activeScenarioResult?.summary.RHout_pct)} unit="%" status="info" />
-                  <KpiTile label="tau_out" value={formatKpi(activeScenarioResult?.summary.tau_out_s)} unit="s" status="info" />
+                  <KpiTile label="Outlet Air Temperature" value={formatKpi(activeScenarioResult?.summary.Tout_c)} unit="degC" status="info" />
+                  <KpiTile label="Outlet Relative Humidity" value={formatKpi(activeScenarioResult?.summary.RHout_pct)} unit="%" status="info" />
+                  <KpiTile label="Residence Time" value={formatKpi(activeScenarioResult?.summary.tau_out_s)} unit="s" status="info" />
                   <KpiTile
-                    label="Ziel erreicht"
-                    value={activeScenarioResult ? (activeScenarioResult.summary.target_reached ? 'ja' : 'nein') : 'offen'}
+                    label="Target Reached"
+                    value={activeScenarioResult ? (activeScenarioResult.summary.target_reached ? 'yes' : 'no') : 'pending'}
                     unit=""
                     status={activeScenarioResult?.summary.target_reached ? 'success' : 'warning'}
                   />
-                  <KpiTile label="dmean_out" value={formatKpi(activeScenarioResult?.summary.dmean_out_um)} unit="um" status="info" />
+                  <KpiTile label="Mean Particle Diameter" value={formatKpi(activeScenarioResult?.summary.dmean_out_um)} unit="um" status="info" />
                 </div>
 
                 <div className="panel">
                   <div className="panel-header">
-                    <h2 className="panel-title">Aktives Szenario</h2>
+                    <h2 className="panel-title">Active Scenario</h2>
                   </div>
                   <div className="panel-body parameter-summary-grid">
                     <ParameterItem label="Name" value={activeScenario.label} />
-                    <ParameterItem label="Rolle" value={activeScenario.scenario_id === BASE_SCENARIO_ID ? 'Basisfall' : 'Vergleichsszenario'} />
-                    <ParameterItem label="Tin" value={`${formatKpi(activeScenario.inputs.Tin)} C`} />
+                    <ParameterItem label="Role" value={activeScenario.scenario_id === BASE_SCENARIO_ID ? 'Base case' : 'Comparison case'} />
+                    <ParameterItem label="Tin" value={`${formatKpi(activeScenario.inputs.Tin)} degC`} />
                     <ParameterItem label="Yin" value={`${formatKpi(activeScenario.inputs.inlet_abs_humidity_g_kg)} g/kg`} />
-                    <ParameterItem label="Air flow" value={`${formatKpi(activeScenario.inputs.humid_air_mass_flow_kg_h)} kg/h`} />
-                    <ParameterItem label="Feed rate" value={`${formatKpi(activeScenario.inputs.feed_rate_kg_h)} kg/h`} />
-                    <ParameterItem label="Droplet size" value={`${formatKpi(activeScenario.inputs.droplet_size_um)} um`} />
-                    <ParameterItem label="Feed solids" value={`${formatKpi(activeScenario.inputs.feed_total_solids * 100)} %`} />
-                    <ParameterItem label="Target moisture" value={`${formatKpi(activeScenario.target_moisture_wb_pct)} wt% wb`} />
+                    <ParameterItem label="Air Mass Flow" value={`${formatKpi(activeScenario.inputs.humid_air_mass_flow_kg_h)} kg/h`} />
+                    <ParameterItem label="Feed Rate" value={`${formatKpi(activeScenario.inputs.feed_rate_kg_h)} kg/h`} />
+                    <ParameterItem label="Droplet Diameter" value={`${formatKpi(activeScenario.inputs.droplet_size_um)} um`} />
+                    <ParameterItem label="Feed Solids" value={`${formatKpi(activeScenario.inputs.feed_total_solids * 100)} wt%`} />
+                    <ParameterItem label="Target Moisture" value={`${formatKpi(activeScenario.target_moisture_wb_pct)} wt% wb`} />
                     <ParameterItem
-                      label="Zylinder"
+                      label="Cylinder"
                       value={`${formatKpi(activeScenario.inputs.cylinder_height_m)} m x ${formatKpi(activeScenario.inputs.dryer_diameter_m)} m`}
                     />
                     <ParameterItem
-                      label="Konus / Duct"
+                      label="Cone / Outlet duct"
                       value={`${formatKpi(activeScenario.inputs.cone_height_m)} m / ${formatKpi(activeScenario.inputs.outlet_duct_length_m)} m`}
                     />
                     <ParameterItem
-                      label="Duct diameter"
+                      label="Outlet Duct Diameter"
                       value={`${formatKpi(activeScenario.inputs.outlet_duct_diameter_m)} m`}
                     />
                   </div>
@@ -727,7 +732,7 @@ function App() {
             <section className="panel chart-panel">
               <div className="panel-header panel-header-split">
                 <div>
-                  <h2 className="panel-title">Result charts</h2>
+                  <h2 className="panel-title">Result Charts</h2>
                 </div>
                 {comparisonResult && activeScenarioResult && (
                   <div className="panel-actions">
@@ -741,7 +746,7 @@ function App() {
                       }
                       type="button"
                     >
-                      Aktives Profil als CSV exportieren
+                      Export Active Profile as CSV
                     </button>
                     <button
                       className="button-secondary"
@@ -753,14 +758,14 @@ function App() {
                       }
                       type="button"
                     >
-                      Aktives Ergebnis als JSON exportieren
+                      Export Active Result as JSON
                     </button>
                     <button
                       className="button-secondary"
                       onClick={() => downloadComparisonJson(comparisonResult)}
                       type="button"
                     >
-                      Vergleich als JSON exportieren
+                      Export Comparison as JSON
                     </button>
                   </div>
                 )}
@@ -782,7 +787,7 @@ function App() {
                 </div>
                 {!comparisonResult && (
                   <div className="empty-state">
-                    <p>Noch keine Ergebnisse.</p>
+                    <p>No results yet.</p>
                   </div>
                 )}
                 {comparisonResult && activeChartTab !== 'comparison' && chartOption && activeScenarioResult && (
@@ -799,7 +804,7 @@ function App() {
                         {comparisonResult.scenarios.map((scenario) => (
                           <th key={scenario.scenario_id}>
                             {scenario.label}
-                            {scenario.scenario_id === comparisonResult.base_scenario_id ? ' (Basis)' : ''}
+                            {scenario.scenario_id === comparisonResult.base_scenario_id ? ' (Base)' : ''}
                           </th>
                         ))}
                       </tr>
@@ -807,25 +812,25 @@ function App() {
                     <tbody>
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="Endfeuchte wt% wb"
+                        label="Final Powder Moisture (wt% wb)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.summary.end_moisture_wb_pct}
                       />
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="Tout C"
+                        label="Outlet Air Temperature (degC)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.summary.Tout_c}
                       />
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="RHout %"
+                        label="Outlet Relative Humidity (%)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.summary.RHout_pct}
                       />
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="tau_out s"
+                        label="Residence Time (s)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.summary.tau_out_s}
                       />
@@ -837,19 +842,19 @@ function App() {
                       />
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="T_p,out C"
+                        label="Particle Outlet Temperature (degC)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.summary.T_p_out_c}
                       />
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="dmean_out um"
+                        label="Mean Particle Diameter (um)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.summary.dmean_out_um}
                       />
                       <ComparisonRow
                         baseScenario={baseScenarioResult}
-                        label="Gesamt-Waermeverlust W"
+                        label="Total Heat Loss (W)"
                         scenarios={comparisonResult.scenarios}
                         selector={(scenario) => scenario.outlet.total_q_loss_w}
                       />
@@ -877,15 +882,15 @@ function StartView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
           alt="Spray dryer tower in a clean pilot plant"
         />
         <div className="start-hero-copy">
-          <p className="eyebrow">Trocknungskinetik Plug-Flow Simulation</p>
-          <h1 id="start-title">Trocknung von Magermilch fuer verschiedene Szenarien simulieren</h1>
-          <p>Materialfeuchte &amp; Abluftparameter bewerten</p>
+          <p className="eyebrow">Plug-flow drying kinetics simulation</p>
+          <h1 id="start-title">Simulate skim milk powder spray drying across operating scenarios</h1>
+          <p>Assess powder moisture and outlet air conditions</p>
           <div className="start-hero-actions">
             <button className="button-primary start-cta" onClick={() => onNavigate('simulation')} type="button">
-              Simulation oeffnen
+              Open Simulation
             </button>
             <button className="button-secondary start-cta" onClick={() => onNavigate('model')} type="button">
-              Modellgrundlagen
+              Model Foundations
             </button>
           </div>
         </div>
@@ -895,9 +900,9 @@ function StartView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
         <div className="panel start-orientation-panel">
           <div className="panel-header">
             <h2 id="orientation-title" className="panel-title">
-              Technischer Einstieg
+              Get started
             </h2>
-            <p className="panel-meta">Get started</p>
+            <p className="panel-meta">Technical workflow</p>
           </div>
           <div className="start-points">
             {startOrientationPoints.map((point) => (
@@ -922,9 +927,9 @@ function ModelFoundationView() {
       <section className="panel model-intro" aria-labelledby="model-title">
         <div className="panel-body model-intro-body">
           <div>
-            <p className="eyebrow">Modellgrundlagen</p>
+            <p className="eyebrow">Model Foundations</p>
             <h1 id="model-title" className="start-title">
-              Stationaere SMP-REA-Trocknung
+              Steady-state SMP REA drying
             </h1>
           </div>
         </div>
@@ -933,7 +938,7 @@ function ModelFoundationView() {
       <section className="panel model-section" aria-labelledby="process-title">
         <div className="panel-header">
           <h2 id="process-title" className="panel-title">
-            Rechenschema
+            Computation Workflow
           </h2>
         </div>
         <div className="panel-body">
@@ -954,39 +959,39 @@ function ModelFoundationView() {
       <section className="panel model-section" aria-labelledby="state-title">
         <div className="panel-header">
           <h2 id="state-title" className="panel-title">
-            Zustandsvektor und Ausgang
+            State Vector and Outlet
           </h2>
         </div>
         <div className="panel-body model-card-grid">
           <article className="model-card">
-            <h3>Axiale Koordinate</h3>
+            <h3>Axial Coordinate</h3>
             <div className="formula-rendered">
               <MathBlock tex={'h = 0 \\dots h_{\\mathrm{out}}'} />
             </div>
             <p>
-              Die Gleichungen werden entlang der effektiven 1D-Strombahn geloest. Zylinder, Konus und
-              Abluftrohr liefern dafuer den lokalen Querschnitt <code>A(h)</code>.
+              The equations are solved along the effective 1D flow path. Cylinder, cone, and outlet duct
+              define the local cross-sectional area <code>A(h)</code>.
             </p>
           </article>
           <article className="model-card">
-            <h3>Zustandsvektor</h3>
+            <h3>State Vector</h3>
             <div className="formula-rendered">
               <MathBlock tex={'y(h) = [X, T_p, Y, H_h, U_p, \\tau]'} />
             </div>
             <p>
-              Geloest werden Partikelfeuchte, Partikeltemperatur, Luftfeuchte, Luftenthalpie,
-              Partikelgeschwindigkeit und die Flugzeit.
+              The solved states are particle moisture, particle temperature, air humidity, air enthalpy,
+              particle velocity, and residence time.
             </p>
           </article>
           <article className="model-card">
-            <h3>Ausgang am Zyklon</h3>
+            <h3>Outlet at Cyclone Inlet</h3>
             <div className="formula-rendered">
               <MathBlock tex={'h_{\\mathrm{out}} = h_{\\mathrm{pre\\text{-}cyclone}}'} />
             </div>
             <p>
-              Der Ausgang ist als Ende des effektiven Abluftrohrs direkt vor dem Zykloneintritt definiert. Dort
-              werden Austrittstemperatur, Austrittsfeuchte, Flugzeit, Endfeuchte und der mittlere
-              Partikeldurchmesser ausgewertet.
+              The outlet is defined as the end of the effective outlet duct directly upstream of the cyclone
+              inlet. Outlet air temperature, outlet humidity, residence time, final moisture, and mean
+              particle diameter are evaluated there.
             </p>
           </article>
         </div>
@@ -995,25 +1000,25 @@ function ModelFoundationView() {
       <section className="panel model-section" aria-labelledby="equations-title">
         <div className="panel-header">
           <h2 id="equations-title" className="panel-title">
-            Gleichungen nach Sektionen
+            Equations by Section
           </h2>
         </div>
         <div className="panel-body formula-section-grid">
           <article className="formula-section">
-            <h3>Eingang und abgeleitete Anfangsgroessen</h3>
+            <h3>Inputs and Derived Initial Conditions</h3>
             <div className="formula-rendered">
               <MathBlock tex={'X_0 = \\frac{1 - w_{\\mathrm{TS}}}{w_{\\mathrm{TS}}}'} />
               <MathBlock tex={'H_{h,\\mathrm{in}} = c_{p,da}(T_{\\mathrm{in}} - T_{\\mathrm{ref}}) + Y_{\\mathrm{in}}\\left[\\lambda_{\\mathrm{ref}} + c_{p,v}(T_{\\mathrm{in}} - T_{\\mathrm{ref}})\\right]'} />
               <MathBlock tex={'U_{p,0} = C_v \\sqrt{\\frac{2\\Delta p}{\\rho_l}}'} />
             </div>
             <p className="equation-note">
-              Aus den UI-Eingaben werden zunaechst Trockenbasisfeuchte, Luftenthalpie und eine
-              nozzle-basierte Anfangsgeschwindigkeit des Tropfens abgeleitet.
+              The UI inputs are first converted into dry-basis moisture, air enthalpy, and a nozzle-based
+              initial droplet velocity.
             </p>
           </article>
 
           <article className="formula-section">
-            <h3>Lokaler Luftzustand und Geometrie</h3>
+            <h3>Local Air State and Geometry</h3>
             <div className="formula-rendered">
               <MathBlock tex={'U_a(h) = \\frac{\\dot{m}_{ha}}{\\rho_a(h) A(h)}'} />
               <MathBlock tex={'RH_a = \\frac{p_v(Y,p)}{p_{\\mathrm{sat}}(T_a)}'} />
@@ -1022,19 +1027,19 @@ function ModelFoundationView() {
               <MathBlock tex={'x_{b,\\mathrm{Langrish}} = 0.1499 \\, \\exp\\!\\left(-2.306 \\times 10^{-3} T_{a,K}\\right)\\left[\\ln\\!\\left(\\frac{1}{RH_a}\\right)\\right]^{0.4}'} />
             </div>
             <p className="equation-note">
-              Der lokale Querschnitt aus Zylinder, Konus und Abluftrohr bestimmt die Luftgeschwindigkeit. Die
-              Gleichgewichtsfeuchte wird im Kern standardmaessig ueber die temperaturabhaengige GAB-Variante
-              geschlossen; die Langrish-Isotherme bleibt fuer den Gegenpruefungsfall verfuegbar.
+              The local cross section from cylinder, cone, and outlet duct determines the air velocity. The
+              default closure for equilibrium moisture in the core is the temperature-dependent GAB variant;
+              the Langrish isotherm remains available for cross-checking.
             </p>
             <div className="equation-sources">
-              <span className="label">Quellen</span>
+              <span className="label">Sources</span>
               <p>Lin, Chen, Pearce, 2005. Journal of Food Engineering 68, 257-264.</p>
               <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
             </div>
           </article>
 
           <article className="formula-section">
-            <h3>REA und Materialschluss</h3>
+            <h3>REA and Material Closure</h3>
             <div className="formula-rendered">
               <MathBlock tex={'\\delta = X - x_b'} />
               <MathBlock tex={'\\psi = \\exp\\!\\left(-\\frac{\\Delta E}{R T_p}\\right)'} />
@@ -1044,55 +1049,60 @@ function ModelFoundationView() {
               <MathBlock tex={'d_p = d_{p,0} \\, s(\\delta, x_b, w_{\\mathrm{TS}})'} />
             </div>
             <p className="equation-note">
-              REA steht fuer Reaction Engineering Approach. Das REA-Glied bremst die
-              Oberflaechenverdampfung ueber die Aktivierungsenergie. Parallel dazu wird der Partikeldurchmesser
-              ueber das hinterlegte Schrumpfmodell aktualisiert.
+              REA denotes the Reaction Engineering Approach. The REA term retards surface evaporation through
+              the activation energy. In parallel, the particle diameter is updated through the selected
+              shrinkage model.
             </p>
             <div className="equation-sources">
-              <span className="label">Quellen</span>
+              <span className="label">Sources</span>
               <p>Chen, 2008. Drying Technology 26, 627-639.</p>
               <p>Chew et al., 2013. Dairy Science &amp; Technology 93, 415-430.</p>
-              <p>Im aktuellen Kern wird die REA-Retardierung in der fruehen Falling-Rate-Phase zusaetzlich um einen materialseitigen Zuschlag erweitert; diese projektspezifische Implementierungsanpassung wurde auf Basis von Versuchsergebnissen zu Pulverfeuchte und Ablufttemperatur an einem SPX-MS400-Pilotturm vorgenommen und ist keine direkte Literaturgleichung.</p>
+              <p>
+                In the current core, REA retardation in the early falling-rate period is augmented by an
+                additional material-specific term. This project-specific implementation adjustment was tuned
+                against powder moisture and outlet air temperature data from an SPX MS400 pilot tower and is
+                not a direct literature equation.
+              </p>
             </div>
           </article>
 
           <article className="formula-section">
-            <h3>Stoffbilanz des Partikels</h3>
+            <h3>Particle Mass Balance</h3>
             <div className="formula-rendered">
               <MathBlock tex={'\\frac{d m_p}{d h} = -\\frac{k_m A_p}{U_p}\\left(\\rho_{v,s} - \\rho_{v,a}\\right)'} />
               <MathBlock tex={'\\frac{dX}{dh} = \\frac{1}{m_{s,\\mathrm{dry}}}\\frac{d m_p}{d h}'} />
               <MathBlock tex={'X \\le x_b \\;\\Rightarrow\\; \\frac{d m_p}{d h} = 0'} />
             </div>
             <p className="equation-note">
-              Sobald die lokale Gleichgewichtsfeuchte erreicht ist, wird der Trocknungsfluss im Kern auf null
-              begrenzt, damit keine unphysikalische Weiterverdampfung entsteht.
+              Once the local equilibrium moisture is reached, the drying flux is limited to zero in the core
+              so that no unphysical further evaporation occurs.
             </p>
             <div className="equation-sources">
-              <span className="label">Quellen</span>
+              <span className="label">Sources</span>
               <p>Chew et al., 2013. Dairy Science &amp; Technology 93, 415-430.</p>
               <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
             </div>
           </article>
 
           <article className="formula-section">
-            <h3>Energiebilanzen</h3>
+            <h3>Energy Balances</h3>
             <div className="formula-rendered">
               <MathBlock tex={'\\frac{dT_p}{dh} = \\frac{\\pi d_p k_a Nu (T_a - T_p) + \\frac{dm_p}{dh} U_p (h_{fg} + q_{\\mathrm{sorp}})}{m_{s,\\mathrm{dry}} c_{p,p} U_p}'} />
               <MathBlock tex={'\\frac{dY}{dh} = -\\frac{\\dot{m}_{s,\\mathrm{dry}}}{\\dot{m}_{da}}\\frac{dX}{dh}'} />
               <MathBlock tex={'\\frac{dH_h}{dh} = -\\frac{\\dot{m}_{s,\\mathrm{dry}}}{\\dot{m}_{da}}\\left(c_{p,p}\\frac{dT_p}{dh} + c_{p,w}(T_p - T_{\\mathrm{ref}})\\frac{dX}{dh}\\right) - \\frac{q^{\\prime}_{\\mathrm{loss}}}{\\dot{m}_{da}}'} />
             </div>
             <p className="equation-note">
-              Die Partikelbilanz koppelt konvektiven Waermeuebergang und Verdampfungsenthalpie. Die Luftseite wird
-              ueber Feuchte- und Enthalpiebilanz nachgezogen.
+              The particle balance couples convective heat transfer and latent heat of evaporation. The air
+              side is updated through humidity and enthalpy balances.
             </p>
             <div className="equation-sources">
-              <span className="label">Quellen</span>
+              <span className="label">Sources</span>
               <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
             </div>
           </article>
 
           <article className="formula-section">
-            <h3>Transport, Bewegung und Flugzeit</h3>
+            <h3>Transport, Motion, and Residence Time</h3>
             <div className="formula-rendered">
               <MathBlock tex={'Re = \\frac{\\rho_a \\left|U_p - U_a\\right| d_p}{\\mu_a}'} />
               <MathBlock tex={'Sh = 2 + 0.6 Re^{0.5} Sc^{1/3}, \\qquad Nu = 2 + 0.6 Re^{0.5} Pr^{1/3}'} />
@@ -1101,11 +1111,11 @@ function ModelFoundationView() {
               <MathBlock tex={'\\frac{d\\tau}{dh} = \\frac{1}{U_p}'} />
             </div>
             <p className="equation-note">
-              Stoff- und Waermeuebergang werden ueber Sherwood- und Nusselt-Korrelationen geschlossen. Die
-              Partikelgeschwindigkeit treibt gleichzeitig den Aufenthaltszeitaufbau.
+              Mass and heat transfer are closed through Sherwood and Nusselt correlations. The particle
+              velocity simultaneously drives residence time accumulation.
             </p>
             <div className="equation-sources">
-              <span className="label">Quellen</span>
+              <span className="label">Sources</span>
               <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
             </div>
           </article>
@@ -1115,7 +1125,7 @@ function ModelFoundationView() {
       <section className="panel model-section" aria-labelledby="assumptions-title">
         <div className="panel-header">
           <h2 id="assumptions-title" className="panel-title">
-            Annahmen und Grenzen
+            Assumptions and Limits
           </h2>
         </div>
         <div className="panel-body model-assumptions">
@@ -1134,90 +1144,90 @@ function ModelFoundationView() {
 const modelProcessSteps = [
   {
     index: '01',
-    title: 'UI-Eingaben und Anfangsgroessen',
+    title: 'UI Inputs and Initial Conditions',
     description:
-      'Aus Tin, Luftmassenstrom, Feedrate, Tropfengroesse, Yin, solids und den Geometriedaten werden Anfangsfeuchte, Luftenthalpie, Dichte und nozzle-basierte Tropfengeschwindigkeit abgeleitet.',
+      'Tin, air mass flow, feed rate, droplet diameter, Yin, feed solids, and geometry define the initial moisture, air enthalpy, density, and nozzle-based droplet velocity.',
   },
   {
     index: '02',
-    title: 'Lokale Geometrie entlang h',
+    title: 'Local Geometry Along h',
     description:
-      'Zylinder, Konus und Abluftrohr liefern den lokalen Querschnitt A(h), die Wandflaeche pro Laenge und damit lokale Luftgeschwindigkeit und Waermeverlust.',
+      'Cylinder, cone, and outlet duct define the local cross section A(h), wall area per length, and therefore local air velocity and heat loss.',
   },
   {
     index: '03',
-    title: 'Luftzustand und Gleichgewichtsfeuchte',
+    title: 'Air State and Equilibrium Moisture',
     description:
-      'Aus Y und H_h wird lokal T_a berechnet. Daraus folgen RH_a und die Gleichgewichtsfeuchte x_b ueber das gewaehlte Isothermenmodell.',
+      'Local T_a is calculated from Y and H_h. This determines RH_a and the equilibrium moisture x_b through the selected isotherm model.',
   },
   {
     index: '04',
-    title: 'REA und Schrumpfung',
+    title: 'REA and Shrinkage',
     description:
-      'Die lokale Differenz delta = X - x_b bestimmt ueber die REA-Aktivierungsenergie die Oberflaechenretardierung psi und ueber das Schrumpfmodell den aktuellen Partikeldurchmesser.',
+      'The local difference delta = X - x_b determines the surface retardation psi through the REA activation energy and the current particle diameter through the shrinkage model.',
   },
   {
     index: '05',
-    title: 'Stoff-, Energie- und Bewegungsbilanzen',
+    title: 'Mass, Energy, and Momentum Balances',
     description:
-      'Mit den lokalen Transportkoeffizienten werden dX/dh, dT_p/dh, dY/dh, dH_h/dh, dU_p/dh und dτ/dh aufgestellt und entlang h integriert.',
+      'Using the local transport coefficients, dX/dh, dT_p/dh, dY/dh, dH_h/dh, dU_p/dh, and dtau/dh are formulated and integrated along h.',
   },
   {
     index: '06',
-    title: 'Ausgang und KPI-Auswertung',
+    title: 'Outlet and KPI Evaluation',
     description:
-      'Am Ende des effektiven Abluftrohrs direkt vor dem Zyklon werden Tout, RHout, tau_out, Endfeuchte, Zielerreichung und dmean_out ausgewertet.',
+      'At the end of the effective outlet duct directly upstream of the cyclone, Tout, RHout, tau_out, final moisture, target attainment, and dmean_out are evaluated.',
   },
 ]
 
 const startOrientationPoints = [
   {
-    title: 'Basisfall aufsetzen',
+    title: 'Set up the base case',
     description:
-      'Zulufttemperatur, Luftmassenstrom, Feedrate, Tropfengroesse, absolute Luftfeuchte der Zuluft, Feststoffgehalt und Geometrie definieren den axialen Referenzfall fuer den Turm.',
+      'Inlet air temperature, air mass flow, feed rate, droplet diameter, inlet absolute humidity, total solids, and geometry define the axial reference case for the tower.',
   },
   {
-    title: 'Axial rechnen',
+    title: 'Run the axial profile',
     description:
-      'Der Kern integriert Feuchte, Temperatur, Gleichgewicht, Partikelbewegung und Flugzeit entlang Zylinder, Konus und Abluftrohr.',
+      'The core integrates moisture, temperature, equilibrium moisture, particle motion, and residence time along the cylinder, cone, and outlet duct.',
   },
   {
-    title: 'Materialmodell nutzen',
+    title: 'Apply the material model',
     description:
-      'REA-Retardierung, lokale Gleichgewichtsfeuchte x_b und das hinterlegte Schrumpfmodell koppeln Verdampfung und Partikelzustand.',
+      'REA retardation, local equilibrium moisture x_b, and the selected shrinkage model couple evaporation and particle state.',
   },
   {
-    title: 'Szenarien vergleichen',
+    title: 'Compare scenarios',
     description:
-      'Ein Basisfall plus bis zu drei Vergleichsfaelle zeigen die Sensitivitaet von Endfeuchte, Ablufttemperatur, relativer Abluftfeuchte, Aufenthaltszeit und mittlerem Partikeldurchmesser.',
+      'One base case plus up to three comparison scenarios show the sensitivity of final moisture, outlet air temperature, outlet relative humidity, residence time, and mean particle diameter.',
   },
 ]
 
 const modelAssumptions = [
   {
-    title: 'Effektive 1D-Strombahn',
+    title: 'Effective 1D flow path',
     description:
-      'Zylinder, Konus und Abluftrohr werden als abschnittsweise 1D-Strombahn mit lokalem Querschnitt behandelt. Rueckmischung, Umlenkung und echte 3D-Struktur werden nicht separat aufgeloest.',
+      'Cylinder, cone, and outlet duct are treated as a section-wise 1D flow path with local cross section. Back-mixing, redirection, and true 3D structure are not resolved separately.',
   },
   {
-    title: 'Stationaerer Betrieb',
+    title: 'Steady-state operation',
     description:
-      'Die Rechnung ist stationaer in h formuliert. Dynamische Veraenderungen des Gesamtsystems, Stoerungen oder zeitlich wechselnde Fahrweisen sind nicht Teil des V1-Kerns.',
+      'The calculation is formulated as steady-state in h. Dynamic system changes, disturbances, or time-varying operation are outside the current V1 core.',
   },
   {
-    title: 'REA nur auf der Trocknungsseite',
+    title: 'REA only on the drying branch',
     description:
-      'Sobald X lokal auf x_b faellt, wird der weitere Trocknungsfluss abgeschnitten. Eine Rueckbefeuchtung oder ein symmetrischer REA-Pfad ist im aktuellen Kern nicht kalibriert.',
+      'Once X locally falls to x_b, further drying flux is cut off. Rewetting or a symmetric REA branch is not calibrated in the current core.',
   },
   {
-    title: 'Materialschluss fuer SMP',
+    title: 'SMP material closure',
     description:
-      'Die REA- und Schrumpfungsschluesse sind fuer den aktuellen SMP-Kontext parametrisiert. Chew-basierte Schrumpfung ist direkt im Bereich 37-43 wt% solids verankert; darunter greift der Legacy-Extended-Pfad.',
+      'The REA and shrinkage closures are parameterized for the current SMP context. Chew-based shrinkage is directly anchored in the range 37-43 wt% solids; below that, the legacy extended path is used.',
   },
   {
-    title: 'Kein Tg- oder Stickiness-Modell in V1',
+    title: 'No Tg or stickiness model in V1',
     description:
-      'Die aktuelle App bewertet noch keine Glasuebergangs- oder Stickiness-Risiken. Die Turmvorschau zeigt derzeit nur die Position entlang h, nicht bereits kritische Anhaftungszonen.',
+      'The current app does not yet assess glass-transition or stickiness risk. The tower preview currently shows only the position along h, not critical deposition zones.',
   },
 ]
 

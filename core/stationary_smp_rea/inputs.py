@@ -133,36 +133,36 @@ class StationarySMPREAInput:
             "ambient_temp_c": self.ambient_temp_c,
         }.items():
             if value <= -273.15:
-                errors.append(f"{name} muss groesser als -273.15 degC sein.")
+                errors.append(f"{name} must be greater than -273.15 degC.")
 
         warnings.extend(chew_validity_warnings(self.feed_total_solids))
         if not 120.0 <= self.inlet_air_temp_c <= 220.0:
             warnings.append(
-                "Die Zulufttemperatur liegt ausserhalb des typischen Auslegungsfensters von etwa 120-220 degC."
+                "The inlet air temperature is outside the typical design window of about 120-220 degC."
             )
         if self.feed_total_solids < 0.30:
             warnings.append(
-                "Unter 30 wt% nutzt der Kern fuer die REA-Fruehphase den Low-Solids-Altast mit gemeinsamer Polynomialkurve und 30-wt%-Linearast."
+                "Below 30 wt%, the core uses the low-solids legacy branch for the early REA phase with a shared polynomial curve and a 30-wt% linear branch."
             )
         if self.feed_total_solids < 0.37 and self.shrinkage_model == "chew":
             warnings.append(
-                "Der erste Kern nutzt fuer SMP-Schrumpfung unter 37 wt% den 37-wt%-Anker als konservative Naeherung."
+                "For SMP shrinkage below 37 wt%, the first core uses the 37-wt% anchor as a conservative approximation."
             )
         if self.feed_total_solids < 0.37 and self.shrinkage_model in {"auto", "legacy_extended"}:
             warnings.append(
-                "Unter 37 wt% nutzt die SMP-Schrumpfung den erweiterten Legacy-Zweig mit 20/30-wt%-Ankern."
+                "Below 37 wt%, SMP shrinkage uses the extended legacy branch with 20/30-wt% anchors."
             )
         if self.cone_height_m > 0.0 or self.outlet_duct_length_m > 0.0:
             warnings.append(
-                "Die abschnittsweise Geometrie behandelt Zylinder, Konus und Abluftrohr als effektive 1D-Strombahn mit lokalem Querschnitt; Umlenkung, Rueckmischung und Richtungswechsel werden nicht separat aufgeloest."
+                "The section-wise geometry treats cylinder, cone, and outlet duct as an effective 1D flow path with local cross section; redirection, back-mixing, and changes in flow direction are not resolved separately."
             )
         if self.outlet_duct_length_m > 0.0:
             warnings.append(
-                "Der Reportpunkt 'pre_cyclone' liegt am Ende der effektiven Abluftrohrsektion unmittelbar vor dem Zykloneintritt."
+                "The report point 'pre_cyclone' is located at the end of the effective outlet duct section directly upstream of the cyclone inlet."
             )
         if self.fixed_particle_velocity_ms is not None or self.fixed_air_velocity_ms is not None:
             warnings.append(
-                "Die Geschwindigkeitsdiagnose nutzt feste Partikel- und/oder Luftgeschwindigkeiten; Drag-gekoppelte Geschwindigkeitsentwicklung und/oder lokale Kontinuitaetsgeschwindigkeit sind dabei bewusst ueberschrieben."
+                "The velocity diagnostic uses fixed particle and/or air velocities; drag-coupled velocity development and/or the local continuity velocity are intentionally overridden."
             )
 
         return errors, warnings

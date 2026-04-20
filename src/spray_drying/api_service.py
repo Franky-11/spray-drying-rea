@@ -35,8 +35,8 @@ DEFAULT_TARGET_MOISTURE_WB_PCT = 4.0
 MS400_PSD_PATH = Path(__file__).resolve().parents[2] / "ms400" / "psd.csv"
 SOLVER_METHODS = ["BDF", "RK45", "Radau"]
 SUPPRESSED_UI_WARNINGS = {
-    "Die abschnittsweise Geometrie behandelt Zylinder, Konus und Abluftrohr als effektive 1D-Strombahn mit lokalem Querschnitt; Umlenkung, Rueckmischung und Richtungswechsel werden nicht separat aufgeloest.",
-    "Der Reportpunkt 'pre_cyclone' liegt am Ende der effektiven Abluftrohrsektion unmittelbar vor dem Zykloneintritt.",
+    "The section-wise geometry treats cylinder, cone, and outlet duct as an effective 1D flow path with local cross section; redirection, back-mixing, and changes in flow direction are not resolved separately.",
+    "The report point 'pre_cyclone' is located at the end of the effective outlet duct section directly upstream of the cyclone inlet.",
 }
 
 
@@ -78,7 +78,7 @@ def run_compare(request: CompareRequestDTO) -> CompareResponseDTO:
     scenario_results: list[CompareScenarioResponseDTO] = []
     for scenario in request.scenarios:
         if scenario.scenario_id in seen_ids:
-            raise ValueError(f"Doppelte scenario_id: {scenario.scenario_id}")
+            raise ValueError(f"Duplicate scenario_id: {scenario.scenario_id}")
         seen_ids.add(scenario.scenario_id)
         simulation = _run_single_simulation(scenario.inputs, scenario.target_moisture_wb_pct)
         scenario_results.append(
@@ -95,7 +95,7 @@ def run_compare(request: CompareRequestDTO) -> CompareResponseDTO:
 
     base_scenario_id = request.base_scenario_id or request.scenarios[0].scenario_id
     if base_scenario_id not in seen_ids:
-        raise ValueError(f"Unbekannte base_scenario_id: {base_scenario_id}")
+        raise ValueError(f"Unknown base_scenario_id: {base_scenario_id}")
 
     return CompareResponseDTO(
         base_scenario_id=base_scenario_id,
@@ -232,7 +232,7 @@ def _dto_to_stationary_input(input_dto: StationaryInputDTO) -> StationarySMPREAI
     air_flow_m3_h = input_dto.humid_air_mass_flow_kg_h / max(density, 1e-12)
     cylinder_height_m = input_dto.cylinder_height_m
     if cylinder_height_m is None:
-        raise ValueError("cylinder_height_m muss fuer die segmentierte Geometrie gesetzt sein.")
+        raise ValueError("cylinder_height_m must be set for segmented geometry.")
     return StationarySMPREAInput(
         dryer_height_m=cylinder_height_m,
         dryer_diameter_m=input_dto.dryer_diameter_m,
