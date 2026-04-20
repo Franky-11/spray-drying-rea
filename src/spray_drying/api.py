@@ -7,8 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api_schemas import HealthDTO, ModelDefaultsDTO, ReferenceCasePresetDTO, SimulationRequestDTO, SimulationResponseDTO
-from .api_service import get_model_defaults, list_reference_cases, run_simulation
+from .api_schemas import (
+    CompareRequestDTO,
+    CompareResponseDTO,
+    HealthDTO,
+    ModelDefaultsDTO,
+    ReferenceCasePresetDTO,
+    SimulationRequestDTO,
+    SimulationResponseDTO,
+)
+from .api_service import get_model_defaults, list_reference_cases, run_compare, run_simulation
 
 
 def create_app(frontend_dist_dir: Path | None = None) -> FastAPI:
@@ -39,6 +47,13 @@ def create_app(frontend_dist_dir: Path | None = None) -> FastAPI:
     async def simulate(request: SimulationRequestDTO) -> SimulationResponseDTO:
         try:
             return run_simulation(request)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/compare", response_model=CompareResponseDTO)
+    async def compare(request: CompareRequestDTO) -> CompareResponseDTO:
+        try:
+            return run_compare(request)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

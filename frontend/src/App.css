@@ -293,11 +293,40 @@ button:disabled {
   padding-top: 16px;
 }
 
+.scenario-section {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .subsection-header h3 {
   font-size: 16px;
   font-weight: 600;
   line-height: 24px;
   margin: 0;
+}
+
+.scenario-list {
+  display: grid;
+  gap: 8px;
+}
+
+.scenario-chip {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.scenario-chip small {
+  color: var(--text-secondary);
+}
+
+.scenario-chip.active {
+  border-left: 4px solid var(--interactive);
+  padding-left: 11px;
 }
 
 .expert-fields {
@@ -422,6 +451,24 @@ button:disabled {
 
 .comparison-table th {
   background: var(--surface-muted);
+}
+
+.comparison-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.comparison-delta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.comparison-delta.positive {
+  color: var(--danger);
+}
+
+.comparison-delta.negative {
+  color: var(--success);
 }
 
 .flat-list {

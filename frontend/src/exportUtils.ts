@@ -1,6 +1,10 @@
-import type { SimulationResponse } from './apiTypes'
+import type { CompareResponse, SimulationResponse } from './apiTypes'
 
 export function downloadSimulationJson(result: SimulationResponse, filename = 'spray-drying-simulation.json') {
+  downloadText(JSON.stringify(result, null, 2), filename, 'application/json;charset=utf-8')
+}
+
+export function downloadComparisonJson(result: CompareResponse, filename = 'spray-drying-comparison.json') {
   downloadText(JSON.stringify(result, null, 2), filename, 'application/json;charset=utf-8')
 }
 
@@ -19,6 +23,7 @@ export function downloadSimulationProfileCsv(
     'RH_a_pct',
     'x_b',
     'psi',
+    'particle_diameter_um',
     'U_a_ms',
     'U_p_ms',
   ] as const

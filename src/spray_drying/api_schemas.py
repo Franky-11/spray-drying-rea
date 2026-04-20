@@ -63,6 +63,22 @@ class SimulationRequestDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class CompareScenarioRequestDTO(BaseModel):
+    scenario_id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    inputs: StationaryInputDTO
+    target_moisture_wb_pct: float = Field(default=4.0, gt=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CompareRequestDTO(BaseModel):
+    scenarios: list[CompareScenarioRequestDTO] = Field(min_length=1, max_length=4)
+    base_scenario_id: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class SimulationSeriesPointDTO(BaseModel):
     h_m: float
     section: str
@@ -132,5 +148,17 @@ class SimulationResponseDTO(BaseModel):
     profile: SimulationProfileDTO
     warnings: list[str]
     inputs: StationaryInputDTO
+
+    model_config = ConfigDict(protected_namespaces=())
+
+
+class CompareScenarioResponseDTO(SimulationResponseDTO):
+    scenario_id: str
+    label: str
+
+
+class CompareResponseDTO(BaseModel):
+    base_scenario_id: str
+    scenarios: list[CompareScenarioResponseDTO]
 
     model_config = ConfigDict(protected_namespaces=())

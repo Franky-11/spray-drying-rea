@@ -1,4 +1,6 @@
 import type {
+  CompareRequest,
+  CompareResponse,
   HealthResponse,
   ModelDefaults,
   SimulationRequest,
@@ -46,6 +48,13 @@ export function getModelDefaults(): Promise<ModelDefaults> {
 
 export function simulate(body: SimulationRequest): Promise<SimulationResponse> {
   return requestJson<SimulationResponse>('/simulate', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function compare(body: CompareRequest): Promise<CompareResponse> {
+  return requestJson<CompareResponse>('/compare', {
     method: 'POST',
     body: JSON.stringify(body),
   })

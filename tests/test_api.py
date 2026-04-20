@@ -120,3 +120,66 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("feed_total_solids", response.json()["detail"])
+
+    async def test_compare_returns_multiple_scenarios_and_base_id(self) -> None:
+        response = await self.client.post(
+            "/compare",
+            json={
+                "base_scenario_id": "base",
+                "scenarios": [
+                    {
+                        "scenario_id": "base",
+                        "label": "Basisfall",
+                        "inputs": {
+                            "Tin": 190.0,
+                            "humid_air_mass_flow_kg_h": 300.0,
+                            "feed_rate_kg_h": 15.0,
+                            "droplet_size_um": 65.0,
+                            "inlet_abs_humidity_g_kg": 6.0,
+                            "feed_total_solids": 0.37,
+                            "heat_loss_coeff_w_m2k": 1.4,
+                            "x_b_model": "lin_gab",
+                            "nozzle_delta_p_bar": 47.0,
+                            "nozzle_velocity_coefficient": 0.6,
+                            "dryer_diameter_m": 1.15,
+                            "cylinder_height_m": 2.2,
+                            "cone_height_m": 1.0,
+                            "outlet_duct_length_m": 1.0,
+                            "outlet_duct_diameter_m": 0.2,
+                        },
+                        "target_moisture_wb_pct": 4.0,
+                    },
+                    {
+                        "scenario_id": "var-1",
+                        "label": "Variante 1",
+                        "inputs": {
+                            "Tin": 195.0,
+                            "humid_air_mass_flow_kg_h": 300.0,
+                            "feed_rate_kg_h": 15.0,
+                            "droplet_size_um": 65.0,
+                            "inlet_abs_humidity_g_kg": 6.0,
+                            "feed_total_solids": 0.37,
+                            "heat_loss_coeff_w_m2k": 1.4,
+                            "x_b_model": "lin_gab",
+                            "nozzle_delta_p_bar": 47.0,
+                            "nozzle_velocity_coefficient": 0.6,
+                            "dryer_diameter_m": 1.15,
+                            "cylinder_height_m": 2.2,
+                            "cone_height_m": 1.0,
+                            "outlet_duct_length_m": 1.0,
+                            "outlet_duct_diameter_m": 0.2,
+                        },
+                        "target_moisture_wb_pct": 4.0,
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["base_scenario_id"], "base")
+        self.assertEqual(len(data["scenarios"]), 2)
+        self.assertEqual(data["scenarios"][0]["label"], "Basisfall")
+        self.assertEqual(data["scenarios"][1]["scenario_id"], "var-1")
+        self.assertIn("summary", data["scenarios"][0])
+        self.assertIn("profile", data["scenarios"][1])

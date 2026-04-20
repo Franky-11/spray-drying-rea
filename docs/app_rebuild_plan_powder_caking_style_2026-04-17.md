@@ -6,8 +6,8 @@
 
 - `Phase 0` `done`
 - `Phase 1` `done`
-- `Phase 2` `in progress`
-- `Phase 3` `planned`
+- `Phase 2` `done`
+- `Phase 3` `in progress`
 - `Phase 4` `planned`
 - `Phase 5` `planned`
 
@@ -19,19 +19,20 @@
 - `health`, `model/defaults`, `presets/reference-cases` und `simulate` angebunden
 - V1-Eingabestruktur fuer Basismodus und Expertenmodus im Frontend vorbereitet
 - Einzel-Szenario fuer den stationaeren SMP-REA-Kern ueber die neue UI ausfuehrbar
-- KPI-Band, Chart-Tabs, Reportpunkte und Ergebnisexport fuer den Einzel-Lauf angebunden
-- API liefert nun strukturierte Resultate mit `summary`, `outlet`, `report_points`, `profile`, `warnings`, `provenance`
+- KPI-Band, Chart-Tabs und Ergebnisexport fuer den Einzel-Lauf angebunden
+- API liefert strukturierte Resultate mit `summary`, `outlet`, `profile`, `warnings`
+- Vergleichsszenarien im Frontend als Basisfall plus bis zu drei Varianten angelegt
+- serverseitiger `compare`-Endpoint fuer Mehrfachlaeufe umgesetzt
+- KPI-Vergleichstabelle und ueberlagerte Profilplots fuer mehrere Szenarien angebunden
 - lokale Python- und Frontend-Checks laufen erfolgreich
 
 ### Aktuell in Arbeit
 
-- Phase 2 fachlich abschliessen und die Einzel-Szenario-Seite weiter in Richtung produktiver V1-Arbeitsseite haerten
-- API-/Frontend-Struktur so stabilisieren, dass Vergleichsszenarien ohne Umbau anschliessbar sind
+- Phase 3 fachlich absichern und die Vergleichsszenarien weiter in Richtung produktiver V1-Arbeitsseite haerten
+- Modellgrundlagen-Seite fachlich inhaltlich ausbauen
 
 ### Noch geplant
 
-- serverseitiger Vergleichsmodus `compare` fuer mehrere Szenarien
-- Delta- und Vergleichstabellen ueber mehrere Faelle
 - Modellgrundlagen-Seite fachlich inhaltlich ausbauen
 - moegliche CSS-Weiterstrukturierung in `frontend/src/styles/` gemaess Zielbild
 - spaetere V1+-Themen wie Sweep-Modus, gespeicherte Szenariensets und groessere Prozesssimulation bewusst spaeter
@@ -596,7 +597,7 @@ Akzeptanz:
 
 ## Phase 2: Einzel-Szenario fuer Trocknungskinetik
 
-Status: `in progress`
+Status: `done`
 
 Ziel:
 
@@ -609,7 +610,7 @@ Aufgaben:
 - Formular fuer Einzel-Szenario
 - KPI-Ausgabe
 - Profilplot
-- Reportpunkte, strukturierte Ergebnisdaten und Export fuer den Einzel-Lauf
+- strukturierte Ergebnisdaten und Export fuer den Einzel-Lauf
 - fachliche Abnahme gegen Referenzlaeufe fuer `V2` und weitere MS400-Faelle
 
 Akzeptanz:
@@ -619,7 +620,7 @@ Akzeptanz:
 
 ## Phase 3: Vergleichsszenarien
 
-Status: `planned`
+Status: `in progress`
 
 Ziel:
 
@@ -627,11 +628,11 @@ Ziel:
 
 Aufgaben:
 
-- Szenario-Duplikation
-- Mehrfachlauf `compare`
-- KPI-Vergleich
-- ueberlagerte Charts
-- Export
+- Szenario-Duplikation: `done`
+- Mehrfachlauf `compare`: `done`
+- KPI-Vergleich: `done`
+- ueberlagerte Charts: `done`
+- Export: `in progress`
 
 Akzeptanz:
 
@@ -684,7 +685,7 @@ Status heute:
 1. Python-API-Paketname: `done` als `spray_drying`
 2. Frontend lebt unter `frontend/`: `done`
 3. Fuer V1 wird einfache View-Navigation genutzt, kein React Router: `done`
-4. `compare`-Strategie: `planned`, aktuell noch nicht umgesetzt
+4. `compare`-Strategie: `in progress`, Batch-Endpoint und Frontend-Zustand umgesetzt
 
 Empfehlung:
 
@@ -706,9 +707,8 @@ Empfohlene konkrete Reihenfolge:
 
 ## Empfehlung zum naechsten Arbeitsschritt
 
-Der naechste sinnvolle Schritt nach dem aktuellen Stand ist **Phase 3 vorbereiten**:
+Der naechste sinnvolle Schritt nach dem aktuellen Stand ist **Phase 4 anziehen**:
 
-- Szenariozustand im Frontend von Einzelfall auf Basisszenario plus Vergleichsarray erweitern
-- serverseitigen `compare`-Endpoint definieren
-- KPI-Matrix und ueberlagerte Profilplots fuer mehrere Szenarien aufbauen
-- Delta-Darstellung gegen das Basisszenario einziehen
+- Modellgrundlagen-Seite fachlich ausbauen
+- Expertenmodus sprachlich und fachlich weiter aufraeumen
+- optional eine visuelle Turm- bzw. Strombahn-Darstellung an die Profilplots koppeln

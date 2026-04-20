@@ -15,6 +15,9 @@ from core.stationary_smp_rea import (
 from core.stationary_smp_rea.air import moist_air_density
 
 from .api_schemas import (
+    CompareRequestDTO,
+    CompareResponseDTO,
+    CompareScenarioResponseDTO,
     ModelDefaultsDTO,
     ReferenceCasePresetDTO,
     SimulationOutletDTO,
@@ -67,13 +70,47 @@ def list_reference_cases() -> list[ReferenceCasePresetDTO]:
 
 
 def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
-    model_input = _dto_to_stationary_input(request.inputs)
+    return _run_single_simulation(request.inputs, request.target_moisture_wb_pct)
+
+
+def run_compare(request: CompareRequestDTO) -> CompareResponseDTO:
+    seen_ids: set[str] = set()
+    scenario_results: list[CompareScenarioResponseDTO] = []
+    for scenario in request.scenarios:
+        if scenario.scenario_id in seen_ids:
+            raise ValueError(f"Doppelte scenario_id: {scenario.scenario_id}")
+        seen_ids.add(scenario.scenario_id)
+        simulation = _run_single_simulation(scenario.inputs, scenario.target_moisture_wb_pct)
+        scenario_results.append(
+            CompareScenarioResponseDTO(
+                scenario_id=scenario.scenario_id,
+                label=scenario.label,
+                summary=simulation.summary,
+                outlet=simulation.outlet,
+                profile=simulation.profile,
+                warnings=simulation.warnings,
+                inputs=simulation.inputs,
+            )
+        )
+
+    base_scenario_id = request.base_scenario_id or request.scenarios[0].scenario_id
+    if base_scenario_id not in seen_ids:
+        raise ValueError(f"Unbekannte base_scenario_id: {base_scenario_id}")
+
+    return CompareResponseDTO(
+        base_scenario_id=base_scenario_id,
+        scenarios=scenario_results,
+    )
+
+
+def _run_single_simulation(inputs: StationaryInputDTO, target_moisture_wb_pct: float) -> SimulationResponseDTO:
+    model_input = _dto_to_stationary_input(inputs)
     result = solve_stationary_smp_profile(model_input)
     frame = result.series.copy()
     frame["moisture_wb_pct"] = 100.0 * frame["X"] / (1.0 + frame["X"])
     frame["RH_a_pct"] = 100.0 * frame["RH_a"]
 
-    target_row = _first_target_row(frame, request.target_moisture_wb_pct)
+    target_row = _first_target_row(frame, target_moisture_wb_pct)
     outlet_row = frame.iloc[-1]
     profile_series = [_series_point_from_row(row) for _, row in frame.iterrows()]
     derived = derive_inputs(model_input)
@@ -84,7 +121,7 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
         Tout_c=float(outlet_row["T_a_c"]),
         RHout_pct=float(outlet_row["RH_a_pct"]),
         tau_out_s=float(outlet_row["tau_s"]) if pd.notna(outlet_row["tau_s"]) else None,
-        target_moisture_wb_pct=request.target_moisture_wb_pct,
+        target_moisture_wb_pct=target_moisture_wb_pct,
         target_reached=target_row is not None,
         time_to_target_s=_optional_series_float(target_row, "tau_s"),
         height_to_target_m=_optional_series_float(target_row, "h"),
@@ -125,7 +162,7 @@ def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:
         outlet=outlet,
         profile=profile,
         warnings=[warning for warning in result.warnings if warning not in SUPPRESSED_UI_WARNINGS],
-        inputs=request.inputs,
+        inputs=inputs,
     )
 
 

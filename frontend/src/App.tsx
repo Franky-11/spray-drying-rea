@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { EChartsOption } from 'echarts'
+import type { EChartsOption, SeriesOption } from 'echarts'
 import './App.css'
-import { getHealth, getModelDefaults, simulate } from './apiClient'
-import { downloadSimulationJson, downloadSimulationProfileCsv } from './exportUtils'
+import { compare, getHealth, getModelDefaults } from './apiClient'
+import { downloadComparisonJson, downloadSimulationJson, downloadSimulationProfileCsv } from './exportUtils'
 import type {
   ApiStatus,
   AppView,
   ChartTab,
+  CompareResponse,
+  CompareScenarioResponse,
   ModelDefaults,
-  SimulationResponse,
   StationaryInput,
   XBModel,
 } from './apiTypes'
 import LineChart from './LineChart'
+
+const BASE_SCENARIO_ID = 'base'
+const MAX_SCENARIOS = 4
+const SCENARIO_COLORS = ['#0f62fe', '#8a3ffc', '#009d9a', '#fa4d56']
 
 const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: 'moisture', label: 'Feuchte' },
@@ -23,16 +28,24 @@ const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: 'comparison', label: 'Vergleichstabelle' },
 ]
 
+interface ScenarioDraft {
+  scenario_id: string
+  label: string
+  inputs: StationaryInput
+  target_moisture_wb_pct: number
+}
+
 function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking')
   const [defaults, setDefaults] = useState<ModelDefaults | null>(null)
   const [activeView, setActiveView] = useState<AppView>('start')
-  const [inputs, setInputs] = useState<StationaryInput | null>(null)
-  const [targetMoistureWbPct, setTargetMoistureWbPct] = useState(4)
+  const [scenarios, setScenarios] = useState<ScenarioDraft[]>([])
+  const [activeScenarioId, setActiveScenarioId] = useState(BASE_SCENARIO_ID)
+  const [nextScenarioNumber, setNextScenarioNumber] = useState(1)
   const [isExpertOpen, setIsExpertOpen] = useState(false)
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>('moisture')
   const [isSimulating, setIsSimulating] = useState(false)
-  const [result, setResult] = useState<SimulationResponse | null>(null)
+  const [comparisonResult, setComparisonResult] = useState<CompareResponse | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -45,8 +58,14 @@ function App() {
         }
         setDefaults(modelDefaults)
         setApiStatus('online')
-        setInputs(modelDefaults.default_inputs)
-        setTargetMoistureWbPct(modelDefaults.default_target_moisture_wb_pct)
+        setScenarios([
+          buildScenario(
+            BASE_SCENARIO_ID,
+            'Basisfall',
+            modelDefaults.default_inputs,
+            modelDefaults.default_target_moisture_wb_pct,
+          ),
+        ])
       })
       .catch((error: unknown) => {
         if (!isMounted) {
@@ -61,18 +80,48 @@ function App() {
     }
   }, [])
 
-  const canSimulate = apiStatus === 'online' && inputs !== null && !isSimulating
+  const activeScenario = useMemo(
+    () => scenarios.find((scenario) => scenario.scenario_id === activeScenarioId) ?? null,
+    [activeScenarioId, scenarios],
+  )
+  const baseScenario = useMemo(
+    () => scenarios.find((scenario) => scenario.scenario_id === BASE_SCENARIO_ID) ?? null,
+    [scenarios],
+  )
+  const activeScenarioResult = useMemo(
+    () => comparisonResult?.scenarios.find((scenario) => scenario.scenario_id === activeScenarioId) ?? null,
+    [activeScenarioId, comparisonResult],
+  )
+  const baseScenarioResult = useMemo(
+    () =>
+      comparisonResult?.scenarios.find((scenario) => scenario.scenario_id === comparisonResult.base_scenario_id) ?? null,
+    [comparisonResult],
+  )
+
+  const canSimulate = apiStatus === 'online' && scenarios.length > 0 && !isSimulating
+  const canAddScenario = scenarios.length < MAX_SCENARIOS && baseScenario !== null
+  const canDeleteScenario = activeScenarioId !== BASE_SCENARIO_ID
 
   const chartOption = useMemo<EChartsOption | null>(() => {
-    if (!result) {
+    if (!comparisonResult || activeChartTab === 'comparison') {
       return null
     }
-    const profileSeries = result.profile.series
+
+    const scenarioResults = comparisonResult.scenarios
+    const sameTarget = scenarioResults.every(
+      (scenario) =>
+        Math.abs(scenario.summary.target_moisture_wb_pct - scenarioResults[0].summary.target_moisture_wb_pct) < 1e-9,
+    )
+    const baseProfile = baseScenarioResult?.profile.series ?? scenarioResults[0].profile.series
 
     const common = {
       animation: false,
-      grid: { left: 56, right: 24, top: 48, bottom: 48 },
-      legend: { top: 8, textStyle: { color: '#525252', fontSize: 12 } },
+      grid: { left: 56, right: 24, top: 64, bottom: 48 },
+      legend: {
+        top: 12,
+        type: 'scroll' as const,
+        textStyle: { color: '#525252', fontSize: 12 },
+      },
       tooltip: { trigger: 'axis' as const },
       xAxis: {
         type: 'value' as const,
@@ -90,190 +139,280 @@ function App() {
     }
 
     if (activeChartTab === 'moisture') {
+      const series = scenarioResults.map((scenario, index) =>
+        buildLineSeries(
+          scenario.label,
+          scenario.profile.series.map((row) => [row.h_m, row.moisture_wb_pct]),
+          SCENARIO_COLORS[index % SCENARIO_COLORS.length],
+        ),
+      )
+      if (sameTarget) {
+        series.push(
+          buildLineSeries(
+            'Ziel',
+            baseProfile.map((row) => [row.h_m, scenarioResults[0].summary.target_moisture_wb_pct]),
+            '#525252',
+            'dashed',
+          ),
+        )
+      }
       return {
         ...common,
-        color: ['#8a3ffc', '#0f62fe'],
         yAxis: {
           ...common.yAxis,
           name: 'wt% wb',
         },
-        series: [
-          {
-            name: 'Pulverfeuchte',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2 },
-            data: profileSeries.map((row) => [row.h_m, row.moisture_wb_pct]),
-          },
-          {
-            name: 'Ziel',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2, type: 'dashed' },
-            data: profileSeries.map((row) => [row.h_m, result.summary.target_moisture_wb_pct]),
-          },
-        ],
+        series,
       }
     }
 
     if (activeChartTab === 'temperature') {
       return {
         ...common,
-        color: ['#0f62fe', '#fa4d56'],
         yAxis: {
           ...common.yAxis,
           name: 'Temperatur C',
         },
-        series: [
-          {
-            name: 'Luft',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2 },
-            data: profileSeries.map((row) => [row.h_m, row.T_a_c]),
-          },
-          {
-            name: 'Partikel',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2 },
-            data: profileSeries.map((row) => [row.h_m, row.T_p_c]),
-          },
-        ],
+        series: scenarioResults.flatMap((scenario, index) => {
+          const color = SCENARIO_COLORS[index % SCENARIO_COLORS.length]
+          return [
+            buildLineSeries(
+              `${scenario.label} Luft`,
+              scenario.profile.series.map((row) => [row.h_m, row.T_a_c]),
+              color,
+            ),
+            buildLineSeries(
+              `${scenario.label} Partikel`,
+              scenario.profile.series.map((row) => [row.h_m, row.T_p_c]),
+              color,
+              'dashed',
+            ),
+          ]
+        }),
       }
     }
 
     if (activeChartTab === 'equilibrium') {
       return {
         ...common,
-        color: ['#009d9a', '#8a3ffc'],
         yAxis: {
           ...common.yAxis,
           name: 'Modellgroessen',
         },
-        series: [
-          {
-            name: 'x_b',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2 },
-            data: profileSeries.map((row) => [row.h_m, row.x_b]),
-          },
-          {
-            name: 'psi',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2 },
-            data: profileSeries.map((row) => [row.h_m, row.psi]),
-          },
-        ],
+        series: scenarioResults.flatMap((scenario, index) => {
+          const color = SCENARIO_COLORS[index % SCENARIO_COLORS.length]
+          return [
+            buildLineSeries(
+              `${scenario.label} x_b`,
+              scenario.profile.series.map((row) => [row.h_m, row.x_b]),
+              color,
+            ),
+            buildLineSeries(
+              `${scenario.label} psi`,
+              scenario.profile.series.map((row) => [row.h_m, row.psi]),
+              color,
+              'dashed',
+            ),
+          ]
+        }),
       }
     }
 
     if (activeChartTab === 'particle') {
       return {
         ...common,
-        color: ['#fa4d56'],
         yAxis: {
           ...common.yAxis,
           name: 'Partikelgroesse um',
         },
-        series: [
-          {
-            name: 'd_p',
-            type: 'line',
-            showSymbol: false,
-            lineStyle: { width: 2 },
-            data: profileSeries.map((row) => [row.h_m, row.particle_diameter_um]),
-          },
-        ],
+        series: scenarioResults.map((scenario, index) =>
+          buildLineSeries(
+            scenario.label,
+            scenario.profile.series.map((row) => [row.h_m, row.particle_diameter_um]),
+            SCENARIO_COLORS[index % SCENARIO_COLORS.length],
+          ),
+        ),
       }
     }
 
     return {
       ...common,
-      color: ['#0f62fe', '#525252'],
       yAxis: {
         ...common.yAxis,
         name: 'Geschwindigkeit m/s',
       },
-      series: [
-        {
-          name: 'U_a',
-          type: 'line',
-          showSymbol: false,
-          lineStyle: { width: 2 },
-          data: profileSeries.map((row) => [row.h_m, row.U_a_ms]),
-        },
-        {
-          name: 'U_p',
-          type: 'line',
-          showSymbol: false,
-          lineStyle: { width: 2 },
-          data: profileSeries.map((row) => [row.h_m, row.U_p_ms]),
-        },
-      ],
+      series: scenarioResults.flatMap((scenario, index) => {
+        const color = SCENARIO_COLORS[index % SCENARIO_COLORS.length]
+        return [
+          buildLineSeries(
+            `${scenario.label} U_a`,
+            scenario.profile.series.map((row) => [row.h_m, row.U_a_ms]),
+            color,
+          ),
+          buildLineSeries(
+            `${scenario.label} U_p`,
+            scenario.profile.series.map((row) => [row.h_m, row.U_p_ms]),
+            color,
+            'dashed',
+          ),
+        ]
+      }),
     }
-  }, [activeChartTab, result])
+  }, [activeChartTab, baseScenarioResult, comparisonResult])
+
+  const activeScenarioWarnings = activeScenarioResult?.warnings ?? []
+
+  function invalidateResults() {
+    setComparisonResult(null)
+  }
+
+  function updateActiveScenario(update: (scenario: ScenarioDraft) => ScenarioDraft) {
+    setScenarios((current) =>
+      current.map((scenario) => (scenario.scenario_id === activeScenarioId ? update(scenario) : scenario)),
+    )
+    invalidateResults()
+  }
 
   function updateNumberField<Key extends NumberFieldKey>(key: Key, value: string) {
-    if (!inputs || value === '') {
+    if (!activeScenario || value === '') {
       return
     }
-    setInputs({
-      ...inputs,
-      [key]: Number(value),
-    })
+    updateActiveScenario((scenario) => ({
+      ...scenario,
+      inputs: {
+        ...scenario.inputs,
+        [key]: Number(value),
+      },
+    }))
   }
 
   function updateNullableNumberField<Key extends NullableNumberFieldKey>(key: Key, value: string) {
-    if (!inputs) {
+    if (!activeScenario) {
       return
     }
-    setInputs({
-      ...inputs,
-      [key]: value === '' ? null : Number(value),
-    })
+    updateActiveScenario((scenario) => ({
+      ...scenario,
+      inputs: {
+        ...scenario.inputs,
+        [key]: value === '' ? null : Number(value),
+      },
+    }))
   }
 
   function updateXBModel(value: XBModel) {
-    if (!inputs) {
+    if (!activeScenario) {
       return
     }
-    setInputs({
-      ...inputs,
-      x_b_model: value,
-    })
+    updateActiveScenario((scenario) => ({
+      ...scenario,
+      inputs: {
+        ...scenario.inputs,
+        x_b_model: value,
+      },
+    }))
   }
 
   function updateFeedTotalSolidsPercent(value: string) {
-    if (!inputs || value === '') {
+    if (!activeScenario || value === '') {
       return
     }
-    setInputs({
-      ...inputs,
-      feed_total_solids: Number(value) / 100,
-    })
+    updateActiveScenario((scenario) => ({
+      ...scenario,
+      inputs: {
+        ...scenario.inputs,
+        feed_total_solids: Number(value) / 100,
+      },
+    }))
   }
 
-  async function runSimulation() {
-    if (!inputs) {
+  function updateScenarioLabel(value: string) {
+    if (!activeScenario) {
+      return
+    }
+    updateActiveScenario((scenario) => ({
+      ...scenario,
+      label: value,
+    }))
+  }
+
+  function updateTargetMoisture(value: string) {
+    if (!activeScenario || value === '') {
+      return
+    }
+    updateActiveScenario((scenario) => ({
+      ...scenario,
+      target_moisture_wb_pct: Number(value),
+    }))
+  }
+
+  function addScenario(copyFrom: ScenarioDraft) {
+    if (!canAddScenario) {
+      return
+    }
+    const scenarioNumber = nextScenarioNumber
+    const nextScenario = buildScenario(
+      `scenario-${scenarioNumber}`,
+      `Variante ${scenarioNumber}`,
+      copyFrom.inputs,
+      copyFrom.target_moisture_wb_pct,
+    )
+    setScenarios((current) => [...current, nextScenario])
+    setActiveScenarioId(nextScenario.scenario_id)
+    setNextScenarioNumber((current) => current + 1)
+    invalidateResults()
+  }
+
+  function removeActiveScenario() {
+    if (!canDeleteScenario) {
+      return
+    }
+    const scenarioIdToRemove = activeScenarioId
+    setScenarios((current) => current.filter((scenario) => scenario.scenario_id !== scenarioIdToRemove))
+    setActiveScenarioId(BASE_SCENARIO_ID)
+    setComparisonResult((current) =>
+      current
+        ? {
+            ...current,
+            scenarios: current.scenarios.filter((scenario) => scenario.scenario_id !== scenarioIdToRemove),
+          }
+        : null,
+    )
+  }
+
+  function resetActiveScenario() {
+    if (!defaults || !activeScenario) {
+      return
+    }
+    const resetSource =
+      activeScenario.scenario_id === BASE_SCENARIO_ID
+        ? buildScenario(
+            BASE_SCENARIO_ID,
+            activeScenario.label,
+            defaults.default_inputs,
+            defaults.default_target_moisture_wb_pct,
+          )
+        : buildScenario(activeScenario.scenario_id, activeScenario.label, baseScenario?.inputs ?? defaults.default_inputs, baseScenario?.target_moisture_wb_pct ?? defaults.default_target_moisture_wb_pct)
+    updateActiveScenario(() => resetSource)
+  }
+
+  async function runComparison() {
+    if (scenarios.length === 0) {
       return
     }
 
     setIsSimulating(true)
     setMessage(null)
     try {
-      const response = await simulate({
-        inputs,
-        target_moisture_wb_pct: targetMoistureWbPct,
+      const response = await compare({
+        base_scenario_id: BASE_SCENARIO_ID,
+        scenarios,
       })
-      setResult(response)
+      setComparisonResult(response)
       setActiveView('simulation')
       setActiveChartTab('moisture')
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : 'Simulation fehlgeschlagen')
-      setResult(null)
+      setComparisonResult(null)
     } finally {
       setIsSimulating(false)
     }
@@ -287,11 +426,7 @@ function App() {
           <span className="brand-subtitle">Stationaere SMP-REA-Trocknung</span>
         </div>
         <nav className="top-nav" aria-label="Seiten">
-          <button
-            className={activeView === 'start' ? 'active' : ''}
-            onClick={() => setActiveView('start')}
-            type="button"
-          >
+          <button className={activeView === 'start' ? 'active' : ''} onClick={() => setActiveView('start')} type="button">
             Start
           </button>
           <button
@@ -301,11 +436,7 @@ function App() {
           >
             Simulation
           </button>
-          <button
-            className={activeView === 'model' ? 'active' : ''}
-            onClick={() => setActiveView('model')}
-            type="button"
-          >
+          <button className={activeView === 'model' ? 'active' : ''} onClick={() => setActiveView('model')} type="button">
             Modellgrundlagen
           </button>
         </nav>
@@ -345,11 +476,11 @@ function App() {
                   </div>
                   <div className="start-point">
                     <span className="point-index">02</span>
-                    <p>Ein technischer Basisfall mit klaren Defaultwerten fuer schnelle Iteration.</p>
+                    <p>Ein Basisfall plus bis zu drei Vergleichsszenarien fuer gezielte Sensitivitaeten.</p>
                   </div>
                   <div className="start-point">
                     <span className="point-index">03</span>
-                    <p>KPI-Band, Profilplots und Expertenparameter in einer technischen Light-Theme-Shell.</p>
+                    <p>KPI-Band, Vergleichstabelle und ueberlagerte Profilplots in einer technischen Light-Theme-Shell.</p>
                   </div>
                 </div>
               </div>
@@ -366,14 +497,14 @@ function App() {
                 </div>
                 <div>
                   <span className="label">Vorbereitet</span>
-                  <p>Basismodus, Expertenmodus, KPI-Struktur sowie Chart-Tabs fuer die spaetere Erweiterung.</p>
+                  <p>Basismodus, Expertenmodus, Vergleichsszenarien, KPI-Struktur sowie Chart-Tabs fuer die spaetere Erweiterung.</p>
                 </div>
               </div>
             </div>
           </section>
         )}
 
-        {activeView === 'simulation' && inputs && (
+        {activeView === 'simulation' && activeScenario && (
           <section className="simulation-page">
             <div className="layout simulation-top-layout">
               <section className="panel">
@@ -381,17 +512,58 @@ function App() {
                   <h2 className="panel-title">Simulationseingaben</h2>
                 </div>
                 <div className="panel-body field-stack">
-                  <div className="field">
-                    <label htmlFor="target-moisture">Ziel-Feuchte wt% wb</label>
-                    <input
-                      id="target-moisture"
-                      min="0"
-                      onChange={(event) => setTargetMoistureWbPct(Number(event.target.value))}
-                      step="0.1"
-                      type="number"
-                      value={targetMoistureWbPct}
-                    />
-                    <span className="helper">Wird fuer die KPI-Bewertung und Zielerreichung verwendet.</span>
+                  <section className="subsection scenario-section">
+                    <div className="subsection-header">
+                      <h3>Szenarien</h3>
+                    </div>
+                    <div className="scenario-list">
+                      {scenarios.map((scenario) => (
+                        <button
+                          key={scenario.scenario_id}
+                          className={activeScenarioId === scenario.scenario_id ? 'scenario-chip active' : 'scenario-chip'}
+                          onClick={() => setActiveScenarioId(scenario.scenario_id)}
+                          type="button"
+                        >
+                          <span>{scenario.label}</span>
+                          <small>{scenario.scenario_id === BASE_SCENARIO_ID ? 'Basis' : 'Vergleich'}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="button-row">
+                      <button className="button-secondary" disabled={!canAddScenario} onClick={() => addScenario(baseScenario ?? activeScenario)} type="button">
+                        Vergleichsszenario anlegen
+                      </button>
+                      <button className="button-secondary" disabled={!canAddScenario} onClick={() => addScenario(activeScenario)} type="button">
+                        Aktives duplizieren
+                      </button>
+                      <button className="button-secondary" disabled={!canDeleteScenario} onClick={removeActiveScenario} type="button">
+                        Aktives entfernen
+                      </button>
+                    </div>
+                    <span className="helper">Bis zu drei Vergleichsszenarien zusaetzlich zum Basisfall.</span>
+                  </section>
+
+                  <div className="field-row">
+                    <div className="field">
+                      <label htmlFor="scenario-label">Szenarioname</label>
+                      <input
+                        id="scenario-label"
+                        onChange={(event) => updateScenarioLabel(event.target.value)}
+                        type="text"
+                        value={activeScenario.label}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="target-moisture">Ziel-Feuchte wt% wb</label>
+                      <input
+                        id="target-moisture"
+                        min="0"
+                        onChange={(event) => updateTargetMoisture(event.target.value)}
+                        step="0.1"
+                        type="number"
+                        value={activeScenario.target_moisture_wb_pct}
+                      />
+                    </div>
                   </div>
 
                   <section className="subsection">
@@ -400,17 +572,12 @@ function App() {
                     </div>
                     <div className="field-stack">
                       <div className="field-row">
-                        <NumberField
-                          id="Tin"
-                          label="Tin C"
-                          onChange={(value) => updateNumberField('Tin', value)}
-                          value={inputs.Tin}
-                        />
+                        <NumberField id="Tin" label="Tin C" onChange={(value) => updateNumberField('Tin', value)} value={activeScenario.inputs.Tin} />
                         <NumberField
                           id="humid_air_mass_flow_kg_h"
                           label="Humid air mass flow kg/h"
                           onChange={(value) => updateNumberField('humid_air_mass_flow_kg_h', value)}
-                          value={inputs.humid_air_mass_flow_kg_h}
+                          value={activeScenario.inputs.humid_air_mass_flow_kg_h}
                         />
                       </div>
                       <div className="field-row">
@@ -418,13 +585,13 @@ function App() {
                           id="feed_rate_kg_h"
                           label="Feed rate kg/h"
                           onChange={(value) => updateNumberField('feed_rate_kg_h', value)}
-                          value={inputs.feed_rate_kg_h}
+                          value={activeScenario.inputs.feed_rate_kg_h}
                         />
                         <NumberField
                           id="droplet_size_um"
                           label="Droplet size um"
                           onChange={(value) => updateNumberField('droplet_size_um', value)}
-                          value={inputs.droplet_size_um}
+                          value={activeScenario.inputs.droplet_size_um}
                         />
                       </div>
                       <div className="field-row">
@@ -432,24 +599,20 @@ function App() {
                           id="inlet_abs_humidity_g_kg"
                           label="Yin g/kg"
                           onChange={(value) => updateNumberField('inlet_abs_humidity_g_kg', value)}
-                          value={inputs.inlet_abs_humidity_g_kg}
+                          value={activeScenario.inputs.inlet_abs_humidity_g_kg}
                         />
                         <PercentageField
                           id="feed_total_solids"
                           label="Total feed solids %"
                           onChange={updateFeedTotalSolidsPercent}
-                          value={inputs.feed_total_solids}
+                          value={activeScenario.inputs.feed_total_solids}
                         />
                       </div>
                     </div>
                   </section>
 
                   <section className="subsection">
-                    <button
-                      className="section-toggle"
-                      onClick={() => setIsExpertOpen((current) => !current)}
-                      type="button"
-                    >
+                    <button className="section-toggle" onClick={() => setIsExpertOpen((current) => !current)} type="button">
                       Expertenmodus {isExpertOpen ? 'schliessen' : 'oeffnen'}
                     </button>
                     {isExpertOpen && (
@@ -459,14 +622,14 @@ function App() {
                             id="heat_loss_coeff_w_m2k"
                             label="heat_loss_coeff_w_m2k"
                             onChange={(value) => updateNumberField('heat_loss_coeff_w_m2k', value)}
-                            value={inputs.heat_loss_coeff_w_m2k}
+                            value={activeScenario.inputs.heat_loss_coeff_w_m2k}
                           />
                           <div className="field">
                             <label htmlFor="x_b_model">x_b_model</label>
                             <select
                               id="x_b_model"
                               onChange={(event) => updateXBModel(event.target.value as XBModel)}
-                              value={inputs.x_b_model}
+                              value={activeScenario.inputs.x_b_model}
                             >
                               <option value="langrish">langrish</option>
                               <option value="lin_gab">lin_gab</option>
@@ -478,13 +641,13 @@ function App() {
                             id="nozzle_delta_p_bar"
                             label="nozzle_delta_p_bar"
                             onChange={(value) => updateNumberField('nozzle_delta_p_bar', value)}
-                            value={inputs.nozzle_delta_p_bar}
+                            value={activeScenario.inputs.nozzle_delta_p_bar}
                           />
                           <NumberField
                             id="nozzle_velocity_coefficient"
                             label="nozzle_velocity_coefficient"
                             onChange={(value) => updateNumberField('nozzle_velocity_coefficient', value)}
-                            value={inputs.nozzle_velocity_coefficient}
+                            value={activeScenario.inputs.nozzle_velocity_coefficient}
                           />
                         </div>
                         <div className="field-row">
@@ -492,13 +655,13 @@ function App() {
                             id="dryer_diameter_m"
                             label="dryer_diameter_m"
                             onChange={(value) => updateNumberField('dryer_diameter_m', value)}
-                            value={inputs.dryer_diameter_m}
+                            value={activeScenario.inputs.dryer_diameter_m}
                           />
                           <NullableNumberField
                             id="cylinder_height_m"
                             label="cylinder_height_m"
                             onChange={(value) => updateNullableNumberField('cylinder_height_m', value)}
-                            value={inputs.cylinder_height_m}
+                            value={activeScenario.inputs.cylinder_height_m}
                           />
                         </div>
                         <div className="field-row">
@@ -506,13 +669,13 @@ function App() {
                             id="cone_height_m"
                             label="cone_height_m"
                             onChange={(value) => updateNumberField('cone_height_m', value)}
-                            value={inputs.cone_height_m}
+                            value={activeScenario.inputs.cone_height_m}
                           />
                           <NumberField
                             id="outlet_duct_length_m"
                             label="outlet_duct_length_m"
                             onChange={(value) => updateNumberField('outlet_duct_length_m', value)}
-                            value={inputs.outlet_duct_length_m}
+                            value={activeScenario.inputs.outlet_duct_length_m}
                           />
                         </div>
                         <div className="field-row">
@@ -520,14 +683,12 @@ function App() {
                             id="outlet_duct_diameter_m"
                             label="outlet_duct_diameter_m"
                             onChange={(value) => updateNullableNumberField('outlet_duct_diameter_m', value)}
-                            value={inputs.outlet_duct_diameter_m}
+                            value={activeScenario.inputs.outlet_duct_diameter_m}
                           />
                           <div className="field">
                             <label>Geometriehinweis</label>
                             <div className="field-note">
-                              Fuer die UI wird die segmentierte Geometrie direkt ueber Zylinderhoehe,
-                              Konushoehe und Abluftrohr beschrieben. Eine separate Gesamt-Turmhoehe
-                              wird in der App nicht mehr gepflegt.
+                              Die segmentierte Geometrie wird direkt ueber Zylinderhoehe, Konushoehe und Abluftrohr beschrieben.
                             </div>
                           </div>
                         </div>
@@ -536,22 +697,11 @@ function App() {
                   </section>
 
                   <div className="button-row">
-                    <button className="button-primary" disabled={!canSimulate} onClick={runSimulation} type="button">
-                      {isSimulating ? 'Simulation laeuft' : 'Simulation starten'}
+                    <button className="button-primary" disabled={!canSimulate} onClick={runComparison} type="button">
+                      {isSimulating ? 'Simulation laeuft' : 'Vergleich rechnen'}
                     </button>
-                    <button
-                      className="button-secondary"
-                      onClick={() => {
-                        if (!defaults) {
-                          return
-                        }
-                        setInputs(defaults.default_inputs)
-                        setResult(null)
-                        setMessage(null)
-                      }}
-                      type="button"
-                    >
-                      Basisfall zuruecksetzen
+                    <button className="button-secondary" onClick={resetActiveScenario} type="button">
+                      {activeScenario.scenario_id === BASE_SCENARIO_ID ? 'Basisfall zuruecksetzen' : 'Aktives Szenario zuruecksetzen'}
                     </button>
                   </div>
                 </div>
@@ -561,67 +711,54 @@ function App() {
                 <div className="kpi-grid">
                   <KpiTile
                     label="Endfeuchte"
-                    value={formatKpi(result?.summary.end_moisture_wb_pct)}
+                    value={formatKpi(activeScenarioResult?.summary.end_moisture_wb_pct)}
                     unit="wt% wb"
-                    status={result?.summary.target_reached ? 'success' : 'warning'}
+                    status={activeScenarioResult?.summary.target_reached ? 'success' : 'warning'}
                   />
-                  <KpiTile
-                    label="Tout"
-                    value={formatKpi(result?.summary.Tout_c)}
-                    unit="C"
-                    status="info"
-                  />
-                  <KpiTile
-                    label="RHout"
-                    value={formatKpi(result?.summary.RHout_pct)}
-                    unit="%"
-                    status="info"
-                  />
-                  <KpiTile
-                    label="tau_out"
-                    value={formatKpi(result?.summary.tau_out_s)}
-                    unit="s"
-                    status="info"
-                  />
+                  <KpiTile label="Tout" value={formatKpi(activeScenarioResult?.summary.Tout_c)} unit="C" status="info" />
+                  <KpiTile label="RHout" value={formatKpi(activeScenarioResult?.summary.RHout_pct)} unit="%" status="info" />
+                  <KpiTile label="tau_out" value={formatKpi(activeScenarioResult?.summary.tau_out_s)} unit="s" status="info" />
                   <KpiTile
                     label="Ziel erreicht"
-                    value={result ? (result.summary.target_reached ? 'ja' : 'nein') : 'offen'}
+                    value={activeScenarioResult ? (activeScenarioResult.summary.target_reached ? 'ja' : 'nein') : 'offen'}
                     unit=""
-                    status={result?.summary.target_reached ? 'success' : 'warning'}
+                    status={activeScenarioResult?.summary.target_reached ? 'success' : 'warning'}
                   />
-                  <KpiTile
-                    label="dmean_out"
-                    value={formatKpi(result?.summary.dmean_out_um)}
-                    unit="um"
-                    status="info"
-                  />
+                  <KpiTile label="dmean_out" value={formatKpi(activeScenarioResult?.summary.dmean_out_um)} unit="um" status="info" />
                 </div>
 
                 <div className="panel">
                   <div className="panel-header">
-                    <h2 className="panel-title">Aktuelle Simulation</h2>
+                    <h2 className="panel-title">Aktives Szenario</h2>
                   </div>
                   <div className="panel-body parameter-summary-grid">
-                    <ParameterItem label="Tin" value={`${formatKpi(inputs.Tin)} C`} />
-                    <ParameterItem label="Yin" value={`${formatKpi(inputs.inlet_abs_humidity_g_kg)} g/kg`} />
-                    <ParameterItem label="Feed rate" value={`${formatKpi(inputs.feed_rate_kg_h)} kg/h`} />
-                    <ParameterItem label="Droplet size" value={`${formatKpi(inputs.droplet_size_um)} um`} />
-                    <ParameterItem label="Feed solids" value={`${formatKpi(inputs.feed_total_solids * 100)} %`} />
-                    <ParameterItem label="Target moisture" value={`${formatKpi(targetMoistureWbPct)} wt% wb`} />
+                    <ParameterItem label="Name" value={activeScenario.label} />
+                    <ParameterItem label="Rolle" value={activeScenario.scenario_id === BASE_SCENARIO_ID ? 'Basisfall' : 'Vergleichsszenario'} />
+                    <ParameterItem label="Tin" value={`${formatKpi(activeScenario.inputs.Tin)} C`} />
+                    <ParameterItem label="Yin" value={`${formatKpi(activeScenario.inputs.inlet_abs_humidity_g_kg)} g/kg`} />
+                    <ParameterItem label="Air flow" value={`${formatKpi(activeScenario.inputs.humid_air_mass_flow_kg_h)} kg/h`} />
+                    <ParameterItem label="Feed rate" value={`${formatKpi(activeScenario.inputs.feed_rate_kg_h)} kg/h`} />
+                    <ParameterItem label="Droplet size" value={`${formatKpi(activeScenario.inputs.droplet_size_um)} um`} />
+                    <ParameterItem label="Feed solids" value={`${formatKpi(activeScenario.inputs.feed_total_solids * 100)} %`} />
+                    <ParameterItem label="Target moisture" value={`${formatKpi(activeScenario.target_moisture_wb_pct)} wt% wb`} />
                     <ParameterItem
                       label="Zylinder"
-                      value={`${formatKpi(inputs.cylinder_height_m)} m x ${formatKpi(inputs.dryer_diameter_m)} m`}
+                      value={`${formatKpi(activeScenario.inputs.cylinder_height_m)} m x ${formatKpi(activeScenario.inputs.dryer_diameter_m)} m`}
                     />
                     <ParameterItem
                       label="Konus / Duct"
-                      value={`${formatKpi(inputs.cone_height_m)} m / ${formatKpi(inputs.outlet_duct_length_m)} m`}
+                      value={`${formatKpi(activeScenario.inputs.cone_height_m)} m / ${formatKpi(activeScenario.inputs.outlet_duct_length_m)} m`}
+                    />
+                    <ParameterItem
+                      label="Duct diameter"
+                      value={`${formatKpi(activeScenario.inputs.outlet_duct_diameter_m)} m`}
                     />
                   </div>
                 </div>
 
                 {message && <Banner tone="danger" text={message} />}
-                {result?.warnings.map((warning) => (
-                  <Banner key={warning} tone="warning" text={warning} />
+                {activeScenarioWarnings.map((warning) => (
+                  <Banner key={`${activeScenarioId}-${warning}`} tone="warning" text={warning} />
                 ))}
               </section>
             </div>
@@ -631,21 +768,38 @@ function App() {
                 <div>
                   <h2 className="panel-title">Result charts</h2>
                 </div>
-                {result && (
+                {comparisonResult && activeScenarioResult && (
                   <div className="panel-actions">
                     <button
                       className="button-secondary"
-                      onClick={() => downloadSimulationProfileCsv(result)}
+                      onClick={() =>
+                        downloadSimulationProfileCsv(
+                          activeScenarioResult,
+                          `spray-drying-${slugify(activeScenarioResult.label)}-profile.csv`,
+                        )
+                      }
                       type="button"
                     >
-                      Profil als CSV exportieren
+                      Aktives Profil als CSV exportieren
                     </button>
                     <button
                       className="button-secondary"
-                      onClick={() => downloadSimulationJson(result)}
+                      onClick={() =>
+                        downloadSimulationJson(
+                          activeScenarioResult,
+                          `spray-drying-${slugify(activeScenarioResult.label)}.json`,
+                        )
+                      }
                       type="button"
                     >
-                      Ergebnis als JSON exportieren
+                      Aktives Ergebnis als JSON exportieren
+                    </button>
+                    <button
+                      className="button-secondary"
+                      onClick={() => downloadComparisonJson(comparisonResult)}
+                      type="button"
+                    >
+                      Vergleich als JSON exportieren
                     </button>
                   </div>
                 )}
@@ -665,56 +819,76 @@ function App() {
                     </button>
                   ))}
                 </div>
-                {!result && (
+                {!comparisonResult && (
                   <div className="empty-state">
                     <p>Noch keine Ergebnisse.</p>
                   </div>
                 )}
-                {result && activeChartTab !== 'comparison' && chartOption && <LineChart option={chartOption} />}
-                {result && activeChartTab === 'comparison' && (
+                {comparisonResult && activeChartTab !== 'comparison' && chartOption && <LineChart option={chartOption} />}
+                {comparisonResult && activeChartTab === 'comparison' && (
                   <table className="comparison-table">
                     <thead>
                       <tr>
                         <th>KPI</th>
-                        <th>Basisfall</th>
+                        {comparisonResult.scenarios.map((scenario) => (
+                          <th key={scenario.scenario_id}>
+                            {scenario.label}
+                            {scenario.scenario_id === comparisonResult.base_scenario_id ? ' (Basis)' : ''}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td>Endfeuchte wt% wb</td>
-                        <td>{formatKpi(result.summary.end_moisture_wb_pct)}</td>
-                      </tr>
-                      <tr>
-                        <td>Tout C</td>
-                        <td>{formatKpi(result.summary.Tout_c)}</td>
-                      </tr>
-                      <tr>
-                        <td>x_out - x_b,out</td>
-                        <td>{formatKpi(result.summary.x_out_minus_x_b_out)}</td>
-                      </tr>
-                      <tr>
-                        <td>T_p,out C</td>
-                        <td>{formatKpi(result.summary.T_p_out_c)}</td>
-                      </tr>
-                      <tr>
-                        <td>U_p,out m/s</td>
-                        <td>{formatKpi(result.summary.U_p_out_ms)}</td>
-                      </tr>
-                      <tr>
-                        <td>dmean_out um</td>
-                        <td>{formatKpi(result.summary.dmean_out_um)}</td>
-                      </tr>
-                      <tr>
-                        <td>Gesamt-Waermeverlust W</td>
-                        <td>{formatKpi(result.outlet.total_q_loss_w)}</td>
-                      </tr>
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="Endfeuchte wt% wb"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.end_moisture_wb_pct}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="Tout C"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.Tout_c}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="RHout %"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.RHout_pct}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="tau_out s"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.tau_out_s}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="x_out - x_b,out"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.x_out_minus_x_b_out}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="T_p,out C"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.T_p_out_c}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="dmean_out um"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.summary.dmean_out_um}
+                      />
+                      <ComparisonRow
+                        baseScenario={baseScenarioResult}
+                        label="Gesamt-Waermeverlust W"
+                        scenarios={comparisonResult.scenarios}
+                        selector={(scenario) => scenario.outlet.total_q_loss_w}
+                      />
                     </tbody>
                   </table>
-                )}
-                {result && activeChartTab === 'comparison' && (
-                  <p className="helper comparison-note">
-                    Diese Tabelle zeigt aktuell nur den Basisfall. Mehrere Szenarien werden im naechsten Schritt hier gegenuebergestellt.
-                  </p>
                 )}
               </div>
             </section>
@@ -781,7 +955,7 @@ function App() {
                 <ul className="flat-list">
                   <li>Der API-Layer konvertiert <code>humid_air_mass_flow_kg_h</code> intern in den fuer den Kern benoetigten Volumenstrom.</li>
                   <li><code>x_b_model</code> kann zwischen <code>langrish</code> und <code>lin_gab</code> umgeschaltet werden.</li>
-                  <li>Die neue App-Struktur ist bewusst fuer spaetere Vergleichsszenarien und Exportfunktionen vorbereitet.</li>
+                  <li>Die neue App-Struktur ist fuer Vergleichsszenarien, KPI-Matrix und ueberlagerte Profilplots ausgelegt.</li>
                 </ul>
               </div>
             </div>
@@ -807,6 +981,74 @@ type NumberFieldKey =
   | 'outlet_duct_length_m'
 
 type NullableNumberFieldKey = 'cylinder_height_m' | 'outlet_duct_diameter_m'
+
+function buildScenario(
+  scenario_id: string,
+  label: string,
+  inputs: StationaryInput,
+  target_moisture_wb_pct: number,
+): ScenarioDraft {
+  return {
+    scenario_id,
+    label,
+    inputs: { ...inputs },
+    target_moisture_wb_pct,
+  }
+}
+
+function buildLineSeries(
+  name: string,
+  data: Array<[number, number | null]>,
+  color: string,
+  lineType: 'solid' | 'dashed' = 'solid',
+): SeriesOption {
+  return {
+    name,
+    type: 'line',
+    showSymbol: false,
+    lineStyle: {
+      color,
+      type: lineType,
+      width: 2,
+    },
+    itemStyle: {
+      color,
+    },
+    data,
+  }
+}
+
+interface ComparisonRowProps {
+  label: string
+  scenarios: CompareScenarioResponse[]
+  baseScenario: CompareScenarioResponse | null
+  selector: (scenario: CompareScenarioResponse) => number | null
+}
+
+function ComparisonRow({ label, scenarios, baseScenario, selector }: ComparisonRowProps) {
+  const baseValue = baseScenario ? selector(baseScenario) : null
+  return (
+    <tr>
+      <td>{label}</td>
+      {scenarios.map((scenario) => {
+        const value = selector(scenario)
+        const delta = baseValue !== null && value !== null ? value - baseValue : null
+        return (
+          <td key={`${label}-${scenario.scenario_id}`}>
+            <div className="comparison-cell">
+              <span>{formatKpi(value)}</span>
+              {scenario.scenario_id !== baseScenario?.scenario_id && delta !== null && (
+                <span className={`comparison-delta ${delta > 0 ? 'positive' : delta < 0 ? 'negative' : ''}`}>
+                  {formatSignedDelta(delta)}
+                </span>
+              )}
+            </div>
+          </td>
+        )
+      })}
+    </tr>
+  )
+}
 
 interface SimpleNumberFieldProps {
   id: string
@@ -873,6 +1115,19 @@ function formatKpi(value: number | null | undefined): string {
     return 'n/a'
   }
   return value.toFixed(Math.abs(value) >= 10 ? 1 : 2)
+}
+
+function formatSignedDelta(value: number): string {
+  const prefix = value > 0 ? '+' : ''
+  return `${prefix}${formatKpi(value)}`
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 function ParameterItem({ label, value }: { label: string; value: string }) {

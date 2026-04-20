@@ -54,6 +54,18 @@ export interface SimulationRequest {
   target_moisture_wb_pct: number
 }
 
+export interface CompareScenarioRequest {
+  scenario_id: string
+  label: string
+  inputs: StationaryInput
+  target_moisture_wb_pct: number
+}
+
+export interface CompareRequest {
+  scenarios: CompareScenarioRequest[]
+  base_scenario_id?: string
+}
+
 export interface SimulationSeriesPoint {
   h_m: number
   section: string
@@ -117,4 +129,14 @@ export interface SimulationResponse {
   profile: SimulationProfile
   warnings: string[]
   inputs: StationaryInput
+}
+
+export interface CompareScenarioResponse extends SimulationResponse {
+  scenario_id: string
+  label: string
+}
+
+export interface CompareResponse {
+  base_scenario_id: string
+  scenarios: CompareScenarioResponse[]
 }
