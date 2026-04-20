@@ -1039,6 +1039,8 @@ function ModelFoundationView() {
               <MathBlock tex={'\\delta = X - x_b'} />
               <MathBlock tex={'\\psi = \\exp\\!\\left(-\\frac{\\Delta E}{R T_p}\\right)'} />
               <MathBlock tex={'\\rho_{v,s} = \\psi \\, \\rho_{v,\\mathrm{sat}}(T_p)'} />
+              <MathBlock tex={'r_{\\mathrm{REA}} = \\min\\!\\left(1, \\max\\!\\left(0, r_{\\mathrm{base}} + r_{\\mathrm{add}}\\right)\\right)'} />
+              <MathBlock tex={'r_{\\mathrm{add}} = G \\, \\delta \\, \\sigma\\!\\left(\\frac{c - \\delta^{\\ast}}{w}\\right), \\qquad \\delta^{\\ast} = \\frac{\\max(\\delta,0)}{\\max(X_0 - x_b, \\varepsilon)}'} />
               <MathBlock tex={'d_p = d_{p,0} \\, s(\\delta, x_b, w_{\\mathrm{TS}})'} />
             </div>
             <p className="equation-note">
@@ -1050,7 +1052,7 @@ function ModelFoundationView() {
               <span className="label">Quellen</span>
               <p>Chen, 2008. Drying Technology 26, 627-639.</p>
               <p>Chew et al., 2013. Dairy Science &amp; Technology 93, 415-430.</p>
-              <p>Im aktuellen Kern ist die REA-Retardierung zusaetzlich um einen angepassten Fruehphasen-Zuschlag erweitert.</p>
+              <p>Im aktuellen Kern wird die REA-Retardierung in der fruehen Falling-Rate-Phase zusaetzlich um einen materialseitigen Zuschlag erweitert; diese projektspezifische Implementierungsanpassung wurde auf Basis von Versuchsergebnissen zu Pulverfeuchte und Ablufttemperatur an einem SPX-MS400-Pilotturm vorgenommen und ist keine direkte Literaturgleichung.</p>
             </div>
           </article>
 
