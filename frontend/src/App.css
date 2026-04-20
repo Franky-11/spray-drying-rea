@@ -659,39 +659,22 @@ button:disabled {
   padding: 14px 16px;
 }
 
-.equation-line,
-.inline-equation {
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+.math-block {
+  min-height: 32px;
 }
 
-.equation-line {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  line-height: 1.6;
+.math-inline {
+  display: inline-block;
+  min-width: 1ch;
+}
+
+.math-block mjx-container,
+.math-inline mjx-container {
+  color: var(--text-primary);
 }
 
 .equation-note {
   color: var(--text-secondary);
-}
-
-.math-frac {
-  display: inline-grid;
-  grid-template-rows: auto auto;
-  justify-items: center;
-  line-height: 1.2;
-  min-width: 28px;
-  vertical-align: middle;
-}
-
-.math-frac span:first-child {
-  border-bottom: 1px solid currentColor;
-  padding: 0 4px 2px;
-}
-
-.math-frac span:last-child {
-  padding: 2px 4px 0;
 }
 
 .flat-list {

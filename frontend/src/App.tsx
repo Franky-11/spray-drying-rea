@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { EChartsOption, SeriesOption } from 'echarts'
 import './App.css'
 import { compare, getHealth, getModelDefaults } from './apiClient'
@@ -948,7 +948,7 @@ function ModelFoundationView() {
         <div className="panel-body">
           <p className="process-summary">
             Die Rechnung laeuft nicht als CFD-Modell, sondern entlang der axialen Koordinate{' '}
-            <span className="inline-equation">h</span> ueber Zylinder, Konus und Abluftrohr. Pro Position werden
+            <MathInline tex="h" /> ueber Zylinder, Konus und Abluftrohr. Pro Position werden
             lokale Geometrie, Luftzustand, Materialschluss und Transportgroessen aktualisiert und anschliessend
             axial integriert.
           </p>
@@ -977,21 +977,17 @@ function ModelFoundationView() {
           <article className="model-card">
             <h3>Axiale Koordinate</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                h = 0 ... h<sub>out</sub>
-              </EquationLine>
+              <MathBlock tex={'h = 0 \\dots h_{\\mathrm{out}}'} />
             </div>
             <p>
               Die Gleichungen werden entlang der effektiven 1D-Strombahn geloest. Zylinder, Konus und
-              Abluftrohr liefern dafuer den lokalen Querschnitt <span className="inline-equation">A(h)</span>.
+              Abluftrohr liefern dafuer den lokalen Querschnitt <MathInline tex={'A(h)'} />.
             </p>
           </article>
           <article className="model-card">
             <h3>Zustandsvektor</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                y(h) = [X, T<sub>p</sub>, Y, H<sub>h</sub>, U<sub>p</sub>, τ]
-              </EquationLine>
+              <MathBlock tex={'y(h) = [X, T_p, Y, H_h, U_p, \\tau]'} />
             </div>
             <p>
               Geloest werden Partikelfeuchte, Partikeltemperatur, Luftfeuchte, Luftenthalpie,
@@ -1001,9 +997,7 @@ function ModelFoundationView() {
           <article className="model-card">
             <h3>Ausgang am Zyklon</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                h<sub>out</sub> = h<sub>pre-cyclone</sub>
-              </EquationLine>
+              <MathBlock tex={'h_{\\mathrm{out}} = h_{\\mathrm{pre\\text{-}cyclone}}'} />
             </div>
             <p>
               Der Ausgang ist als Ende des effektiven Abluftrohrs direkt vor dem Zykloneintritt definiert. Dort
@@ -1025,15 +1019,9 @@ function ModelFoundationView() {
           <article className="formula-section">
             <h3>Eingang und abgeleitete Anfangsgroessen</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                X<sub>0</sub> = <Fraction denominator={<span>w<sub>TS</sub></span>} numerator={<span>1 - w<sub>TS</sub></span>} />
-              </EquationLine>
-              <EquationLine>
-                H<sub>h,in</sub> = c<sub>p,da</sub>(T<sub>in</sub> - T<sub>ref</sub>) + Y<sub>in</sub>[λ<sub>ref</sub> + c<sub>p,v</sub>(T<sub>in</sub> - T<sub>ref</sub>)]
-              </EquationLine>
-              <EquationLine>
-                U<sub>p,0</sub> = C<sub>v</sub> √(2 Δp / ρ<sub>l</sub>)
-              </EquationLine>
+              <MathBlock tex={'X_0 = \\frac{1 - w_{\\mathrm{TS}}}{w_{\\mathrm{TS}}}'} />
+              <MathBlock tex={'H_{h,\\mathrm{in}} = c_{p,da}(T_{\\mathrm{in}} - T_{\\mathrm{ref}}) + Y_{\\mathrm{in}}\\left[\\lambda_{\\mathrm{ref}} + c_{p,v}(T_{\\mathrm{in}} - T_{\\mathrm{ref}})\\right]'} />
+              <MathBlock tex={'U_{p,0} = C_v \\sqrt{\\frac{2\\Delta p}{\\rho_l}}'} />
             </div>
             <p className="equation-note">
               Aus den UI-Eingaben werden zunaechst Trockenbasisfeuchte, Luftenthalpie und eine
@@ -1044,15 +1032,9 @@ function ModelFoundationView() {
           <article className="formula-section">
             <h3>Lokaler Luftzustand und Geometrie</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                U<sub>a</sub>(h) = <Fraction denominator={<span>ρ<sub>a</sub>(h) A(h)</span>} numerator={<span>ṁ<sub>ha</sub></span>} />
-              </EquationLine>
-              <EquationLine>
-                RH<sub>a</sub> = <Fraction denominator={<span>p<sub>sat</sub>(T<sub>a</sub>)</span>} numerator={<span>p<sub>v</sub>(Y, p)</span>} />
-              </EquationLine>
-              <EquationLine>
-                x<sub>b</sub> = f(T<sub>a</sub>, RH<sub>a</sub>, Modellwahl)
-              </EquationLine>
+              <MathBlock tex={'U_a(h) = \\frac{\\dot{m}_{ha}}{\\rho_a(h) A(h)}'} />
+              <MathBlock tex={'RH_a = \\frac{p_v(Y,p)}{p_{\\mathrm{sat}}(T_a)}'} />
+              <MathBlock tex={'x_b = f\\!\\left(T_a, RH_a, \\text{Modellwahl}\\right)'} />
             </div>
             <p className="equation-note">
               Der lokale Querschnitt aus Zylinder, Konus und Abluftrohr bestimmt die Luftgeschwindigkeit. Die
@@ -1063,18 +1045,10 @@ function ModelFoundationView() {
           <article className="formula-section">
             <h3>REA und Materialschluss</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                δ = X - x<sub>b</sub>
-              </EquationLine>
-              <EquationLine>
-                ψ = exp[-ΔE / (R T<sub>p</sub>)]
-              </EquationLine>
-              <EquationLine>
-                ρ<sub>v,s</sub> = ψ ρ<sub>v,sat</sub>(T<sub>p</sub>)
-              </EquationLine>
-              <EquationLine>
-                d<sub>p</sub> = d<sub>p,0</sub> s(δ, x<sub>b</sub>, w<sub>TS</sub>)
-              </EquationLine>
+              <MathBlock tex={'\\delta = X - x_b'} />
+              <MathBlock tex={'\\psi = \\exp\\!\\left(-\\frac{\\Delta E}{R T_p}\\right)'} />
+              <MathBlock tex={'\\rho_{v,s} = \\psi \\, \\rho_{v,\\mathrm{sat}}(T_p)'} />
+              <MathBlock tex={'d_p = d_{p,0} \\, s(\\delta, x_b, w_{\\mathrm{TS}})'} />
             </div>
             <p className="equation-note">
               Das REA-Glied bremst die Oberflaechenverdampfung ueber die Aktivierungsenergie. Parallel dazu wird
@@ -1085,17 +1059,9 @@ function ModelFoundationView() {
           <article className="formula-section">
             <h3>Stoffbilanz des Partikels</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dm<sub>p</sub></span>} /> = -{' '}
-                <Fraction denominator={<span>U<sub>p</sub></span>} numerator={<span>k<sub>m</sub> A<sub>p</sub></span>} />{' '}
-                (ρ<sub>v,s</sub> - ρ<sub>v,a</sub>)
-              </EquationLine>
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dX</span>} /> = <Fraction denominator={<span>m<sub>s,dry</sub></span>} numerator={<span>dm<sub>p</sub></span>} />
-              </EquationLine>
-              <EquationLine>
-                X ≤ x<sub>b</sub> ⇒ <Fraction denominator={<span>dh</span>} numerator={<span>dm<sub>p</sub></span>} /> = 0
-              </EquationLine>
+              <MathBlock tex={'\\frac{d m_p}{d h} = -\\frac{k_m A_p}{U_p}\\left(\\rho_{v,s} - \\rho_{v,a}\\right)'} />
+              <MathBlock tex={'\\frac{dX}{dh} = \\frac{1}{m_{s,\\mathrm{dry}}}\\frac{d m_p}{d h}'} />
+              <MathBlock tex={'X \\le x_b \\;\\Rightarrow\\; \\frac{d m_p}{d h} = 0'} />
             </div>
             <p className="equation-note">
               Sobald die lokale Gleichgewichtsfeuchte erreicht ist, wird der Trocknungsfluss im Kern auf null
@@ -1106,17 +1072,9 @@ function ModelFoundationView() {
           <article className="formula-section">
             <h3>Energiebilanzen</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dT<sub>p</sub></span>} /> = <Fraction denominator={<span>m<sub>s,dry</sub> c<sub>p,p</sub> U<sub>p</sub></span>} numerator={<span>π d<sub>p</sub> k<sub>a</sub> Nu (T<sub>a</sub> - T<sub>p</sub>) + dm<sub>p</sub>/dh · U<sub>p</sub>(h<sub>fg</sub> + q<sub>sorp</sub>)</span>} />
-              </EquationLine>
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dY</span>} /> = - <Fraction denominator={<span>ṁ<sub>da</sub></span>} numerator={<span>ṁ<sub>s,dry</sub></span>} /> <Fraction denominator={<span>dh</span>} numerator={<span>dX</span>} />
-              </EquationLine>
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dH<sub>h</sub></span>} /> = -{' '}
-                <Fraction denominator={<span>ṁ<sub>da</sub></span>} numerator={<span>ṁ<sub>s,dry</sub></span>} />{' '}
-                (c<sub>p,p</sub> dT<sub>p</sub>/dh + c<sub>p,w</sub>(T<sub>p</sub> - T<sub>ref</sub>) dX/dh) - q&apos;<sub>loss</sub> / ṁ<sub>da</sub>
-              </EquationLine>
+              <MathBlock tex={'\\frac{dT_p}{dh} = \\frac{\\pi d_p k_a Nu (T_a - T_p) + \\frac{dm_p}{dh} U_p (h_{fg} + q_{\\mathrm{sorp}})}{m_{s,\\mathrm{dry}} c_{p,p} U_p}'} />
+              <MathBlock tex={'\\frac{dY}{dh} = -\\frac{\\dot{m}_{s,\\mathrm{dry}}}{\\dot{m}_{da}}\\frac{dX}{dh}'} />
+              <MathBlock tex={'\\frac{dH_h}{dh} = -\\frac{\\dot{m}_{s,\\mathrm{dry}}}{\\dot{m}_{da}}\\left(c_{p,p}\\frac{dT_p}{dh} + c_{p,w}(T_p - T_{\\mathrm{ref}})\\frac{dX}{dh}\\right) - \\frac{q^{\\prime}_{\\mathrm{loss}}}{\\dot{m}_{da}}'} />
             </div>
             <p className="equation-note">
               Die Partikelbilanz koppelt konvektiven Waermeuebergang und Verdampfungsenthalpie. Die Luftseite wird
@@ -1127,21 +1085,11 @@ function ModelFoundationView() {
           <article className="formula-section">
             <h3>Transport, Bewegung und Flugzeit</h3>
             <div className="formula-rendered">
-              <EquationLine>
-                Re = <Fraction denominator={<span>μ<sub>a</sub></span>} numerator={<span>ρ<sub>a</sub> |U<sub>p</sub> - U<sub>a</sub>| d<sub>p</sub></span>} />
-              </EquationLine>
-              <EquationLine>
-                Sh = 2 + 0.6 Re<sup>0.5</sup> Sc<sup>1/3</sup>, Nu = 2 + 0.6 Re<sup>0.5</sup> Pr<sup>1/3</sup>
-              </EquationLine>
-              <EquationLine>
-                k<sub>m</sub> = <Fraction denominator={<span>d<sub>p</sub></span>} numerator={<span>Sh D<sub>v</sub></span>} />
-              </EquationLine>
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dU<sub>p</sub></span>} /> = <Fraction denominator={<span>U<sub>p</sub></span>} numerator={<span>[(1 - ρ<sub>a</sub>/ρ<sub>p</sub>) g] - F<sub>D</sub></span>} />
-              </EquationLine>
-              <EquationLine>
-                <Fraction denominator={<span>dh</span>} numerator={<span>dτ</span>} /> = <Fraction denominator={<span>1</span>} numerator={<span>U<sub>p</sub></span>} />
-              </EquationLine>
+              <MathBlock tex={'Re = \\frac{\\rho_a \\left|U_p - U_a\\right| d_p}{\\mu_a}'} />
+              <MathBlock tex={'Sh = 2 + 0.6 Re^{0.5} Sc^{1/3}, \\qquad Nu = 2 + 0.6 Re^{0.5} Pr^{1/3}'} />
+              <MathBlock tex={'k_m = \\frac{Sh D_v}{d_p}'} />
+              <MathBlock tex={'\\frac{dU_p}{dh} = \\frac{\\left(1 - \\frac{\\rho_a}{\\rho_p}\\right) g - F_D}{U_p}'} />
+              <MathBlock tex={'\\frac{d\\tau}{dh} = \\frac{1}{U_p}'} />
             </div>
             <p className="equation-note">
               Stoff- und Waermeuebergang werden ueber Sherwood- und Nusselt-Korrelationen geschlossen. Die
@@ -1322,15 +1270,53 @@ function ComparisonRow({ label, scenarios, baseScenario, selector }: ComparisonR
   )
 }
 
-function EquationLine({ children }: { children: ReactNode }) {
-  return <div className="equation-line">{children}</div>
+declare global {
+  interface Window {
+    MathJax?: {
+      typesetPromise?: (elements?: HTMLElement[]) => Promise<void>
+    }
+  }
 }
 
-function Fraction({ numerator, denominator }: { numerator: ReactNode; denominator: ReactNode }) {
+function MathBlock({ tex }: { tex: string }) {
+  return <MathFormula display tex={tex} />
+}
+
+function MathInline({ tex }: { tex: string }) {
+  return <MathFormula display={false} tex={tex} />
+}
+
+function MathFormula({ tex, display }: { tex: string; display: boolean }) {
+  const elementRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (!elementRef.current || !window.MathJax?.typesetPromise) {
+      return
+    }
+    void window.MathJax.typesetPromise([elementRef.current])
+  }, [display, tex])
+
+  if (display) {
+    return (
+      <div
+        className="math-block"
+        ref={(node) => {
+          elementRef.current = node
+        }}
+      >
+        {`\\[${tex}\\]`}
+      </div>
+    )
+  }
+
   return (
-    <span className="math-frac">
-      <span>{numerator}</span>
-      <span>{denominator}</span>
+    <span
+      className="math-inline"
+      ref={(node) => {
+        elementRef.current = node
+      }}
+    >
+      {`\\(${tex}\\)`}
     </span>
   )
 }
