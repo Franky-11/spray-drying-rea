@@ -74,6 +74,7 @@ class SimulationSeriesPointDTO(BaseModel):
     RH_a_pct: float
     x_b: float
     psi: float
+    particle_diameter_um: float
     U_a_ms: float
     U_p_ms: float
 

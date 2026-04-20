@@ -360,16 +360,36 @@ button:disabled {
   border-left-color: var(--danger);
 }
 
-.tab-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.chart-tabs {
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border-subtle);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-bottom: 16px;
 }
 
-.tab.active {
-  border-color: var(--interactive);
-  color: var(--interactive);
+.chart-tabs button {
+  background: var(--surface-muted);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  min-height: 48px;
+}
+
+.chart-tabs button:last-child {
+  border-right: 0;
+}
+
+.chart-tabs button:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.chart-tabs button.active {
+  background: var(--surface);
+  border-bottom-color: var(--interactive);
+  color: var(--text-primary);
 }
 
 .chart {
@@ -452,7 +472,8 @@ button:disabled {
   .basics-grid,
   .parameter-summary-grid,
   .field-row,
-  .kpi-grid {
+  .kpi-grid,
+  .chart-tabs {
     grid-template-columns: 1fr;
   }
 
@@ -461,6 +482,11 @@ button:disabled {
   }
 
   .panel-actions {
+    justify-content: flex-start;
+  }
+
+  .chart-tabs button {
+    border-right: 0;
     justify-content: flex-start;
   }
 

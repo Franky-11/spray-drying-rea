@@ -242,6 +242,7 @@ def _series_point_from_row(row: pd.Series) -> SimulationSeriesPointDTO:
         RH_a_pct=float(row["RH_a_pct"]),
         x_b=float(row["x_b"]),
         psi=float(row["psi"]),
+        particle_diameter_um=float(row["d_p_m"]) * 1_000_000.0,
         U_a_ms=float(row["U_a_ms"]),
         U_p_ms=float(row["U_p_ms"]),
     )

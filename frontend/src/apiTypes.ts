@@ -1,6 +1,6 @@
 export type ApiStatus = 'checking' | 'online' | 'offline'
 export type AppView = 'start' | 'simulation' | 'model'
-export type ChartTab = 'moisture' | 'temperature' | 'equilibrium' | 'velocity' | 'comparison'
+export type ChartTab = 'moisture' | 'temperature' | 'equilibrium' | 'particle' | 'velocity' | 'comparison'
 export type XBModel = 'langrish' | 'lin_gab'
 
 export interface HealthResponse {
@@ -65,6 +65,7 @@ export interface SimulationSeriesPoint {
   RH_a_pct: number
   x_b: number
   psi: number
+  particle_diameter_um: number
   U_a_ms: number
   U_p_ms: number
 }

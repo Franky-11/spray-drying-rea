@@ -18,6 +18,7 @@ const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: 'moisture', label: 'Feuchte' },
   { id: 'temperature', label: 'Temperatur' },
   { id: 'equilibrium', label: 'Gleichgewicht und Material' },
+  { id: 'particle', label: 'Partikelgroesse' },
   { id: 'velocity', label: 'Geschwindigkeit' },
   { id: 'comparison', label: 'Vergleichstabelle' },
 ]
@@ -164,6 +165,26 @@ function App() {
             showSymbol: false,
             lineStyle: { width: 2 },
             data: profileSeries.map((row) => [row.h_m, row.psi]),
+          },
+        ],
+      }
+    }
+
+    if (activeChartTab === 'particle') {
+      return {
+        ...common,
+        color: ['#fa4d56'],
+        yAxis: {
+          ...common.yAxis,
+          name: 'Partikelgroesse um',
+        },
+        series: [
+          {
+            name: 'd_p',
+            type: 'line',
+            showSymbol: false,
+            lineStyle: { width: 2 },
+            data: profileSeries.map((row) => [row.h_m, row.particle_diameter_um]),
           },
         ],
       }
@@ -358,7 +379,6 @@ function App() {
               <section className="panel">
                 <div className="panel-header">
                   <h2 className="panel-title">Simulationseingaben</h2>
-                  <p className="panel-meta">Struktur gemaess Implementierungsplan, im Stil von powder-caking.</p>
                 </div>
                 <div className="panel-body field-stack">
                   <div className="field">
@@ -609,8 +629,7 @@ function App() {
             <section className="panel chart-panel">
               <div className="panel-header panel-header-split">
                 <div>
-                  <h2 className="panel-title">Profile und Vergleich</h2>
-                  <p className="panel-meta">Ein Tab pro Auswertung, damit jedes Diagramm die volle Breite nutzen kann.</p>
+                  <h2 className="panel-title">Result charts</h2>
                 </div>
                 {result && (
                   <div className="panel-actions">
@@ -632,12 +651,14 @@ function App() {
                 )}
               </div>
               <div className="panel-body">
-                <div className="tab-row">
+                <div className="chart-tabs" role="tablist" aria-label="Result chart tabs">
                   {chartTabs.map((tab) => (
                     <button
                       key={tab.id}
-                      className={activeChartTab === tab.id ? 'tab active' : 'tab'}
+                      className={activeChartTab === tab.id ? 'active' : ''}
                       onClick={() => setActiveChartTab(tab.id)}
+                      role="tab"
+                      aria-selected={activeChartTab === tab.id}
                       type="button"
                     >
                       {tab.label}
@@ -646,7 +667,7 @@ function App() {
                 </div>
                 {!result && (
                   <div className="empty-state">
-                    <p>Die Chart-Struktur ist angelegt. Nach dem ersten Lauf erscheinen hier KPI-, Profil- und Vergleichsdaten.</p>
+                    <p>Noch keine Ergebnisse.</p>
                   </div>
                 )}
                 {result && activeChartTab !== 'comparison' && chartOption && <LineChart option={chartOption} />}
