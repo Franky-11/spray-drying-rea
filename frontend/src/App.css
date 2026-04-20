@@ -104,13 +104,6 @@
   gap: 16px;
 }
 
-.model-lead {
-  font-size: 18px;
-  line-height: 28px;
-  margin: 0;
-  max-width: 980px;
-}
-
 .panel {
   background: var(--surface);
   border: 1px solid var(--border-subtle);
@@ -573,13 +566,6 @@ button:disabled {
   color: var(--success);
 }
 
-.process-summary {
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0 0 20px;
-  max-width: 980px;
-}
-
 .process-chain {
   display: grid;
   gap: 16px;
@@ -663,13 +649,8 @@ button:disabled {
   min-height: 32px;
 }
 
-.math-inline {
-  display: inline-block;
-  min-width: 1ch;
-}
-
 .math-block mjx-container,
-.math-inline mjx-container {
+.math-block mjx-container {
   color: var(--text-primary);
 }
 

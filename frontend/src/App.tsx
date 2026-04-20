@@ -930,11 +930,6 @@ function ModelFoundationView() {
               Stationaere SMP-REA-Trocknung
             </h1>
           </div>
-          <p className="model-lead">
-            Der Kern koppelt Gleichgewichtsfeuchte, REA-Retardierung, Schrumpfung, Stoff- und Energiebilanzen
-            sowie Partikelbewegung entlang einer effektiven axialen Strombahn vom Eintritt bis zum Ausgang am
-            Zyklon.
-          </p>
         </div>
       </section>
 
@@ -943,15 +938,8 @@ function ModelFoundationView() {
           <h2 id="process-title" className="panel-title">
             Rechenschema
           </h2>
-          <p className="panel-meta">Von den Eingaben bis zu den KPI-Werten am Zyklonausgang</p>
         </div>
         <div className="panel-body">
-          <p className="process-summary">
-            Die Rechnung laeuft nicht als CFD-Modell, sondern entlang der axialen Koordinate{' '}
-            <MathInline tex="h" /> ueber Zylinder, Konus und Abluftrohr. Pro Position werden
-            lokale Geometrie, Luftzustand, Materialschluss und Transportgroessen aktualisiert und anschliessend
-            axial integriert.
-          </p>
           <ol className="process-chain">
             {modelProcessSteps.map((step) => (
               <li key={step.title}>
@@ -971,7 +959,6 @@ function ModelFoundationView() {
           <h2 id="state-title" className="panel-title">
             Zustandsvektor und Ausgang
           </h2>
-          <p className="panel-meta">Was entlang der axialen Koordinate tatsaechlich geloest wird</p>
         </div>
         <div className="panel-body model-card-grid">
           <article className="model-card">
@@ -981,7 +968,7 @@ function ModelFoundationView() {
             </div>
             <p>
               Die Gleichungen werden entlang der effektiven 1D-Strombahn geloest. Zylinder, Konus und
-              Abluftrohr liefern dafuer den lokalen Querschnitt <MathInline tex={'A(h)'} />.
+              Abluftrohr liefern dafuer den lokalen Querschnitt <code>A(h)</code>.
             </p>
           </article>
           <article className="model-card">
@@ -1013,7 +1000,6 @@ function ModelFoundationView() {
           <h2 id="equations-title" className="panel-title">
             Gleichungen nach Sektionen
           </h2>
-          <p className="panel-meta">Nur die tragenden Modellgleichungen, nicht jede Hilfskorrelation im Detail</p>
         </div>
         <div className="panel-body formula-section-grid">
           <article className="formula-section">
@@ -1104,7 +1090,6 @@ function ModelFoundationView() {
           <h2 id="assumptions-title" className="panel-title">
             Annahmen und Grenzen
           </h2>
-          <p className="panel-meta">Wo das V1-Modell bewusst vereinfacht und wo es aktuell endet</p>
         </div>
         <div className="panel-body model-assumptions">
           {modelAssumptions.map((item) => (
@@ -1280,10 +1265,6 @@ declare global {
 
 function MathBlock({ tex }: { tex: string }) {
   return <MathFormula display tex={tex} />
-}
-
-function MathInline({ tex }: { tex: string }) {
-  return <MathFormula display={false} tex={tex} />
 }
 
 function MathFormula({ tex, display }: { tex: string; display: boolean }) {
