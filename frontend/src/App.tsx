@@ -13,6 +13,8 @@ import type {
   StationaryInput,
   XBModel,
 } from './apiTypes'
+import heroSprayDryer from './assets/start/start-hero-spray-dryer.jpg'
+import labPowderAnalysis from './assets/start/start-lab-powder-analysis.jpg'
 import LineChart from './LineChart'
 import SprayTowerPreview from './SprayTowerPreview'
 
@@ -460,62 +462,7 @@ function App() {
       </header>
 
       <main className="page">
-        {activeView === 'start' && (
-          <section className="start-page">
-            <div className="panel start-intro">
-              <div className="panel-header">
-                <p className="eyebrow">V1-Neuaufbau in Powder-Caking-Struktur</p>
-                <h1 className="start-title">Technische Arbeitsoberflaeche fuer stationaere SMP-Trocknung</h1>
-              </div>
-              <div className="panel-body start-grid">
-                <div>
-                  <p className="lead">
-                    Das neue Frontend kapselt den stabilisierten Fine-Kern aus
-                    <code> core/stationary_smp_rea/</code> hinter einer klaren React- und API-Schicht.
-                  </p>
-                  <div className="button-row">
-                    <button className="button-primary" onClick={() => setActiveView('simulation')} type="button">
-                      Simulation oeffnen
-                    </button>
-                    <button className="button-secondary" onClick={() => setActiveView('model')} type="button">
-                      Modellgrundlagen
-                    </button>
-                  </div>
-                </div>
-                <div className="start-points">
-                  <div className="start-point">
-                    <span className="point-index">01</span>
-                    <p>Stationaerer REA-basierter Trocknungskern fuer SMP.</p>
-                  </div>
-                  <div className="start-point">
-                    <span className="point-index">02</span>
-                    <p>Ein Basisfall plus bis zu drei Vergleichsszenarien fuer gezielte Sensitivitaeten.</p>
-                  </div>
-                  <div className="start-point">
-                    <span className="point-index">03</span>
-                    <p>KPI-Band, Vergleichstabelle und ueberlagerte Profilplots in einer technischen Light-Theme-Shell.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-header">
-                <h2 className="panel-title">Erste Ausbaugrenze</h2>
-              </div>
-              <div className="panel-body info-grid">
-                <div>
-                  <span className="label">In V1 enthalten</span>
-                  <p>Nur das Modul fuer die stationaere Trocknungskinetik, ohne Prozesssimulation und ohne Legacy-Streamlit-UI.</p>
-                </div>
-                <div>
-                  <span className="label">Vorbereitet</span>
-                  <p>Basismodus, Expertenmodus, Vergleichsszenarien, KPI-Struktur sowie Chart-Tabs fuer die spaetere Erweiterung.</p>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
+        {activeView === 'start' && <StartView defaults={defaults} onNavigate={setActiveView} />}
 
         {activeView === 'simulation' && activeScenario && (
           <section className="simulation-page">
@@ -919,6 +866,123 @@ function App() {
   )
 }
 
+function StartView({
+  defaults,
+  onNavigate,
+}: {
+  defaults: ModelDefaults | null
+  onNavigate: (view: AppView) => void
+}) {
+  const defaultInputs = defaults?.default_inputs
+  const defaultCards = [
+    {
+      label: 'Tin Basisfall',
+      value: defaultInputs ? `${formatKpi(defaultInputs.Tin)} C` : 'laedt',
+      meta: 'Trocknungslufteintritt der Referenzrechnung',
+    },
+    {
+      label: 'Luftmassenstrom',
+      value: defaultInputs ? `${formatKpi(defaultInputs.humid_air_mass_flow_kg_h)} kg/h` : 'laedt',
+      meta: 'Feuchte Luft als axiale Triebgroesse',
+    },
+    {
+      label: 'Feed solids',
+      value: defaultInputs ? `${formatKpi(defaultInputs.feed_total_solids * 100)} %` : 'laedt',
+      meta: 'SMP-Feed als Startpunkt fuer X und Schrumpfung',
+    },
+    {
+      label: 'Ziel-Endfeuchte',
+      value: defaults ? `${formatKpi(defaults.default_target_moisture_wb_pct)} wt% wb` : 'laedt',
+      meta: 'Sollwert fuer KPI-Band und Vergleich',
+    },
+  ]
+
+  return (
+    <section className="start-page">
+      <section className="start-hero" aria-labelledby="start-title">
+        <img
+          className="start-hero-image"
+          src={heroSprayDryer}
+          alt="Spray dryer tower in a clean pilot plant"
+        />
+        <div className="start-hero-copy">
+          <p className="eyebrow">Stationaere SMP-Spray-Drying-Simulation</p>
+          <h1 id="start-title">Technische Auslegung und Szenarienvergleich fuer den Trocknungsturm</h1>
+          <p>
+            Bewerte Endfeuchte, Partikeltemperatur, Gleichgewicht, Flugzeit und Anlagenantwort entlang der
+            effektiven 1D-Turmgeometrie auf einer technischen Light-Theme-Oberflaeche.
+          </p>
+          <div className="start-hero-actions">
+            <button className="button-primary start-cta" onClick={() => onNavigate('simulation')} type="button">
+              Simulation oeffnen
+            </button>
+            <button className="button-secondary start-cta" onClick={() => onNavigate('model')} type="button">
+              Modellgrundlagen
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="start-orientation" aria-labelledby="orientation-title">
+        <div className="panel start-orientation-panel">
+          <div className="panel-header">
+            <h2 id="orientation-title" className="panel-title">
+              Arbeitsweise
+            </h2>
+            <p className="panel-meta">Vom Basisfall bis zur axialen Ergebnisbewertung</p>
+          </div>
+          <div className="start-points">
+            {startOrientationPoints.map((point) => (
+              <article className="start-point" key={point.title}>
+                <span className="label">{point.title}</span>
+                <p>{point.description}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+        <figure className="start-secondary-image">
+          <img src={labPowderAnalysis} alt="Skim milk powder sample in pilot plant analysis setup" />
+        </figure>
+      </section>
+
+      <section className="panel start-technical-section" aria-labelledby="technical-title">
+        <div className="panel-header">
+          <h2 id="technical-title" className="panel-title">
+            Technischer Einstieg
+          </h2>
+          <p className="panel-meta">Was die App rechnet und wie der Default-Fall aufgesetzt ist</p>
+        </div>
+        <div className="panel-body start-technical-grid">
+          <div className="start-technical-copy">
+            <p className="lead start-technical-lead">
+              Der Frontend-Neuaufbau kapselt den stationaeren REA-basierten SMP-Kern aus{' '}
+              <code>core/stationary_smp_rea/</code> hinter einer klaren React- und Python-API-Schicht.
+            </p>
+            <div className="start-intro-list">
+              {startTechnicalBullets.map((item) => (
+                <article key={item.title}>
+                  <span className="label">{item.title}</span>
+                  <p>{item.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="start-defaults-grid" aria-label="Default case summary">
+            {defaultCards.map((card) => (
+              <article className="start-default-card" key={card.label}>
+                <span className="label">{card.label}</span>
+                <strong className="start-default-value">{card.value}</strong>
+                <p>{card.meta}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </section>
+  )
+}
+
 function ModelFoundationView() {
   return (
     <section className="model-page">
@@ -1140,6 +1204,42 @@ const modelProcessSteps = [
     title: 'Ausgang und KPI-Auswertung',
     description:
       'Am Ende des effektiven Abluftrohrs direkt vor dem Zyklon werden Tout, RHout, tau_out, Endfeuchte, Zielerreichung und dmean_out ausgewertet.',
+  },
+]
+
+const startOrientationPoints = [
+  {
+    title: 'Basisfall aufsetzen',
+    description:
+      'Tin, Luftmassenstrom, Feedrate, Tropfengroesse, Yin, solids und Geometrie definieren den axialen Referenzfall fuer den Turm.',
+  },
+  {
+    title: 'Axial rechnen',
+    description:
+      'Der Kern integriert Feuchte, Temperatur, Gleichgewicht, Partikelbewegung und Flugzeit entlang Zylinder, Konus und Abluftrohr.',
+  },
+  {
+    title: 'Szenarien vergleichen',
+    description:
+      'Ein Basisfall plus bis zu drei Vergleichsfaelle zeigen die Sensitivitaet von Endfeuchte, Tout, RHout, tau_out und dmean_out.',
+  },
+]
+
+const startTechnicalBullets = [
+  {
+    title: 'Rechenkern',
+    description:
+      'Geloest werden dX/dh, dT_p/dh, dY/dh, dH_h/dh, dU_p/dh und dtau/dh fuer eine stationaere 1D-Strombahn.',
+  },
+  {
+    title: 'Materialschluss',
+    description:
+      'REA-Retardierung, lokale Gleichgewichtsfeuchte x_b und das hinterlegte Schrumpfmodell koppeln Verdampfung und Partikelzustand.',
+  },
+  {
+    title: 'UI-Ziel',
+    description:
+      'Die Startseite fuehrt in den Basismodus ein; die Simulation selbst bleibt datenorientiert mit KPI-Band, Turmvorschau und Vergleichstabelle.',
   },
 ]
 

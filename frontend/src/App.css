@@ -99,6 +99,83 @@
   gap: 24px;
 }
 
+.start-hero {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  min-height: 500px;
+  overflow: hidden;
+  position: relative;
+}
+
+.start-hero::after {
+  background: linear-gradient(90deg, rgba(22, 22, 22, 0.82) 0%, rgba(22, 22, 22, 0.64) 42%, rgba(22, 22, 22, 0.16) 100%);
+  content: '';
+  inset: 0;
+  position: absolute;
+}
+
+.start-hero-image {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  width: 100%;
+}
+
+.start-hero-copy {
+  color: #ffffff;
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+  padding: 56px;
+  position: relative;
+  z-index: 1;
+}
+
+.start-hero-copy .eyebrow,
+.start-hero-copy p {
+  color: #f4f4f4;
+}
+
+.start-hero-copy h1 {
+  color: #ffffff;
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 48px;
+  margin: 0;
+  max-width: 620px;
+}
+
+.start-hero-copy p {
+  font-size: 18px;
+  line-height: 28px;
+  margin: 0;
+  max-width: 600px;
+}
+
+.start-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.start-cta {
+  min-height: 48px;
+  min-width: 184px;
+}
+
+.start-orientation {
+  align-items: stretch;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+}
+
+.start-orientation-panel {
+  min-width: 0;
+}
+
 .model-intro-body {
   display: grid;
   gap: 16px;
@@ -147,12 +224,6 @@
   max-width: 900px;
 }
 
-.start-grid {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
-}
-
 .lead {
   font-size: 18px;
   line-height: 28px;
@@ -161,33 +232,95 @@
 }
 
 .start-points {
-  border: 1px solid var(--border-subtle);
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .start-point {
-  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
   display: grid;
   gap: 8px;
-  min-height: 112px;
+  grid-template-rows: 16px 1fr;
+  min-height: 136px;
   padding: 16px;
 }
 
 .start-point:last-child {
-  border-bottom: 0;
+  border-right: 0;
 }
 
 .start-point p,
-.info-grid p,
-.basics-grid p {
+.start-intro-list p,
+.start-default-card p {
   margin: 0;
 }
 
-.info-grid,
-.basics-grid {
+.start-secondary-image {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  margin: 0;
+  min-height: 264px;
+  overflow: hidden;
+}
+
+.start-secondary-image img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.start-technical-section {
+  overflow: hidden;
+}
+
+.start-technical-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+}
+
+.start-technical-copy {
+  display: grid;
+  gap: 24px;
+}
+
+.start-technical-lead {
+  max-width: none;
+}
+
+.start-intro-list {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.start-intro-list article {
+  border-left: 3px solid var(--interactive);
+  display: grid;
+  gap: 8px;
+  padding-left: 16px;
+}
+
+.start-defaults-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.start-default-card {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 16px;
+}
+
+.start-default-value {
+  color: var(--text-primary);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 34px;
 }
 
 .layout {
@@ -700,10 +833,38 @@ button:disabled {
     padding: 16px;
   }
 
+  .start-hero {
+    min-height: 460px;
+  }
+
+  .start-hero-copy {
+    padding: 28px 20px;
+  }
+
+  .start-hero-copy h1 {
+    font-size: 32px;
+    line-height: 40px;
+  }
+
+  .start-hero-copy p {
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .start-hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .start-cta {
+    width: 100%;
+  }
+
   .layout,
-  .start-grid,
-  .info-grid,
-  .basics-grid,
+  .start-orientation,
+  .start-points,
+  .start-technical-grid,
+  .start-defaults-grid,
   .process-chain,
   .model-card-grid,
   .formula-section-grid,
@@ -727,6 +888,20 @@ button:disabled {
   .chart-tabs button {
     border-right: 0;
     justify-content: flex-start;
+  }
+
+  .start-point {
+    border-bottom: 1px solid var(--border-subtle);
+    border-right: 0;
+    min-height: 112px;
+  }
+
+  .start-point:last-child {
+    border-bottom: 0;
+  }
+
+  .start-secondary-image {
+    min-height: 220px;
   }
 
   .chart {
