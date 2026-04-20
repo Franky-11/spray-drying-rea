@@ -430,6 +430,96 @@ button:disabled {
   height: 420px;
 }
 
+.chart-with-tower {
+  align-items: stretch;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.75fr) 320px;
+}
+
+.tower-panel {
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.tower-panel-header {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.tower-scenario-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tower-panel-body {
+  display: grid;
+  gap: 12px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.tower-svg {
+  background: linear-gradient(180deg, #f9fbff 0%, #f4f4f4 100%);
+  border: 1px solid var(--border-subtle);
+  height: 100%;
+  min-height: 320px;
+  width: 100%;
+}
+
+.tower-outline {
+  fill: none;
+  stroke: #525252;
+  stroke-width: 2;
+}
+
+.tower-body {
+  fill: rgba(15, 98, 254, 0.06);
+  stroke: none;
+}
+
+.tower-centerline {
+  fill: none;
+  stroke: #a8a8a8;
+  stroke-dasharray: 5 4;
+  stroke-width: 2;
+}
+
+.tower-progress {
+  fill: none;
+  stroke: var(--interactive);
+  stroke-linecap: round;
+  stroke-width: 6;
+}
+
+.tower-marker {
+  fill: #ffffff;
+  stroke: var(--interactive);
+  stroke-width: 3;
+}
+
+.tower-label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tower-stats {
+  display: grid;
+  gap: 8px;
+}
+
+.tower-stat {
+  background: var(--surface-muted);
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+}
+
 .empty-state {
   border: 1px dashed var(--border-subtle);
   color: var(--text-secondary);
@@ -520,7 +610,8 @@ button:disabled {
   .parameter-summary-grid,
   .field-row,
   .kpi-grid,
-  .chart-tabs {
+  .chart-tabs,
+  .chart-with-tower {
     grid-template-columns: 1fr;
   }
 
@@ -543,5 +634,9 @@ button:disabled {
 
   .chart-panel .chart {
     height: 300px;
+  }
+
+  .tower-svg {
+    min-height: 260px;
   }
 }

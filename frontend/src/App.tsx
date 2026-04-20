@@ -14,6 +14,7 @@ import type {
   XBModel,
 } from './apiTypes'
 import LineChart from './LineChart'
+import SprayTowerPreview from './SprayTowerPreview'
 
 const BASE_SCENARIO_ID = 'base'
 const MAX_SCENARIOS = 4
@@ -44,6 +45,7 @@ function App() {
   const [nextScenarioNumber, setNextScenarioNumber] = useState(1)
   const [isExpertOpen, setIsExpertOpen] = useState(false)
   const [activeChartTab, setActiveChartTab] = useState<ChartTab>('moisture')
+  const [hoveredHeightM, setHoveredHeightM] = useState<number | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
   const [comparisonResult, setComparisonResult] = useState<CompareResponse | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -266,6 +268,16 @@ function App() {
     setComparisonResult(null)
   }
 
+  function activateScenario(scenarioId: string) {
+    setHoveredHeightM(null)
+    setActiveScenarioId(scenarioId)
+  }
+
+  function activateChartTab(tab: ChartTab) {
+    setHoveredHeightM(null)
+    setActiveChartTab(tab)
+  }
+
   function updateActiveScenario(update: (scenario: ScenarioDraft) => ScenarioDraft) {
     setScenarios((current) =>
       current.map((scenario) => (scenario.scenario_id === activeScenarioId ? update(scenario) : scenario)),
@@ -357,7 +369,7 @@ function App() {
       copyFrom.target_moisture_wb_pct,
     )
     setScenarios((current) => [...current, nextScenario])
-    setActiveScenarioId(nextScenario.scenario_id)
+    activateScenario(nextScenario.scenario_id)
     setNextScenarioNumber((current) => current + 1)
     invalidateResults()
   }
@@ -368,7 +380,7 @@ function App() {
     }
     const scenarioIdToRemove = activeScenarioId
     setScenarios((current) => current.filter((scenario) => scenario.scenario_id !== scenarioIdToRemove))
-    setActiveScenarioId(BASE_SCENARIO_ID)
+    activateScenario(BASE_SCENARIO_ID)
     setComparisonResult((current) =>
       current
         ? {
@@ -402,6 +414,7 @@ function App() {
 
     setIsSimulating(true)
     setMessage(null)
+    setHoveredHeightM(null)
     try {
       const response = await compare({
         base_scenario_id: BASE_SCENARIO_ID,
@@ -409,7 +422,7 @@ function App() {
       })
       setComparisonResult(response)
       setActiveView('simulation')
-      setActiveChartTab('moisture')
+      activateChartTab('moisture')
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : 'Simulation fehlgeschlagen')
       setComparisonResult(null)
@@ -521,7 +534,7 @@ function App() {
                         <button
                           key={scenario.scenario_id}
                           className={activeScenarioId === scenario.scenario_id ? 'scenario-chip active' : 'scenario-chip'}
-                          onClick={() => setActiveScenarioId(scenario.scenario_id)}
+                          onClick={() => activateScenario(scenario.scenario_id)}
                           type="button"
                         >
                           <span>{scenario.label}</span>
@@ -810,7 +823,7 @@ function App() {
                     <button
                       key={tab.id}
                       className={activeChartTab === tab.id ? 'active' : ''}
-                      onClick={() => setActiveChartTab(tab.id)}
+                      onClick={() => activateChartTab(tab.id)}
                       role="tab"
                       aria-selected={activeChartTab === tab.id}
                       type="button"
@@ -824,7 +837,12 @@ function App() {
                     <p>Noch keine Ergebnisse.</p>
                   </div>
                 )}
-                {comparisonResult && activeChartTab !== 'comparison' && chartOption && <LineChart option={chartOption} />}
+                {comparisonResult && activeChartTab !== 'comparison' && chartOption && activeScenarioResult && (
+                  <div className="chart-with-tower">
+                    <LineChart option={chartOption} onAxisValueChange={setHoveredHeightM} />
+                    <SprayTowerPreview hoveredHeightM={hoveredHeightM} scenario={activeScenarioResult} />
+                  </div>
+                )}
                 {comparisonResult && activeChartTab === 'comparison' && (
                   <table className="comparison-table">
                     <thead>
