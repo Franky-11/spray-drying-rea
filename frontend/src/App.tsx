@@ -437,8 +437,7 @@ function App() {
     <>
       <header className="top-bar">
         <div className="brand">
-          <span className="brand-title">Spray Drying</span>
-          <span className="brand-subtitle">Stationaere SMP-REA-Trocknung</span>
+          <span className="brand-title">Drying Kinetic SMP</span>
         </div>
         <nav className="top-nav" aria-label="Seiten">
           <button className={activeView === 'start' ? 'active' : ''} onClick={() => setActiveView('start')} type="button">
@@ -455,14 +454,16 @@ function App() {
             Modellgrundlagen
           </button>
         </nav>
-        <div className={`api-status ${apiStatus}`}>
-          <span className="status-label">API</span>
-          <strong>{apiStatus === 'online' ? 'online' : apiStatus === 'offline' ? 'offline' : 'prueft'}</strong>
-        </div>
+        {message && (
+          <div className={`api-status ${apiStatus === 'offline' ? 'offline' : 'error'}`}>
+            <span className="status-label">Fehler</span>
+            <strong>{message}</strong>
+          </div>
+        )}
       </header>
 
       <main className="page">
-        {activeView === 'start' && <StartView defaults={defaults} onNavigate={setActiveView} />}
+        {activeView === 'start' && <StartView onNavigate={setActiveView} />}
 
         {activeView === 'simulation' && activeScenario && (
           <section className="simulation-page">
@@ -866,37 +867,7 @@ function App() {
   )
 }
 
-function StartView({
-  defaults,
-  onNavigate,
-}: {
-  defaults: ModelDefaults | null
-  onNavigate: (view: AppView) => void
-}) {
-  const defaultInputs = defaults?.default_inputs
-  const defaultCards = [
-    {
-      label: 'Tin Basisfall',
-      value: defaultInputs ? `${formatKpi(defaultInputs.Tin)} C` : 'laedt',
-      meta: 'Trocknungslufteintritt der Referenzrechnung',
-    },
-    {
-      label: 'Luftmassenstrom',
-      value: defaultInputs ? `${formatKpi(defaultInputs.humid_air_mass_flow_kg_h)} kg/h` : 'laedt',
-      meta: 'Feuchte Luft als axiale Triebgroesse',
-    },
-    {
-      label: 'Feed solids',
-      value: defaultInputs ? `${formatKpi(defaultInputs.feed_total_solids * 100)} %` : 'laedt',
-      meta: 'SMP-Feed als Startpunkt fuer X und Schrumpfung',
-    },
-    {
-      label: 'Ziel-Endfeuchte',
-      value: defaults ? `${formatKpi(defaults.default_target_moisture_wb_pct)} wt% wb` : 'laedt',
-      meta: 'Sollwert fuer KPI-Band und Vergleich',
-    },
-  ]
-
+function StartView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   return (
     <section className="start-page">
       <section className="start-hero" aria-labelledby="start-title">
@@ -906,12 +877,9 @@ function StartView({
           alt="Spray dryer tower in a clean pilot plant"
         />
         <div className="start-hero-copy">
-          <p className="eyebrow">Stationaere SMP-Spray-Drying-Simulation</p>
-          <h1 id="start-title">Technische Auslegung und Szenarienvergleich fuer den Trocknungsturm</h1>
-          <p>
-            Bewerte Endfeuchte, Partikeltemperatur, Gleichgewicht, Flugzeit und Anlagenantwort entlang der
-            effektiven 1D-Turmgeometrie auf einer technischen Light-Theme-Oberflaeche.
-          </p>
+          <p className="eyebrow">Trocknungskinetik Plug-Flow Simulation</p>
+          <h1 id="start-title">Trocknung von Magermilch fuer verschiedene Szenarien simulieren</h1>
+          <p>Materialfeuchte &amp; Abluftparameter bewerten</p>
           <div className="start-hero-actions">
             <button className="button-primary start-cta" onClick={() => onNavigate('simulation')} type="button">
               Simulation oeffnen
@@ -927,9 +895,9 @@ function StartView({
         <div className="panel start-orientation-panel">
           <div className="panel-header">
             <h2 id="orientation-title" className="panel-title">
-              Arbeitsweise
+              Technischer Einstieg
             </h2>
-            <p className="panel-meta">Vom Basisfall bis zur axialen Ergebnisbewertung</p>
+            <p className="panel-meta">Get started</p>
           </div>
           <div className="start-points">
             {startOrientationPoints.map((point) => (
@@ -943,41 +911,6 @@ function StartView({
         <figure className="start-secondary-image">
           <img src={labPowderAnalysis} alt="Skim milk powder sample in pilot plant analysis setup" />
         </figure>
-      </section>
-
-      <section className="panel start-technical-section" aria-labelledby="technical-title">
-        <div className="panel-header">
-          <h2 id="technical-title" className="panel-title">
-            Technischer Einstieg
-          </h2>
-          <p className="panel-meta">Was die App rechnet und wie der Default-Fall aufgesetzt ist</p>
-        </div>
-        <div className="panel-body start-technical-grid">
-          <div className="start-technical-copy">
-            <p className="lead start-technical-lead">
-              Der Frontend-Neuaufbau kapselt den stationaeren REA-basierten SMP-Kern aus{' '}
-              <code>core/stationary_smp_rea/</code> hinter einer klaren React- und Python-API-Schicht.
-            </p>
-            <div className="start-intro-list">
-              {startTechnicalBullets.map((item) => (
-                <article key={item.title}>
-                  <span className="label">{item.title}</span>
-                  <p>{item.description}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="start-defaults-grid" aria-label="Default case summary">
-            {defaultCards.map((card) => (
-              <article className="start-default-card" key={card.label}>
-                <span className="label">{card.label}</span>
-                <strong className="start-default-value">{card.value}</strong>
-                <p>{card.meta}</p>
-              </article>
-            ))}
-          </div>
-        </div>
       </section>
     </section>
   )
@@ -1084,12 +1017,20 @@ function ModelFoundationView() {
             <div className="formula-rendered">
               <MathBlock tex={'U_a(h) = \\frac{\\dot{m}_{ha}}{\\rho_a(h) A(h)}'} />
               <MathBlock tex={'RH_a = \\frac{p_v(Y,p)}{p_{\\mathrm{sat}}(T_a)}'} />
-              <MathBlock tex={'x_b = f\\!\\left(T_a, RH_a, \\text{Modellwahl}\\right)'} />
+              <MathBlock tex={'x_{b,\\mathrm{GAB}} = \\frac{C(T) K(T) m_0 RH_a}{\\left(1-K(T)RH_a\\right)\\left(1-K(T)RH_a + C(T)K(T)RH_a\\right)}'} />
+              <MathBlock tex={'m_0 = 0.06156, \\quad C(T) = 0.001645 \\, \\exp\\!\\left(\\frac{24831}{RT}\\right), \\quad K(T) = 5.710 \\, \\exp\\!\\left(-\\frac{5118}{RT}\\right)'} />
+              <MathBlock tex={'x_{b,\\mathrm{Langrish}} = 0.1499 \\, \\exp\\!\\left(-2.306 \\times 10^{-3} T_{a,K}\\right)\\left[\\ln\\!\\left(\\frac{1}{RH_a}\\right)\\right]^{0.4}'} />
             </div>
             <p className="equation-note">
               Der lokale Querschnitt aus Zylinder, Konus und Abluftrohr bestimmt die Luftgeschwindigkeit. Die
-              Gleichgewichtsfeuchte wird ueber die gewaehlte Isothermen- bzw. Modellvariante geschlossen.
+              Gleichgewichtsfeuchte wird im Kern standardmaessig ueber die temperaturabhaengige GAB-Variante
+              geschlossen; die Langrish-Isotherme bleibt fuer den Gegenpruefungsfall verfuegbar.
             </p>
+            <div className="equation-sources">
+              <span className="label">Quellen</span>
+              <p>Lin, Chen, Pearce, 2005. Journal of Food Engineering 68, 257-264.</p>
+              <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
+            </div>
           </article>
 
           <article className="formula-section">
@@ -1101,9 +1042,16 @@ function ModelFoundationView() {
               <MathBlock tex={'d_p = d_{p,0} \\, s(\\delta, x_b, w_{\\mathrm{TS}})'} />
             </div>
             <p className="equation-note">
-              Das REA-Glied bremst die Oberflaechenverdampfung ueber die Aktivierungsenergie. Parallel dazu wird
-              der Partikeldurchmesser ueber das hinterlegte Schrumpfmodell aktualisiert.
+              REA steht fuer Reaction Engineering Approach. Das REA-Glied bremst die
+              Oberflaechenverdampfung ueber die Aktivierungsenergie. Parallel dazu wird der Partikeldurchmesser
+              ueber das hinterlegte Schrumpfmodell aktualisiert.
             </p>
+            <div className="equation-sources">
+              <span className="label">Quellen</span>
+              <p>Chen, 2008. Drying Technology 26, 627-639.</p>
+              <p>Chew et al., 2013. Dairy Science &amp; Technology 93, 415-430.</p>
+              <p>Im aktuellen Kern ist die REA-Retardierung zusaetzlich um einen angepassten Fruehphasen-Zuschlag erweitert.</p>
+            </div>
           </article>
 
           <article className="formula-section">
@@ -1117,6 +1065,11 @@ function ModelFoundationView() {
               Sobald die lokale Gleichgewichtsfeuchte erreicht ist, wird der Trocknungsfluss im Kern auf null
               begrenzt, damit keine unphysikalische Weiterverdampfung entsteht.
             </p>
+            <div className="equation-sources">
+              <span className="label">Quellen</span>
+              <p>Chew et al., 2013. Dairy Science &amp; Technology 93, 415-430.</p>
+              <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
+            </div>
           </article>
 
           <article className="formula-section">
@@ -1130,6 +1083,10 @@ function ModelFoundationView() {
               Die Partikelbilanz koppelt konvektiven Waermeuebergang und Verdampfungsenthalpie. Die Luftseite wird
               ueber Feuchte- und Enthalpiebilanz nachgezogen.
             </p>
+            <div className="equation-sources">
+              <span className="label">Quellen</span>
+              <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
+            </div>
           </article>
 
           <article className="formula-section">
@@ -1145,6 +1102,10 @@ function ModelFoundationView() {
               Stoff- und Waermeuebergang werden ueber Sherwood- und Nusselt-Korrelationen geschlossen. Die
               Partikelgeschwindigkeit treibt gleichzeitig den Aufenthaltszeitaufbau.
             </p>
+            <div className="equation-sources">
+              <span className="label">Quellen</span>
+              <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
+            </div>
           </article>
         </div>
       </section>
@@ -1211,7 +1172,7 @@ const startOrientationPoints = [
   {
     title: 'Basisfall aufsetzen',
     description:
-      'Tin, Luftmassenstrom, Feedrate, Tropfengroesse, Yin, solids und Geometrie definieren den axialen Referenzfall fuer den Turm.',
+      'Zulufttemperatur, Luftmassenstrom, Feedrate, Tropfengroesse, absolute Luftfeuchte der Zuluft, Feststoffgehalt und Geometrie definieren den axialen Referenzfall fuer den Turm.',
   },
   {
     title: 'Axial rechnen',
@@ -1219,27 +1180,14 @@ const startOrientationPoints = [
       'Der Kern integriert Feuchte, Temperatur, Gleichgewicht, Partikelbewegung und Flugzeit entlang Zylinder, Konus und Abluftrohr.',
   },
   {
-    title: 'Szenarien vergleichen',
-    description:
-      'Ein Basisfall plus bis zu drei Vergleichsfaelle zeigen die Sensitivitaet von Endfeuchte, Tout, RHout, tau_out und dmean_out.',
-  },
-]
-
-const startTechnicalBullets = [
-  {
-    title: 'Rechenkern',
-    description:
-      'Geloest werden dX/dh, dT_p/dh, dY/dh, dH_h/dh, dU_p/dh und dtau/dh fuer eine stationaere 1D-Strombahn.',
-  },
-  {
-    title: 'Materialschluss',
+    title: 'Materialmodell nutzen',
     description:
       'REA-Retardierung, lokale Gleichgewichtsfeuchte x_b und das hinterlegte Schrumpfmodell koppeln Verdampfung und Partikelzustand.',
   },
   {
-    title: 'UI-Ziel',
+    title: 'Szenarien vergleichen',
     description:
-      'Die Startseite fuehrt in den Basismodus ein; die Simulation selbst bleibt datenorientiert mit KPI-Band, Turmvorschau und Vergleichstabelle.',
+      'Ein Basisfall plus bis zu drei Vergleichsfaelle zeigen die Sensitivitaet von Endfeuchte, Ablufttemperatur, relativer Abluftfeuchte, Aufenthaltszeit und mittlerem Partikeldurchmesser.',
   },
 ]
 

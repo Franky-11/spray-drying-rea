@@ -56,7 +56,7 @@ class StationarySMPREAInput:
     water_density_kg_m3: float = 1000.0
     dry_solids_specific_heat_j_kg_k: float = 1500.0
     material: Literal["SMP"] = "SMP"
-    x_b_model: XBModel = "langrish"
+    x_b_model: XBModel = "lin_gab"
     shrinkage_model: ShrinkageModel = "auto"
     axial_points: int = 250
     include_tau_state: bool = True

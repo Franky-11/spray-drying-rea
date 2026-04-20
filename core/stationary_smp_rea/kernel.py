@@ -197,8 +197,8 @@ def solve_stationary_smp_profile(
         "coordinate": "Effective 1D co-current flow-path coordinate h (cylinder, cone, optional outlet duct)",
         "balances": "Langrish (2009), Eqs. (20), (36), (41), (42)",
         "material_closure": "Chew (2013), Eqs. (11)-(13), Table 1, Table 2",
-        "x_b_default": "Langrish coarsest-scale skim milk isotherm, Eq. (11)",
-        "x_b_optional": "Lin, Chen, Pearce (2005) temperature-dependent GAB",
+        "x_b_default": "Lin, Chen, Pearce (2005) temperature-dependent GAB",
+        "x_b_optional": "Langrish (2009) coarsest-scale skim milk isotherm, Eq. (11)",
         "geometry": "Section-wise effective geometry with local U_a(h) and wall-loss density; outlet duct uses the same 1D axial momentum simplification as the main chamber.",
     }
     return StationarySMPREAResult(
