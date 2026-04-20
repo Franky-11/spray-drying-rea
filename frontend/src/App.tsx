@@ -1007,8 +1007,8 @@ function ModelFoundationView() {
             </div>
             <p>
               Der Ausgang ist als Ende des effektiven Abluftrohrs direkt vor dem Zykloneintritt definiert. Dort
-              werden <code>Tout</code>, <code>RHout</code>, <code>tau_out</code>, Endfeuchte und{' '}
-              <code>dmean_out</code> ausgewertet.
+              werden Austrittstemperatur, Austrittsfeuchte, Flugzeit, Endfeuchte und der mittlere
+              Partikeldurchmesser ausgewertet.
             </p>
           </article>
         </div>
@@ -1026,7 +1026,7 @@ function ModelFoundationView() {
             <h3>Eingang und abgeleitete Anfangsgroessen</h3>
             <div className="formula-rendered">
               <EquationLine>
-                X<sub>0</sub> = <Fraction denominator={<span>feed_total_solids</span>} numerator={<span>1 - feed_total_solids</span>} />
+                X<sub>0</sub> = <Fraction denominator={<span>w<sub>TS</sub></span>} numerator={<span>1 - w<sub>TS</sub></span>} />
               </EquationLine>
               <EquationLine>
                 H<sub>h,in</sub> = c<sub>p,da</sub>(T<sub>in</sub> - T<sub>ref</sub>) + Y<sub>in</sub>[λ<sub>ref</sub> + c<sub>p,v</sub>(T<sub>in</sub> - T<sub>ref</sub>)]
@@ -1051,12 +1051,12 @@ function ModelFoundationView() {
                 RH<sub>a</sub> = <Fraction denominator={<span>p<sub>sat</sub>(T<sub>a</sub>)</span>} numerator={<span>p<sub>v</sub>(Y, p)</span>} />
               </EquationLine>
               <EquationLine>
-                x<sub>b</sub> = f(T<sub>a</sub>, RH<sub>a</sub>, x_b_model)
+                x<sub>b</sub> = f(T<sub>a</sub>, RH<sub>a</sub>, Modellwahl)
               </EquationLine>
             </div>
             <p className="equation-note">
               Der lokale Querschnitt aus Zylinder, Konus und Abluftrohr bestimmt die Luftgeschwindigkeit. Die
-              Gleichgewichtsfeuchte wird ueber das gewaehlte <code>x_b_model</code> geschlossen.
+              Gleichgewichtsfeuchte wird ueber die gewaehlte Isothermen- bzw. Modellvariante geschlossen.
             </p>
           </article>
 
@@ -1073,7 +1073,7 @@ function ModelFoundationView() {
                 ρ<sub>v,s</sub> = ψ ρ<sub>v,sat</sub>(T<sub>p</sub>)
               </EquationLine>
               <EquationLine>
-                d<sub>p</sub> = d<sub>p,0</sub> s(δ, x<sub>b</sub>, solids)
+                d<sub>p</sub> = d<sub>p,0</sub> s(δ, x<sub>b</sub>, w<sub>TS</sub>)
               </EquationLine>
             </div>
             <p className="equation-note">
@@ -1148,40 +1148,6 @@ function ModelFoundationView() {
               Partikelgeschwindigkeit treibt gleichzeitig den Aufenthaltszeitaufbau.
             </p>
           </article>
-        </div>
-      </section>
-
-      <section className="panel model-section" aria-labelledby="kpi-title">
-        <div className="panel-header">
-          <h2 id="kpi-title" className="panel-title">
-            Eingangsgroessen und KPIs
-          </h2>
-          <p className="panel-meta">Was die UI sichtbar fuehrt und wie der Ausgang definiert ist</p>
-        </div>
-        <div className="panel-body basics-grid">
-          <div>
-            <h3>Basismodus</h3>
-            <ul className="flat-list">
-              <li><code>Tin</code>, <code>humid_air_mass_flow_kg_h</code>, <code>feed_rate_kg_h</code></li>
-              <li><code>droplet_size_um</code>, <code>inlet_abs_humidity_g_kg</code>, <code>feed_total_solids</code></li>
-            </ul>
-          </div>
-          <div>
-            <h3>Expertenmodus</h3>
-            <ul className="flat-list">
-              <li><code>heat_loss_coeff_w_m2k</code>, <code>x_b_model</code></li>
-              <li><code>nozzle_delta_p_bar</code>, <code>nozzle_velocity_coefficient</code></li>
-              <li>Segmentierte Geometrie fuer Zylinder, Konus und Abluftrohr</li>
-            </ul>
-          </div>
-          <div>
-            <h3>Pflicht-KPIs</h3>
-            <ul className="flat-list">
-              <li><code>Tout</code>, <code>RHout</code>, <code>tau_out</code>, <code>dmean_out</code></li>
-              <li>Endfeuchte, Zielerreichung, Zeit und Hoehe bis Ziel</li>
-              <li>Expertenkontext: <code>x_out - x_b,out</code>, <code>T_p,out</code>, <code>U_p,out</code></li>
-            </ul>
-          </div>
         </div>
       </section>
 

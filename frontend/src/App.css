@@ -622,8 +622,8 @@ button:disabled {
 
 .process-index {
   align-items: center;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
+  background: var(--interactive);
+  color: #ffffff;
   display: inline-flex;
   font-size: 12px;
   font-weight: 600;
