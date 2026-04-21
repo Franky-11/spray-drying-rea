@@ -49,6 +49,12 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             "Re",
             "Sh",
             "Nu",
+            "delta_t_air_particle_k",
+            "rho_v_driving_force_kg_m3",
+            "q_conv_w",
+            "q_latent_w",
+            "q_evap_total_w",
+            "q_evap_to_conv_ratio",
         ):
             self.assertIn(column, result.series.columns)
 
@@ -258,6 +264,37 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             places=12,
         )
 
+    def test_material_retardation_add_can_be_disabled(self) -> None:
+        with_add = chew_material_state(
+            moisture_dry_basis=0.14,
+            x_b=0.01,
+            feed_total_solids=0.37,
+            shrinkage_model="auto",
+            temp_particle_k=333.15,
+            temp_air_k=353.15,
+            rh_air=0.12,
+            enable_material_retardation_add=True,
+        )
+        without_add = chew_material_state(
+            moisture_dry_basis=0.14,
+            x_b=0.01,
+            feed_total_solids=0.37,
+            shrinkage_model="auto",
+            temp_particle_k=333.15,
+            temp_air_k=353.15,
+            rh_air=0.12,
+            enable_material_retardation_add=False,
+        )
+
+        self.assertGreater(with_add.activation_ratio_add, 0.0)
+        self.assertAlmostEqual(without_add.activation_ratio_add, 0.0, places=12)
+        self.assertAlmostEqual(
+            without_add.activation_ratio,
+            without_add.activation_ratio_base,
+            places=12,
+        )
+        self.assertGreater(with_add.activation_ratio, without_add.activation_ratio)
+
     def test_sectionwise_geometry_updates_local_air_velocity_and_pre_cyclone_report(self) -> None:
         result = solve_stationary_smp_profile(
             StationarySMPREAInput(
@@ -405,6 +442,72 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
         self.assertAlmostEqual(algebraic.q_sorption_j_kg, 633.0e3, places=6)
         self.assertAlmostEqual(rhs.dT_p_dh, expected, places=9)
+
+    def test_contact_efficiency_scales_transfer_and_slows_drying(self) -> None:
+        baseline_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            contact_efficiency=1.0,
+            axial_points=120,
+        )
+        reduced_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            contact_efficiency=0.65,
+            axial_points=120,
+        )
+
+        baseline_derived = derive_inputs(baseline_input)
+        reduced_derived = derive_inputs(reduced_input)
+        baseline_result = solve_stationary_smp_profile(baseline_input)
+        reduced_result = solve_stationary_smp_profile(reduced_input)
+        baseline_state = evaluate_algebraic_state(
+            0.0,
+            baseline_result.series[["X", "T_p_k", "Y", "H_h_j_kg_da", "U_p_ms", "tau_s"]].iloc[0].to_numpy(),
+            baseline_input,
+            baseline_derived,
+        )
+        reduced_state = evaluate_algebraic_state(
+            0.0,
+            reduced_result.series[["X", "T_p_k", "Y", "H_h_j_kg_da", "U_p_ms", "tau_s"]].iloc[0].to_numpy(),
+            reduced_input,
+            reduced_derived,
+        )
+
+        self.assertAlmostEqual(
+            reduced_state.effective_mass_transfer_coeff_ms,
+            0.65 * reduced_state.transport.mass_transfer_coeff_ms,
+            places=12,
+        )
+        self.assertAlmostEqual(
+            reduced_state.effective_heat_transfer_coeff_w_m2_k,
+            0.65 * reduced_state.transport.heat_transfer_coeff_w_m2_k,
+            places=12,
+        )
+        self.assertGreater(reduced_result.outlet["outlet_X"], baseline_result.outlet["outlet_X"])
+
+    def test_disabling_material_retardation_add_reduces_outlet_moisture(self) -> None:
+        baseline = solve_stationary_smp_profile(
+            StationarySMPREAInput(
+                inlet_air_temp_c=180.0,
+                feed_total_solids=0.37,
+                axial_points=120,
+                enable_material_retardation_add=True,
+            )
+        )
+        without_add = solve_stationary_smp_profile(
+            StationarySMPREAInput(
+                inlet_air_temp_c=180.0,
+                feed_total_solids=0.37,
+                axial_points=120,
+                enable_material_retardation_add=False,
+            )
+        )
+
+        self.assertLess(
+            without_add.outlet["outlet_X"],
+            baseline.outlet["outlet_X"],
+        )
 
     def test_air_enthalpy_balance_includes_particle_liquid_water_enthalpy_change(self) -> None:
         sim_input = StationarySMPREAInput(

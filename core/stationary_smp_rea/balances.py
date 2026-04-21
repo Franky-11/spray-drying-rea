@@ -81,6 +81,9 @@ class AlgebraicState:
     delta_e_max_j_mol: float
     delta_e_j_mol: float
     psi: float
+    contact_efficiency: float
+    effective_mass_transfer_coeff_ms: float
+    effective_heat_transfer_coeff_w_m2_k: float
     q_loss_prime_w_m: float
     transport: TransportState
 
@@ -95,6 +98,11 @@ class RHSState:
     dH_h_dh: float
     dU_p_dh: float
     dtau_dh: float | None
+    q_conv_w: float
+    q_latent_w: float
+    q_sorption_w: float
+    q_evap_total_w: float
+    q_evap_to_conv_ratio: float
 
 
 def _state_components(vector: np.ndarray, include_tau_state: bool) -> tuple[float, float, float, float, float, float | None]:
@@ -157,6 +165,7 @@ def evaluate_algebraic_state(
         temp_particle_k=bounded_t_p_k,
         temp_air_k=t_a_k,
         rh_air=rh_air,
+        enable_material_retardation_add=inputs.enable_material_retardation_add,
     )
     particle_diameter = derived.droplet_diameter_m * chew.shrinkage_ratio
     particle_mass_value = particle_mass(derived.representative_dry_solids_mass_kg, bounded_x)
@@ -220,6 +229,13 @@ def evaluate_algebraic_state(
         delta_e_max_j_mol=chew.delta_e_max_j_mol,
         delta_e_j_mol=chew.delta_e_j_mol,
         psi=chew.psi,
+        contact_efficiency=inputs.contact_efficiency,
+        effective_mass_transfer_coeff_ms=(
+            inputs.contact_efficiency * transport.mass_transfer_coeff_ms
+        ),
+        effective_heat_transfer_coeff_w_m2_k=(
+            inputs.contact_efficiency * transport.heat_transfer_coeff_w_m2_k
+        ),
         q_loss_prime_w_m=(
             inputs.heat_loss_coeff_w_m2k
             * local_wall_area_density_m2_m
@@ -237,7 +253,7 @@ def evaluate_rhs(
 ) -> RHSState:
     algebraic = evaluate_algebraic_state(h_m, state_vector, inputs, derived)
     raw_dm_p_dh = -(
-        algebraic.transport.mass_transfer_coeff_ms
+        algebraic.effective_mass_transfer_coeff_ms
         * algebraic.particle_area_m2
         / max(algebraic.U_p_ms, EPS)
         * (algebraic.rho_v_surface_kg_m3 - algebraic.rho_v_air_kg_m3)
@@ -251,15 +267,18 @@ def evaluate_rhs(
         else raw_dm_p_dh
     )
     dX_dh = dm_p_dh / max(derived.representative_dry_solids_mass_kg, EPS)
-    dT_p_dh = (
-        np.pi
-        * algebraic.particle_diameter_m
-        * algebraic.air_thermal_conductivity_w_m_k
-        * algebraic.transport.nusselt_number
+    q_conv_w = (
+        algebraic.effective_heat_transfer_coeff_w_m2_k
+        * algebraic.particle_area_m2
         * (algebraic.T_a_k - algebraic.T_p_k)
-        + dm_p_dh
-        * algebraic.U_p_ms
-        * (algebraic.h_fg_j_kg + algebraic.q_sorption_j_kg)
+    )
+    q_latent_w = -dm_p_dh * algebraic.U_p_ms * algebraic.h_fg_j_kg
+    q_sorption_w = -dm_p_dh * algebraic.U_p_ms * algebraic.q_sorption_j_kg
+    q_evap_total_w = q_latent_w + q_sorption_w
+    q_evap_to_conv_ratio = q_evap_total_w / max(abs(q_conv_w), EPS)
+    dT_p_dh = (
+        q_conv_w
+        - q_evap_total_w
     ) / max(
         derived.representative_dry_solids_mass_kg
         * algebraic.particle_cp_j_kg_k
@@ -306,6 +325,11 @@ def evaluate_rhs(
         dH_h_dh=dH_h_dh,
         dU_p_dh=dU_p_dh,
         dtau_dh=dtau_dh,
+        q_conv_w=q_conv_w,
+        q_latent_w=q_latent_w,
+        q_sorption_w=q_sorption_w,
+        q_evap_total_w=q_evap_total_w,
+        q_evap_to_conv_ratio=q_evap_to_conv_ratio,
     )
 
 

@@ -343,6 +343,7 @@ def chew_material_state(
     temp_particle_k: float,
     temp_air_k: float,
     rh_air: float,
+    enable_material_retardation_add: bool = True,
 ) -> ChewMaterialState:
     delta = moisture_dry_basis - x_b
     initial_moisture = initial_moisture_dry_basis(feed_total_solids)
@@ -350,11 +351,16 @@ def chew_material_state(
         delta,
         feed_total_solids,
     )
-    reduced_ratio_add, normalized_delta = _early_falling_rate_activation_ratio_add(
-        delta,
-        x_b,
-        initial_moisture,
-    )
+    if enable_material_retardation_add:
+        reduced_ratio_add, normalized_delta = _early_falling_rate_activation_ratio_add(
+            delta,
+            x_b,
+            initial_moisture,
+        )
+    else:
+        reduced_ratio_add = 0.0
+        moisture_span = max(initial_moisture - x_b, EPS)
+        normalized_delta = min(max(max(delta, 0.0) / moisture_span, 0.0), 1.0)
     reduced_ratio_total = min(max(reduced_ratio_base + reduced_ratio_add, 0.0), 1.0)
     delta_e_max = equilibrium_activation_energy_max(temp_air_k, rh_air)
     delta_e = reduced_ratio_total * delta_e_max

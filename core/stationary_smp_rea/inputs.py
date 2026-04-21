@@ -52,6 +52,8 @@ class StationarySMPREAInput:
     nozzle_velocity_coefficient: float = 0.60
     pressure_pa: float = 101325.0
     heat_loss_coeff_w_m2k: float = 4.5
+    contact_efficiency: float = 1.0
+    enable_material_retardation_add: bool = True
     dry_solids_density_kg_m3: float = 1400.0
     water_density_kg_m3: float = 1000.0
     dry_solids_specific_heat_j_kg_k: float = 1500.0
@@ -113,6 +115,8 @@ class StationarySMPREAInput:
 
         if self.heat_loss_coeff_w_m2k < 0.0:
             errors.append("heat_loss_coeff_w_m2k darf nicht negativ sein.")
+        if not 0.0 < self.contact_efficiency <= 1.0:
+            errors.append("contact_efficiency muss im Bereich (0, 1] liegen.")
         if self.inlet_abs_humidity_g_kg < 0.0:
             errors.append("inlet_abs_humidity_g_kg darf nicht negativ sein.")
         if self.axial_points < 25:
@@ -163,6 +167,14 @@ class StationarySMPREAInput:
         if self.fixed_particle_velocity_ms is not None or self.fixed_air_velocity_ms is not None:
             warnings.append(
                 "The velocity diagnostic uses fixed particle and/or air velocities; drag-coupled velocity development and/or the local continuity velocity are intentionally overridden."
+            )
+        if self.contact_efficiency < 1.0:
+            warnings.append(
+                "The tower contact efficiency scales both heat and mass transfer below the ideal 1D reference to emulate reduced effective particle-air exposure."
+            )
+        if not self.enable_material_retardation_add:
+            warnings.append(
+                "The extra early falling-rate material-side REA retardation is disabled; drying follows only the baseline REA branch."
             )
 
         return errors, warnings

@@ -101,6 +101,7 @@ def _series_from_solution(
             "DeltaE_v_max_j_mol": algebraic.delta_e_max_j_mol,
             "DeltaE_v_j_mol": algebraic.delta_e_j_mol,
             "psi": algebraic.psi,
+            "contact_efficiency": algebraic.contact_efficiency,
             "d_p_m": algebraic.particle_diameter_m,
             "rho_p_kg_m3": algebraic.particle_density_kg_m3,
             "m_p_kg": algebraic.particle_mass_kg,
@@ -114,8 +115,14 @@ def _series_from_solution(
             "Nu": algebraic.transport.nusselt_number,
             "C_D": algebraic.transport.drag_coefficient,
             "h_m_ms": algebraic.transport.mass_transfer_coeff_ms,
+            "h_m_eff_ms": algebraic.effective_mass_transfer_coeff_ms,
             "h_h_w_m2_k": algebraic.transport.heat_transfer_coeff_w_m2_k,
+            "h_h_eff_w_m2_k": algebraic.effective_heat_transfer_coeff_w_m2_k,
             "q_loss_prime_w_m": algebraic.q_loss_prime_w_m,
+            "delta_t_air_particle_k": algebraic.T_a_k - algebraic.T_p_k,
+            "rho_v_driving_force_kg_m3": (
+                algebraic.rho_v_surface_kg_m3 - algebraic.rho_v_air_kg_m3
+            ),
             "dm_p_dh_kg_m": rhs.dm_p_dh_kg_m,
             "dX_dh": rhs.dX_dh,
             "dT_p_dh": rhs.dT_p_dh,
@@ -123,6 +130,11 @@ def _series_from_solution(
             "dH_h_dh": rhs.dH_h_dh,
             "dU_p_dh": rhs.dU_p_dh,
             "dtau_dh": rhs.dtau_dh,
+            "q_conv_w": rhs.q_conv_w,
+            "q_latent_w": rhs.q_latent_w,
+            "q_sorption_w": rhs.q_sorption_w,
+            "q_evap_total_w": rhs.q_evap_total_w,
+            "q_evap_to_conv_ratio": rhs.q_evap_to_conv_ratio,
         }
         rows.append(row)
 

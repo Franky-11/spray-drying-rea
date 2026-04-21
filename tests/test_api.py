@@ -43,6 +43,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["humid_air_mass_flow_kg_h"], 300.0)
         self.assertAlmostEqual(data["default_inputs"]["inlet_abs_humidity_g_kg"], 6.0)
         self.assertAlmostEqual(data["default_inputs"]["feed_total_solids"], 0.37)
+        self.assertAlmostEqual(data["default_inputs"]["contact_efficiency"], 1.0)
+        self.assertTrue(data["default_inputs"]["enable_material_retardation_add"])
         self.assertNotIn("reference_cases", data)
 
     async def test_simulate_returns_summary_and_profile(self) -> None:
@@ -57,6 +59,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                     "inlet_abs_humidity_g_kg": 5.7,
                     "feed_total_solids": 0.37,
                     "heat_loss_coeff_w_m2k": 1.4,
+                    "contact_efficiency": 0.9,
+                    "enable_material_retardation_add": False,
                     "x_b_model": "lin_gab",
                     "nozzle_delta_p_bar": 47.0,
                     "nozzle_velocity_coefficient": 0.6,
@@ -83,6 +87,10 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["outlet"]["section"], "outlet_duct")
         self.assertIn("dmean_out_um", data["outlet"])
         self.assertIn("total_q_loss_w", data["outlet"])
+        self.assertIn("delta_t_air_particle_c", data["profile"]["series"][0])
+        self.assertIn("q_evap_to_conv_ratio", data["profile"]["series"][0])
+        self.assertAlmostEqual(data["inputs"]["contact_efficiency"], 0.9)
+        self.assertFalse(data["inputs"]["enable_material_retardation_add"])
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:
         response = await self.client.post(

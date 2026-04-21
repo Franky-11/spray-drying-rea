@@ -20,6 +20,8 @@ class StationaryInputDTO(BaseModel):
     inlet_abs_humidity_g_kg: float = Field(ge=0)
     feed_total_solids: float = Field(gt=0, le=1)
     heat_loss_coeff_w_m2k: float = Field(ge=0)
+    contact_efficiency: float = Field(default=1.0, gt=0, le=1)
+    enable_material_retardation_add: bool = True
     x_b_model: Literal["langrish", "lin_gab"] = "lin_gab"
     nozzle_delta_p_bar: float = Field(gt=0)
     nozzle_velocity_coefficient: float = Field(gt=0)
@@ -80,6 +82,13 @@ class SimulationSeriesPointDTO(BaseModel):
     RH_a_pct: float
     x_b: float
     psi: float
+    delta_t_air_particle_c: float
+    rho_v_driving_force_kg_m3: float
+    q_conv_w: float
+    q_latent_w: float
+    q_sorption_w: float
+    q_evap_total_w: float
+    q_evap_to_conv_ratio: float
     particle_diameter_um: float
     U_a_ms: float
     U_p_ms: float
