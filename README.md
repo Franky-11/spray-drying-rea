@@ -14,6 +14,20 @@ Web app for evaluating steady-state spray drying of skim milk powder with a Reac
 - Tower preview linked to the active axial chart position.
 - Model foundations page with process steps, governing equations, sources, and model limits.
 
+## App Preview
+
+### Get Started
+
+<img src="frontend/public/readme/start-overview.png" alt="Get started screen" width="960" />
+
+### Simulation Inputs
+
+<img src="frontend/public/readme/simulator-inputs.png" alt="Simulation inputs and KPI overview" width="960" />
+
+### Result Charts
+
+<img src="frontend/public/readme/simulator-results.png" alt="Result charts with tower position preview" width="960" />
+
 ## Active Runtime Layout
 
 The active web app uses only these paths at runtime:
