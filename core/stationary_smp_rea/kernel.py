@@ -102,6 +102,8 @@ def _series_from_solution(
             "DeltaE_v_j_mol": algebraic.delta_e_j_mol,
             "psi": algebraic.psi,
             "contact_efficiency": algebraic.contact_efficiency,
+            "axial_exposure_factor": algebraic.axial_exposure_factor,
+            "combined_contact_exposure_factor": algebraic.combined_contact_exposure_factor,
             "d_p_m": algebraic.particle_diameter_m,
             "rho_p_kg_m3": algebraic.particle_density_kg_m3,
             "m_p_kg": algebraic.particle_mass_kg,

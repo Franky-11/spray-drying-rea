@@ -53,7 +53,7 @@ def _humid_air_mass_flow_to_volumetric_flow_m3_h(
 
 
 def _default_humid_air_mass_flow_kg_h(label: str) -> float:
-    if label == "V2":
+    if label in {"V2", "V3"}:
         return 304.0
     return 200.0
 
@@ -62,7 +62,7 @@ def build_ms400_stationary_input(
     experiment: pd.Series,
     *,
     geometry: MS400GeometryAssumption | None = None,
-    feed_rate_kg_h: float = 17.0,
+    feed_rate_kg_h: float = 14.0,
     feed_total_solids: float = 0.37,
     inlet_abs_humidity_g_kg: float = 5.7,
     humid_air_mass_flow_kg_h: float | None = None,

@@ -49,6 +49,8 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             "Re",
             "Sh",
             "Nu",
+            "axial_exposure_factor",
+            "combined_contact_exposure_factor",
             "delta_t_air_particle_k",
             "rho_v_driving_force_kg_m3",
             "q_conv_w",
@@ -344,6 +346,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         experiment = load_ms400_experiments().set_index("label").loc["V2"]
 
         self.assertEqual(sim_input.inlet_air_temp_c, 180.0)
+        self.assertEqual(sim_input.feed_rate_kg_h, 14.0)
         self.assertEqual(sim_input.feed_total_solids, 0.37)
         self.assertEqual(sim_input.x_b_model, "lin_gab")
         self.assertEqual(sim_input.cylinder_height_m, MS400GeometryAssumption().cylinder_height_m)
@@ -355,6 +358,14 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertGreater(sim_input.droplet_size_um, 46.0)
         self.assertAlmostEqual(experiment["d32_um"], 46.0)
         self.assertGreater(sim_input.air_flow_m3_h, 390.0)
+
+    def test_ms400_v3_builder_uses_shared_304kg_h_air_default(self) -> None:
+        sim_input = build_ms400_stationary_input_from_label("V3")
+        derived = derive_inputs(sim_input)
+
+        self.assertEqual(sim_input.feed_rate_kg_h, 14.0)
+        self.assertAlmostEqual(derived.humid_air_mass_flow_kg_s * 3600.0, 304.0, places=9)
+        self.assertEqual(sim_input.x_b_model, "lin_gab")
 
     def test_pressure_nozzle_default_initial_velocity_uses_feed_density(self) -> None:
         sim_input = StationarySMPREAInput(
@@ -485,6 +496,56 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             places=12,
         )
         self.assertGreater(reduced_result.outlet["outlet_X"], baseline_result.outlet["outlet_X"])
+
+    def test_atomization_zone_exposure_factor_scales_only_upper_zone_and_slows_drying(self) -> None:
+        baseline_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            axial_points=160,
+        )
+        staged_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            atomization_zone_length_m=0.30,
+            atomization_zone_exposure_factor=0.70,
+            axial_points=160,
+        )
+
+        baseline_result = solve_stationary_smp_profile(baseline_input)
+        staged_result = solve_stationary_smp_profile(staged_input)
+
+        self.assertAlmostEqual(
+            float(staged_result.series["axial_exposure_factor"].iloc[0]),
+            0.70,
+            places=12,
+        )
+        self.assertAlmostEqual(
+            float(staged_result.series["combined_contact_exposure_factor"].iloc[0]),
+            0.70,
+            places=12,
+        )
+        post_atomization_row = staged_result.series[
+            staged_result.series["h"] >= 0.35
+        ].iloc[0]
+        self.assertAlmostEqual(
+            float(post_atomization_row["axial_exposure_factor"]),
+            1.0,
+            places=12,
+        )
+        self.assertAlmostEqual(
+            float(post_atomization_row["h_m_eff_ms"]),
+            float(post_atomization_row["h_m_ms"]),
+            places=12,
+        )
+        self.assertAlmostEqual(
+            float(post_atomization_row["h_h_eff_w_m2_k"]),
+            float(post_atomization_row["h_h_w_m2_k"]),
+            places=12,
+        )
+        self.assertGreater(staged_result.outlet["outlet_X"], baseline_result.outlet["outlet_X"])
+        self.assertTrue(
+            any("atomization-zone exposure" in warning.lower() for warning in staged_result.warnings)
+        )
 
     def test_disabling_material_retardation_add_reduces_outlet_moisture(self) -> None:
         baseline = solve_stationary_smp_profile(

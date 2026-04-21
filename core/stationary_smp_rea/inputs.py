@@ -53,6 +53,8 @@ class StationarySMPREAInput:
     pressure_pa: float = 101325.0
     heat_loss_coeff_w_m2k: float = 4.5
     contact_efficiency: float = 1.0
+    atomization_zone_length_m: float = 0.0
+    atomization_zone_exposure_factor: float = 1.0
     enable_material_retardation_add: bool = True
     dry_solids_density_kg_m3: float = 1400.0
     water_density_kg_m3: float = 1000.0
@@ -108,6 +110,7 @@ class StationarySMPREAInput:
         nonnegative_fields = {
             "cone_height_m": self.cone_height_m,
             "outlet_duct_length_m": self.outlet_duct_length_m,
+            "atomization_zone_length_m": self.atomization_zone_length_m,
         }
         for name, value in nonnegative_fields.items():
             if value < 0.0:
@@ -117,6 +120,8 @@ class StationarySMPREAInput:
             errors.append("heat_loss_coeff_w_m2k darf nicht negativ sein.")
         if not 0.0 < self.contact_efficiency <= 1.0:
             errors.append("contact_efficiency muss im Bereich (0, 1] liegen.")
+        if not 0.0 < self.atomization_zone_exposure_factor <= 1.0:
+            errors.append("atomization_zone_exposure_factor muss im Bereich (0, 1] liegen.")
         if self.inlet_abs_humidity_g_kg < 0.0:
             errors.append("inlet_abs_humidity_g_kg darf nicht negativ sein.")
         if self.axial_points < 25:
@@ -171,6 +176,14 @@ class StationarySMPREAInput:
         if self.contact_efficiency < 1.0:
             warnings.append(
                 "The tower contact efficiency scales both heat and mass transfer below the ideal 1D reference to emulate reduced effective particle-air exposure."
+            )
+        if self.atomization_zone_length_m > 0.0 and self.atomization_zone_exposure_factor < 1.0:
+            warnings.append(
+                "A localized atomization-zone exposure factor scales both heat and mass transfer below the ideal 1D reference in the upper tower region."
+            )
+        if self.atomization_zone_length_m == 0.0 and self.atomization_zone_exposure_factor < 1.0:
+            warnings.append(
+                "atomization_zone_exposure_factor below 1.0 has no effect because atomization_zone_length_m is zero."
             )
         if not self.enable_material_retardation_add:
             warnings.append(

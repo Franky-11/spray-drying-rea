@@ -21,6 +21,8 @@ class StationaryInputDTO(BaseModel):
     feed_total_solids: float = Field(gt=0, le=1)
     heat_loss_coeff_w_m2k: float = Field(ge=0)
     contact_efficiency: float = Field(default=1.0, gt=0, le=1)
+    atomization_zone_length_m: float = Field(default=0.0, ge=0)
+    atomization_zone_exposure_factor: float = Field(default=1.0, gt=0, le=1)
     enable_material_retardation_add: bool = True
     x_b_model: Literal["langrish", "lin_gab"] = "lin_gab"
     nozzle_delta_p_bar: float = Field(gt=0)
@@ -82,6 +84,8 @@ class SimulationSeriesPointDTO(BaseModel):
     RH_a_pct: float
     x_b: float
     psi: float
+    axial_exposure_factor: float
+    combined_contact_exposure_factor: float
     delta_t_air_particle_c: float
     rho_v_driving_force_kg_m3: float
     q_conv_w: float

@@ -44,6 +44,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["inlet_abs_humidity_g_kg"], 6.0)
         self.assertAlmostEqual(data["default_inputs"]["feed_total_solids"], 0.37)
         self.assertAlmostEqual(data["default_inputs"]["contact_efficiency"], 1.0)
+        self.assertAlmostEqual(data["default_inputs"]["atomization_zone_length_m"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["atomization_zone_exposure_factor"], 1.0)
         self.assertTrue(data["default_inputs"]["enable_material_retardation_add"])
         self.assertNotIn("reference_cases", data)
 
@@ -60,6 +62,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                     "feed_total_solids": 0.37,
                     "heat_loss_coeff_w_m2k": 1.4,
                     "contact_efficiency": 0.9,
+                    "atomization_zone_length_m": 0.3,
+                    "atomization_zone_exposure_factor": 0.75,
                     "enable_material_retardation_add": False,
                     "x_b_model": "lin_gab",
                     "nozzle_delta_p_bar": 47.0,
@@ -88,8 +92,12 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("dmean_out_um", data["outlet"])
         self.assertIn("total_q_loss_w", data["outlet"])
         self.assertIn("delta_t_air_particle_c", data["profile"]["series"][0])
+        self.assertIn("axial_exposure_factor", data["profile"]["series"][0])
+        self.assertIn("combined_contact_exposure_factor", data["profile"]["series"][0])
         self.assertIn("q_evap_to_conv_ratio", data["profile"]["series"][0])
         self.assertAlmostEqual(data["inputs"]["contact_efficiency"], 0.9)
+        self.assertAlmostEqual(data["inputs"]["atomization_zone_length_m"], 0.3)
+        self.assertAlmostEqual(data["inputs"]["atomization_zone_exposure_factor"], 0.75)
         self.assertFalse(data["inputs"]["enable_material_retardation_add"])
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:

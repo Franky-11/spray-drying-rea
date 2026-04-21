@@ -82,6 +82,8 @@ class AlgebraicState:
     delta_e_j_mol: float
     psi: float
     contact_efficiency: float
+    axial_exposure_factor: float
+    combined_contact_exposure_factor: float
     effective_mass_transfer_coeff_ms: float
     effective_heat_transfer_coeff_w_m2_k: float
     q_loss_prime_w_m: float
@@ -109,6 +111,24 @@ def _state_components(vector: np.ndarray, include_tau_state: bool) -> tuple[floa
     if include_tau_state:
         return float(vector[0]), float(vector[1]), float(vector[2]), float(vector[3]), float(vector[4]), float(vector[5])
     return float(vector[0]), float(vector[1]), float(vector[2]), float(vector[3]), float(vector[4]), None
+
+
+def _smoothstep01(value: float) -> float:
+    bounded_value = min(max(value, 0.0), 1.0)
+    return bounded_value * bounded_value * (3.0 - 2.0 * bounded_value)
+
+
+def _atomization_zone_axial_exposure_factor(
+    h_m: float,
+    inputs: StationarySMPREAInput,
+) -> float:
+    if inputs.atomization_zone_length_m <= 0.0 or inputs.atomization_zone_exposure_factor >= 1.0:
+        return 1.0
+
+    ramp_coordinate = _smoothstep01(h_m / max(inputs.atomization_zone_length_m, EPS))
+    return inputs.atomization_zone_exposure_factor + (
+        1.0 - inputs.atomization_zone_exposure_factor
+    ) * ramp_coordinate
 
 
 def evaluate_algebraic_state(
@@ -183,6 +203,8 @@ def evaluate_algebraic_state(
         particle_velocity_ms=bounded_u_p_ms,
         air_velocity_ms=u_air,
     )
+    axial_exposure_factor = _atomization_zone_axial_exposure_factor(h_m, inputs)
+    combined_contact_exposure_factor = inputs.contact_efficiency * axial_exposure_factor
     return AlgebraicState(
         h_m=h_m,
         X=bounded_x,
@@ -230,11 +252,13 @@ def evaluate_algebraic_state(
         delta_e_j_mol=chew.delta_e_j_mol,
         psi=chew.psi,
         contact_efficiency=inputs.contact_efficiency,
+        axial_exposure_factor=axial_exposure_factor,
+        combined_contact_exposure_factor=combined_contact_exposure_factor,
         effective_mass_transfer_coeff_ms=(
-            inputs.contact_efficiency * transport.mass_transfer_coeff_ms
+            combined_contact_exposure_factor * transport.mass_transfer_coeff_ms
         ),
         effective_heat_transfer_coeff_w_m2_k=(
-            inputs.contact_efficiency * transport.heat_transfer_coeff_w_m2_k
+            combined_contact_exposure_factor * transport.heat_transfer_coeff_w_m2_k
         ),
         q_loss_prime_w_m=(
             inputs.heat_loss_coeff_w_m2k
