@@ -17,8 +17,9 @@ from core.stationary_smp_rea.materials.smp_chew import (
     activation_ratio,
     chew_shrinkage_ratio,
     chew_material_state,
+    fu_50_shrinkage_ratio,
+    fu_50_activation_ratio,
     legacy_extended_shrinkage_ratio,
-    legacy_high_solids_activation_ratio,
     initial_moisture_dry_basis,
     linear_parameters_from_initial_moisture,
     low_solids_activation_parameters,
@@ -132,37 +133,68 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
     def test_high_solids_shrinkage_interpolates_to_legacy_50_anchor(self) -> None:
         delta = 0.4
-        ratio_43 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.43)
-        ratio_46 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.46)
-        ratio_50 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.50)
+        temp_air_k = 363.15
+        ratio_43 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.43, temp_air_k=temp_air_k)
+        ratio_46 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.46, temp_air_k=temp_air_k)
+        ratio_50 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.50, temp_air_k=temp_air_k)
 
-        self.assertAlmostEqual(ratio_50, 0.959 + 0.0447 * delta, places=4)
+        self.assertAlmostEqual(ratio_50, fu_50_shrinkage_ratio(delta, temp_air_k), places=12)
         self.assertGreater(ratio_46, ratio_43)
         self.assertLess(ratio_46, ratio_50)
 
+    def test_fu_50_shrinkage_uses_reported_70c_and_90c_relations(self) -> None:
+        self.assertAlmostEqual(
+            fu_50_shrinkage_ratio(delta=0.20, temp_air_k=343.15),
+            0.0301 * 0.20 + 0.9238,
+            places=6,
+        )
+        self.assertAlmostEqual(
+            fu_50_shrinkage_ratio(delta=0.50, temp_air_k=343.15),
+            0.0866 * 0.50 + 0.9061,
+            places=6,
+        )
+        self.assertAlmostEqual(
+            fu_50_shrinkage_ratio(delta=0.50, temp_air_k=363.15),
+            0.0447 * 0.50 + 0.959,
+            places=6,
+        )
+
+    def test_fu_50_shrinkage_interpolates_between_70c_and_90c(self) -> None:
+        delta = 0.50
+        ratio_70 = fu_50_shrinkage_ratio(delta=delta, temp_air_k=343.15)
+        ratio_80 = fu_50_shrinkage_ratio(delta=delta, temp_air_k=353.15)
+        ratio_90 = fu_50_shrinkage_ratio(delta=delta, temp_air_k=363.15)
+
+        self.assertGreater(ratio_80, ratio_70)
+        self.assertLess(ratio_80, ratio_90)
+        self.assertAlmostEqual(ratio_80, 0.5 * (ratio_70 + ratio_90), places=6)
+
     def test_high_solids_rea_blends_toward_legacy_50_branch(self) -> None:
         delta = 0.6
-        moisture_dry_basis = 0.60
-        ratio_43, *_ = activation_ratio(delta, 0.43, moisture_dry_basis)
-        ratio_47, *_ = activation_ratio(delta, 0.47, moisture_dry_basis)
-        ratio_50, *_ = activation_ratio(delta, 0.50, moisture_dry_basis)
+        ratio_43, *_ = activation_ratio(delta, 0.43)
+        ratio_47, *_ = activation_ratio(delta, 0.47)
+        ratio_50, *_ = activation_ratio(delta, 0.50)
 
         self.assertGreater(ratio_43, ratio_47)
         self.assertGreater(ratio_47, ratio_50)
         self.assertAlmostEqual(
             ratio_50,
-            legacy_high_solids_activation_ratio(delta, moisture_dry_basis),
+            fu_50_activation_ratio(delta),
             places=12,
         )
 
-    def test_high_solids_rea_uses_legacy_dry_cutoff_at_50_percent(self) -> None:
+    def test_high_solids_rea_uses_fu_50_cubic_and_saturates_at_delta_one(self) -> None:
         ratio_50, *_ = activation_ratio(
-            delta=0.2,
+            delta=1.20,
             feed_total_solids=0.50,
-            moisture_dry_basis=1.05,
         )
 
-        self.assertAlmostEqual(ratio_50, 0.05, places=12)
+        self.assertAlmostEqual(
+            ratio_50,
+            fu_50_activation_ratio(1.0),
+            places=12,
+        )
+        self.assertAlmostEqual(ratio_50, 0.0570, places=4)
 
     def test_20_percent_case_runs_with_low_solids_extension(self) -> None:
         result = solve_stationary_smp_profile(

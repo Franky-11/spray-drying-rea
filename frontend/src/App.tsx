@@ -1278,7 +1278,7 @@ const modelAssumptions = [
   {
     title: 'SMP material closure',
     description:
-      'The REA and shrinkage closures are parameterized for the current SMP context over 20-50 wt% feed solids. Above 43 wt%, REA blends toward the legacy 50-wt% branch and shrinkage interpolates onto the 50-wt% anchor; below 37 wt%, the legacy extended shrinkage path is used.',
+      'The REA and shrinkage closures are parameterized for the current SMP context over 20-50 wt% feed solids. Above 43 wt%, REA blends toward the Fu et al. 50-wt% material function and shrinkage blends onto the temperature-dependent 50-wt% endpoint; below 37 wt%, the legacy extended shrinkage path is used.',
   },
   {
     title: 'No Tg or stickiness model in V1',

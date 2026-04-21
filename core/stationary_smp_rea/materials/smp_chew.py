@@ -12,6 +12,10 @@ EARLY_FALLING_RATE_WINDOW_CENTER = 0.12
 EARLY_FALLING_RATE_WINDOW_WIDTH = 0.025
 HIGH_SOLIDS_BLEND_START = 0.43
 HIGH_SOLIDS_BLEND_END = 0.50
+LEGACY_REA_50_DELTA_LIMIT = 1.0
+FU_REA_50_CUBIC = {"a": -1.485, "b": 2.728, "c": -2.186}
+FU_SHRINKAGE_50_TEMP_LOW_C = 70.0
+FU_SHRINKAGE_50_TEMP_HIGH_C = 90.0
 LINEAR_ANCHORS = {
     0.30: {"slope": 0.1617, "critical_delta": 1.362, "critical_ratio": 0.172},
     0.37: {"slope": 0.3595, "critical_delta": 0.969, "critical_ratio": 0.265},
@@ -22,12 +26,10 @@ SHRINKAGE_ANCHORS = {
     0.37: {"intercept": 0.8021, "slope": 0.1214},
     0.40: {"intercept": 0.8506, "slope": 0.0956},
     0.43: {"intercept": 0.87, "slope": 0.0933},
-    0.50: {"intercept": 0.959, "slope": 0.0447},
 }
 LOW_SOLIDS_LINEAR = {"slope": 0.1617, "critical_delta": 1.362, "critical_ratio": 0.172}
 LEGACY_SHRINKAGE_20 = 0.67
 LEGACY_SHRINKAGE_30 = 0.76
-LEGACY_REA_50_DRY_RATIO = 0.05
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,7 @@ def chew_validity_warnings(feed_total_solids: float) -> list[str]:
         )
     if feed_total_solids > HIGH_SOLIDS_BLEND_START:
         warnings.append(
-            "Above 43 wt%, SMP REA smoothly blends the active high-solids law toward the legacy 50-wt% function, and shrinkage interpolates between the 43- and 50-wt% anchors."
+            "Above 43 wt%, SMP REA smoothly blends the active high-solids law toward the Fu et al. 50-wt% function, and shrinkage blends from the 43-wt% anchor onto the temperature-dependent 50-wt% endpoint."
         )
     return warnings
 
@@ -173,20 +175,18 @@ def _continuous_activation_ratio(
     )
 
 
-def legacy_high_solids_activation_ratio(
+def fu_50_activation_ratio(
     delta: float,
-    moisture_dry_basis: float,
 ) -> float:
-    if moisture_dry_basis >= 1.0:
-        return LEGACY_REA_50_DRY_RATIO
-    bounded_delta = max(delta, 0.0)
+    # Fu et al. (2012) report a dedicated 50-wt% REA cubic in delta = X - x_b.
+    # It stays positive up to delta = 1.0 and turns negative beyond that, so
+    # the active kernel saturates the delta input at that last positive boundary.
+    bounded_delta = min(max(delta, 0.0), LEGACY_REA_50_DELTA_LIMIT)
     ratio = (
-        1.0063
-        - 1.5828 * bounded_delta
-        + 3.3561 * bounded_delta**2
-        - 9.389 * bounded_delta**3
-        + 12.22 * bounded_delta**4
-        - 5.5924 * bounded_delta**5
+        FU_REA_50_CUBIC["a"] * bounded_delta**3
+        + FU_REA_50_CUBIC["b"] * bounded_delta**2
+        + FU_REA_50_CUBIC["c"] * bounded_delta
+        + 1.0
     )
     return min(max(ratio, 0.0), 1.0)
 
@@ -194,7 +194,6 @@ def legacy_high_solids_activation_ratio(
 def activation_ratio(
     delta: float,
     feed_total_solids: float,
-    moisture_dry_basis: float | None = None,
 ) -> tuple[float, float, float, float, float]:
     ratio, slope, intercept, critical_delta, critical_ratio = _continuous_activation_ratio(
         delta,
@@ -203,14 +202,13 @@ def activation_ratio(
     if feed_total_solids <= HIGH_SOLIDS_BLEND_START:
         return ratio, slope, intercept, critical_delta, critical_ratio
 
-    legacy_ratio = legacy_high_solids_activation_ratio(
+    fu_ratio = fu_50_activation_ratio(
         delta,
-        moisture_dry_basis if moisture_dry_basis is not None else max(delta, 0.0),
     )
     # Above 43 wt%, keep the active continuous Chew-based branch as the lower
-    # endpoint and blend it smoothly onto the legacy 50-wt% REA function.
+    # endpoint and blend it smoothly onto the Fu et al. 50-wt% REA function.
     blend = _smoothstep(feed_total_solids, HIGH_SOLIDS_BLEND_START, HIGH_SOLIDS_BLEND_END)
-    blended_ratio = _lerp(ratio, legacy_ratio, blend)
+    blended_ratio = _lerp(ratio, fu_ratio, blend)
     return (
         min(max(blended_ratio, 0.0), 1.0),
         slope,
@@ -242,13 +240,51 @@ def _early_falling_rate_activation_ratio_add(
     return min(max(activation_ratio_add, 0.0), 1.0), normalized_delta
 
 
-def chew_shrinkage_ratio(delta: float, feed_total_solids: float) -> float:
-    # Extend the active high-solids shrinkage family with the legacy 50-wt%
-    # anchor and keep intermediate TS values on the existing anchor-interpolation path.
-    bounded_total_solids = min(max(feed_total_solids, 0.37), 0.50)
+def _anchored_high_solids_shrinkage_ratio(delta: float, feed_total_solids: float) -> float:
+    bounded_total_solids = min(max(feed_total_solids, 0.37), 0.43)
     params = _piecewise_linear_interpolate(bounded_total_solids, SHRINKAGE_ANCHORS)
     ratio = params["intercept"] + params["slope"] * max(delta, 0.0)
     return min(max(ratio, 0.2), 1.0)
+
+
+def _fu_50_shrinkage_ratio_70c(delta: float) -> float:
+    bounded_delta = max(delta, 0.0)
+    if bounded_delta <= 0.30:
+        ratio = 0.0301 * bounded_delta + 0.9238
+    else:
+        ratio = 0.0866 * bounded_delta + 0.9061
+    return min(max(ratio, 0.2), 1.0)
+
+
+def _fu_50_shrinkage_ratio_90c(delta: float) -> float:
+    ratio = 0.0447 * max(delta, 0.0) + 0.959
+    return min(max(ratio, 0.2), 1.0)
+
+
+def fu_50_shrinkage_ratio(delta: float, temp_air_k: float) -> float:
+    temp_air_c = temp_air_k - 273.15
+    ratio_70 = _fu_50_shrinkage_ratio_70c(delta)
+    ratio_90 = _fu_50_shrinkage_ratio_90c(delta)
+    # Fu et al. (2012) report 70 and 90 degC endpoints for 50-wt% SMP.
+    # The active kernel maps the local air temperature onto those endpoints.
+    if temp_air_c <= FU_SHRINKAGE_50_TEMP_LOW_C:
+        return ratio_70
+    if temp_air_c >= FU_SHRINKAGE_50_TEMP_HIGH_C:
+        return ratio_90
+    blend = (
+        (temp_air_c - FU_SHRINKAGE_50_TEMP_LOW_C)
+        / max(FU_SHRINKAGE_50_TEMP_HIGH_C - FU_SHRINKAGE_50_TEMP_LOW_C, EPS)
+    )
+    return min(max(_lerp(ratio_70, ratio_90, blend), 0.2), 1.0)
+
+
+def chew_shrinkage_ratio(delta: float, feed_total_solids: float, temp_air_k: float) -> float:
+    if feed_total_solids <= HIGH_SOLIDS_BLEND_START:
+        return _anchored_high_solids_shrinkage_ratio(delta, feed_total_solids)
+    ratio_43 = _anchored_high_solids_shrinkage_ratio(delta, HIGH_SOLIDS_BLEND_START)
+    ratio_50 = fu_50_shrinkage_ratio(delta, temp_air_k)
+    blend = _smoothstep(feed_total_solids, HIGH_SOLIDS_BLEND_START, HIGH_SOLIDS_BLEND_END)
+    return min(max(_lerp(ratio_43, ratio_50, blend), 0.2), 1.0)
 
 
 def legacy_extended_shrinkage_ratio(
@@ -261,7 +297,7 @@ def legacy_extended_shrinkage_ratio(
     normalized_delta = min(max(normalized_delta, 0.0), 1.0)
     factor_20 = LEGACY_SHRINKAGE_20 + (1.0 - LEGACY_SHRINKAGE_20) * normalized_delta
     factor_30 = LEGACY_SHRINKAGE_30 + (1.0 - LEGACY_SHRINKAGE_30) * normalized_delta
-    factor_37 = chew_shrinkage_ratio(delta, 0.37)
+    factor_37 = _anchored_high_solids_shrinkage_ratio(delta, 0.37)
 
     if feed_total_solids <= 0.20:
         return factor_20
@@ -271,7 +307,7 @@ def legacy_extended_shrinkage_ratio(
     if feed_total_solids < 0.37:
         blend = (feed_total_solids - 0.30) / 0.07
         return factor_30 + blend * (factor_37 - factor_30)
-    return chew_shrinkage_ratio(delta, feed_total_solids)
+    return factor_37
 
 
 def shrinkage_ratio(
@@ -279,15 +315,16 @@ def shrinkage_ratio(
     x_b: float,
     feed_total_solids: float,
     shrinkage_model: str,
+    temp_air_k: float,
 ) -> tuple[float, str]:
     if shrinkage_model == "chew":
-        return chew_shrinkage_ratio(delta, feed_total_solids), "chew"
+        return chew_shrinkage_ratio(delta, feed_total_solids, temp_air_k), "chew"
     if shrinkage_model == "legacy_extended":
         return legacy_extended_shrinkage_ratio(delta, x_b, feed_total_solids), "legacy_extended"
     if shrinkage_model == "auto":
         if feed_total_solids < 0.37:
             return legacy_extended_shrinkage_ratio(delta, x_b, feed_total_solids), "legacy_extended"
-        return chew_shrinkage_ratio(delta, feed_total_solids), "chew"
+        return chew_shrinkage_ratio(delta, feed_total_solids, temp_air_k), "chew"
     raise ValueError(f"Unsupported shrinkage model: {shrinkage_model}")
 
 
@@ -311,7 +348,6 @@ def chew_material_state(
     reduced_ratio_base, slope, intercept, critical_delta, critical_ratio = activation_ratio(
         delta,
         feed_total_solids,
-        moisture_dry_basis,
     )
     reduced_ratio_add, normalized_delta = _early_falling_rate_activation_ratio_add(
         delta,
@@ -327,6 +363,7 @@ def chew_material_state(
         x_b,
         feed_total_solids,
         shrinkage_model,
+        temp_air_k,
     )
     return ChewMaterialState(
         delta=delta,
