@@ -118,16 +118,71 @@ def _smoothstep01(value: float) -> float:
     return bounded_value * bounded_value * (3.0 - 2.0 * bounded_value)
 
 
+def _smooth_transition(
+    h_m: float,
+    start_h_m: float,
+    end_h_m: float,
+    start_value: float,
+    end_value: float,
+) -> float:
+    if end_h_m <= start_h_m:
+        return end_value
+    blend = _smoothstep01((h_m - start_h_m) / max(end_h_m - start_h_m, EPS))
+    return start_value + (end_value - start_value) * blend
+
+
 def _atomization_zone_axial_exposure_factor(
     h_m: float,
     inputs: StationarySMPREAInput,
 ) -> float:
-    if inputs.atomization_zone_length_m <= 0.0 or inputs.atomization_zone_exposure_factor >= 1.0:
+    atomization_zone_length_m = inputs.atomization_zone_length_m
+    atomization_zone_exposure_factor = inputs.atomization_zone_exposure_factor
+    secondary_zone_length_m = inputs.secondary_exposure_zone_length_m
+    secondary_zone_factor = inputs.secondary_exposure_zone_factor
+
+    stage1_active = (
+        atomization_zone_length_m > 0.0 and atomization_zone_exposure_factor < 1.0
+    )
+    stage2_active = (
+        secondary_zone_length_m > 0.0 and secondary_zone_factor < 1.0
+    )
+
+    if not stage1_active and not stage2_active:
         return 1.0
 
-    ramp_coordinate = _smoothstep01(h_m / max(inputs.atomization_zone_length_m, EPS))
-    return inputs.atomization_zone_exposure_factor + (
-        1.0 - inputs.atomization_zone_exposure_factor
+    if stage2_active:
+        first_zone_end_h_m = atomization_zone_length_m if atomization_zone_length_m > 0.0 else 0.0
+        second_zone_end_h_m = first_zone_end_h_m + secondary_zone_length_m
+        transition_width_h_m = min(
+            0.05,
+            0.25 * max(min(secondary_zone_length_m, max(atomization_zone_length_m, secondary_zone_length_m)), EPS),
+        )
+
+        if atomization_zone_length_m > 0.0 and h_m < max(first_zone_end_h_m - transition_width_h_m, 0.0):
+            return atomization_zone_exposure_factor
+        if atomization_zone_length_m > 0.0 and h_m < first_zone_end_h_m + transition_width_h_m:
+            return _smooth_transition(
+                h_m,
+                max(first_zone_end_h_m - transition_width_h_m, 0.0),
+                first_zone_end_h_m + transition_width_h_m,
+                atomization_zone_exposure_factor,
+                secondary_zone_factor,
+            )
+        if h_m < max(second_zone_end_h_m - transition_width_h_m, first_zone_end_h_m):
+            return secondary_zone_factor
+        if h_m < second_zone_end_h_m + transition_width_h_m:
+            return _smooth_transition(
+                h_m,
+                max(second_zone_end_h_m - transition_width_h_m, first_zone_end_h_m),
+                second_zone_end_h_m + transition_width_h_m,
+                secondary_zone_factor,
+                1.0,
+            )
+        return 1.0
+
+    ramp_coordinate = _smoothstep01(h_m / max(atomization_zone_length_m, EPS))
+    return atomization_zone_exposure_factor + (
+        1.0 - atomization_zone_exposure_factor
     ) * ramp_coordinate
 
 

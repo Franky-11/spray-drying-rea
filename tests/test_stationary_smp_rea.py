@@ -547,6 +547,60 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             any("atomization-zone exposure" in warning.lower() for warning in staged_result.warnings)
         )
 
+    def test_secondary_exposure_zone_extends_tower_side_reduction_downstream(self) -> None:
+        stage1_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            atomization_zone_length_m=0.20,
+            atomization_zone_exposure_factor=0.70,
+            axial_points=200,
+        )
+        stage2_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            atomization_zone_length_m=0.20,
+            atomization_zone_exposure_factor=0.70,
+            secondary_exposure_zone_length_m=0.40,
+            secondary_exposure_zone_factor=0.85,
+            axial_points=200,
+        )
+
+        stage1_result = solve_stationary_smp_profile(stage1_input)
+        stage2_result = solve_stationary_smp_profile(stage2_input)
+
+        first_zone_row = stage2_result.series[stage2_result.series["h"] <= 0.10].iloc[-1]
+        second_zone_row = stage2_result.series[
+            (stage2_result.series["h"] >= 0.30) & (stage2_result.series["h"] <= 0.50)
+        ].iloc[0]
+        downstream_row = stage2_result.series[stage2_result.series["h"] >= 0.70].iloc[0]
+        stage1_compare_row = stage1_result.series[
+            (stage1_result.series["h"] >= 0.30) & (stage1_result.series["h"] <= 0.50)
+        ].iloc[0]
+
+        self.assertAlmostEqual(
+            float(first_zone_row["axial_exposure_factor"]),
+            0.70,
+            delta=0.03,
+        )
+        self.assertAlmostEqual(
+            float(second_zone_row["axial_exposure_factor"]),
+            0.85,
+            delta=0.03,
+        )
+        self.assertAlmostEqual(
+            float(downstream_row["axial_exposure_factor"]),
+            1.0,
+            places=12,
+        )
+        self.assertGreater(
+            float(stage1_compare_row["axial_exposure_factor"]),
+            float(second_zone_row["axial_exposure_factor"]),
+        )
+        self.assertGreater(stage2_result.outlet["outlet_X"], stage1_result.outlet["outlet_X"])
+        self.assertTrue(
+            any("secondary axial exposure zone" in warning.lower() for warning in stage2_result.warnings)
+        )
+
     def test_disabling_material_retardation_add_reduces_outlet_moisture(self) -> None:
         baseline = solve_stationary_smp_profile(
             StationarySMPREAInput(

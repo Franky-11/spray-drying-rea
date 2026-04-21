@@ -46,6 +46,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["contact_efficiency"], 1.0)
         self.assertAlmostEqual(data["default_inputs"]["atomization_zone_length_m"], 0.0)
         self.assertAlmostEqual(data["default_inputs"]["atomization_zone_exposure_factor"], 1.0)
+        self.assertAlmostEqual(data["default_inputs"]["secondary_exposure_zone_length_m"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["secondary_exposure_zone_factor"], 1.0)
         self.assertTrue(data["default_inputs"]["enable_material_retardation_add"])
         self.assertNotIn("reference_cases", data)
 
@@ -64,6 +66,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                     "contact_efficiency": 0.9,
                     "atomization_zone_length_m": 0.3,
                     "atomization_zone_exposure_factor": 0.75,
+                    "secondary_exposure_zone_length_m": 0.5,
+                    "secondary_exposure_zone_factor": 0.85,
                     "enable_material_retardation_add": False,
                     "x_b_model": "lin_gab",
                     "nozzle_delta_p_bar": 47.0,
@@ -98,6 +102,8 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["inputs"]["contact_efficiency"], 0.9)
         self.assertAlmostEqual(data["inputs"]["atomization_zone_length_m"], 0.3)
         self.assertAlmostEqual(data["inputs"]["atomization_zone_exposure_factor"], 0.75)
+        self.assertAlmostEqual(data["inputs"]["secondary_exposure_zone_length_m"], 0.5)
+        self.assertAlmostEqual(data["inputs"]["secondary_exposure_zone_factor"], 0.85)
         self.assertFalse(data["inputs"]["enable_material_retardation_add"])
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:

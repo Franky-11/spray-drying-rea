@@ -23,6 +23,8 @@ class StationaryInputDTO(BaseModel):
     contact_efficiency: float = Field(default=1.0, gt=0, le=1)
     atomization_zone_length_m: float = Field(default=0.0, ge=0)
     atomization_zone_exposure_factor: float = Field(default=1.0, gt=0, le=1)
+    secondary_exposure_zone_length_m: float = Field(default=0.0, ge=0)
+    secondary_exposure_zone_factor: float = Field(default=1.0, gt=0, le=1)
     enable_material_retardation_add: bool = True
     x_b_model: Literal["langrish", "lin_gab"] = "lin_gab"
     nozzle_delta_p_bar: float = Field(gt=0)
