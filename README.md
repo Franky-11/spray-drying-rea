@@ -233,4 +233,4 @@ See `legacy/README.md` for the archived layout.
 - `frontend/`: React/Vite/TypeScript frontend
 - `tests/`: active API and stationary-core tests
 - `legacy/`: archived Streamlit app, process simulation, calibration code, and legacy tests
-- `ms400/`: reference and calibration data retained for validation and archived workflows
+- `ms400/`: local validation data used only by selected backend-core tests and exploratory workflows, not by the active app runtime
