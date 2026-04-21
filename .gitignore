@@ -17,5 +17,4 @@ design
 /docs/
 assets/generated_images/*
 !assets/generated_images/.gitkeep
-ms400
 references
