@@ -123,9 +123,9 @@ class StationarySMPREAInput:
             )
         if self.material != "SMP":
             errors.append("Der neue stationaere Kern unterstuetzt nur SMP.")
-        if not 0.20 <= self.feed_total_solids <= 0.43:
+        if not 0.20 <= self.feed_total_solids <= 0.50:
             errors.append(
-                "feed_total_solids muss fuer den aktuellen SMP-Kern zwischen 0.20 und 0.43 liegen."
+                "feed_total_solids muss fuer den aktuellen SMP-Kern zwischen 0.20 und 0.50 liegen."
             )
         for name, value in {
             "inlet_air_temp_c": self.inlet_air_temp_c,

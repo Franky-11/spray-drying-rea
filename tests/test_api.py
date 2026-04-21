@@ -111,6 +111,38 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("feed_total_solids", response.json()["detail"])
 
+    async def test_simulate_accepts_50_percent_feed_solids(self) -> None:
+        response = await self.client.post(
+            "/simulate",
+            json={
+                "inputs": {
+                    "Tin": 180.0,
+                    "humid_air_mass_flow_kg_h": 304.0,
+                    "feed_rate_kg_h": 17.0,
+                    "droplet_size_um": 64.6,
+                    "inlet_abs_humidity_g_kg": 5.7,
+                    "feed_total_solids": 0.50,
+                    "heat_loss_coeff_w_m2k": 1.4,
+                    "x_b_model": "lin_gab",
+                    "nozzle_delta_p_bar": 47.0,
+                    "nozzle_velocity_coefficient": 0.6,
+                    "dryer_diameter_m": 1.15,
+                    "cylinder_height_m": 2.2,
+                    "cone_height_m": 1.0,
+                    "outlet_duct_length_m": 1.0,
+                    "outlet_duct_diameter_m": 0.2,
+                },
+                "target_moisture_wb_pct": 4.0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["summary"]["solver_success"])
+        self.assertTrue(
+            any("Above 43 wt%" in warning for warning in data["warnings"])
+        )
+
     async def test_compare_returns_multiple_scenarios_and_base_id(self) -> None:
         response = await self.client.post(
             "/compare",

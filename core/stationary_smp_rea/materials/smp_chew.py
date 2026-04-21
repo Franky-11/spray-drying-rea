@@ -10,6 +10,8 @@ POLY_COEFFS = (1.0, -1.305, 0.7097, -0.1721, 0.0151)
 EARLY_FALLING_RATE_ADD_GAIN = 1.29
 EARLY_FALLING_RATE_WINDOW_CENTER = 0.12
 EARLY_FALLING_RATE_WINDOW_WIDTH = 0.025
+HIGH_SOLIDS_BLEND_START = 0.43
+HIGH_SOLIDS_BLEND_END = 0.50
 LINEAR_ANCHORS = {
     0.30: {"slope": 0.1617, "critical_delta": 1.362, "critical_ratio": 0.172},
     0.37: {"slope": 0.3595, "critical_delta": 0.969, "critical_ratio": 0.265},
@@ -20,10 +22,12 @@ SHRINKAGE_ANCHORS = {
     0.37: {"intercept": 0.8021, "slope": 0.1214},
     0.40: {"intercept": 0.8506, "slope": 0.0956},
     0.43: {"intercept": 0.87, "slope": 0.0933},
+    0.50: {"intercept": 0.959, "slope": 0.0447},
 }
 LOW_SOLIDS_LINEAR = {"slope": 0.1617, "critical_delta": 1.362, "critical_ratio": 0.172}
 LEGACY_SHRINKAGE_20 = 0.67
 LEGACY_SHRINKAGE_30 = 0.76
+LEGACY_REA_50_DRY_RATIO = 0.05
 
 
 @dataclass(frozen=True)
@@ -48,13 +52,17 @@ class ChewMaterialState:
 
 def chew_validity_warnings(feed_total_solids: float) -> list[str]:
     warnings: list[str] = []
-    if not 0.20 <= feed_total_solids <= 0.43:
+    if not 0.20 <= feed_total_solids <= 0.50:
         warnings.append(
-            "The current SMP core is enabled for 20-43 wt%; however, Chew Table 3 itself is directly anchored only for 30-43 wt%."
+            "The current SMP core is enabled for 20-50 wt%; Chew Table 3 itself is directly anchored only for 30-43 wt%, while 43-50 wt% blends toward the legacy 50-wt% SMP branch."
         )
     if feed_total_solids < 0.37:
         warnings.append(
             "Chew shrinkage is directly anchored only for 37-43 wt%."
+        )
+    if feed_total_solids > HIGH_SOLIDS_BLEND_START:
+        warnings.append(
+            "Above 43 wt%, SMP REA smoothly blends the active high-solids law toward the legacy 50-wt% function, and shrinkage interpolates between the 43- and 50-wt% anchors."
         )
     return warnings
 
@@ -98,6 +106,20 @@ def _sigmoid(value: float) -> float:
     return exp_term / (1.0 + exp_term)
 
 
+def _lerp(lower: float, upper: float, blend: float) -> float:
+    bounded_blend = min(max(blend, 0.0), 1.0)
+    return lower + bounded_blend * (upper - lower)
+
+
+def _smoothstep(value: float, start: float, end: float) -> float:
+    if value <= start:
+        return 0.0
+    if value >= end:
+        return 1.0
+    blend = (value - start) / max(end - start, EPS)
+    return blend * blend * (3.0 - 2.0 * blend)
+
+
 def linear_parameters_from_initial_moisture(
     initial_moisture_dry_basis_value: float,
 ) -> tuple[float, float, float, float]:
@@ -126,7 +148,10 @@ def table2_anchor_parameters(feed_total_solids: float) -> tuple[float, float, fl
     return slope, intercept, critical_delta, critical_ratio
 
 
-def activation_ratio(delta: float, feed_total_solids: float) -> tuple[float, float, float, float]:
+def _continuous_activation_ratio(
+    delta: float,
+    feed_total_solids: float,
+) -> tuple[float, float, float, float, float]:
     if feed_total_solids < 0.30:
         slope, intercept, critical_delta, critical_ratio = low_solids_activation_parameters()
     else:
@@ -141,6 +166,53 @@ def activation_ratio(delta: float, feed_total_solids: float) -> tuple[float, flo
         ratio = _common_polynomial(bounded_delta)
     return (
         min(max(ratio, 0.0), 1.0),
+        slope,
+        intercept,
+        critical_delta,
+        critical_ratio,
+    )
+
+
+def legacy_high_solids_activation_ratio(
+    delta: float,
+    moisture_dry_basis: float,
+) -> float:
+    if moisture_dry_basis >= 1.0:
+        return LEGACY_REA_50_DRY_RATIO
+    bounded_delta = max(delta, 0.0)
+    ratio = (
+        1.0063
+        - 1.5828 * bounded_delta
+        + 3.3561 * bounded_delta**2
+        - 9.389 * bounded_delta**3
+        + 12.22 * bounded_delta**4
+        - 5.5924 * bounded_delta**5
+    )
+    return min(max(ratio, 0.0), 1.0)
+
+
+def activation_ratio(
+    delta: float,
+    feed_total_solids: float,
+    moisture_dry_basis: float | None = None,
+) -> tuple[float, float, float, float, float]:
+    ratio, slope, intercept, critical_delta, critical_ratio = _continuous_activation_ratio(
+        delta,
+        feed_total_solids,
+    )
+    if feed_total_solids <= HIGH_SOLIDS_BLEND_START:
+        return ratio, slope, intercept, critical_delta, critical_ratio
+
+    legacy_ratio = legacy_high_solids_activation_ratio(
+        delta,
+        moisture_dry_basis if moisture_dry_basis is not None else max(delta, 0.0),
+    )
+    # Above 43 wt%, keep the active continuous Chew-based branch as the lower
+    # endpoint and blend it smoothly onto the legacy 50-wt% REA function.
+    blend = _smoothstep(feed_total_solids, HIGH_SOLIDS_BLEND_START, HIGH_SOLIDS_BLEND_END)
+    blended_ratio = _lerp(ratio, legacy_ratio, blend)
+    return (
+        min(max(blended_ratio, 0.0), 1.0),
         slope,
         intercept,
         critical_delta,
@@ -171,7 +243,9 @@ def _early_falling_rate_activation_ratio_add(
 
 
 def chew_shrinkage_ratio(delta: float, feed_total_solids: float) -> float:
-    bounded_total_solids = min(max(feed_total_solids, 0.37), 0.43)
+    # Extend the active high-solids shrinkage family with the legacy 50-wt%
+    # anchor and keep intermediate TS values on the existing anchor-interpolation path.
+    bounded_total_solids = min(max(feed_total_solids, 0.37), 0.50)
     params = _piecewise_linear_interpolate(bounded_total_solids, SHRINKAGE_ANCHORS)
     ratio = params["intercept"] + params["slope"] * max(delta, 0.0)
     return min(max(ratio, 0.2), 1.0)
@@ -237,6 +311,7 @@ def chew_material_state(
     reduced_ratio_base, slope, intercept, critical_delta, critical_ratio = activation_ratio(
         delta,
         feed_total_solids,
+        moisture_dry_basis,
     )
     reduced_ratio_add, normalized_delta = _early_falling_rate_activation_ratio_add(
         delta,

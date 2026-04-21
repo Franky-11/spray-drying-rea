@@ -14,8 +14,11 @@ from core.stationary_smp_rea.balances import evaluate_algebraic_state, evaluate_
 from core.stationary_smp_rea.inputs import derive_inputs
 from core.stationary_smp_rea.ms400 import load_ms400_experiments
 from core.stationary_smp_rea.materials.smp_chew import (
+    activation_ratio,
+    chew_shrinkage_ratio,
     chew_material_state,
     legacy_extended_shrinkage_ratio,
+    legacy_high_solids_activation_ratio,
     initial_moisture_dry_basis,
     linear_parameters_from_initial_moisture,
     low_solids_activation_parameters,
@@ -127,6 +130,40 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertAlmostEqual(ratio_30_dry, 0.76, places=4)
         self.assertAlmostEqual(ratio_30_wet, 1.0, places=4)
 
+    def test_high_solids_shrinkage_interpolates_to_legacy_50_anchor(self) -> None:
+        delta = 0.4
+        ratio_43 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.43)
+        ratio_46 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.46)
+        ratio_50 = chew_shrinkage_ratio(delta=delta, feed_total_solids=0.50)
+
+        self.assertAlmostEqual(ratio_50, 0.959 + 0.0447 * delta, places=4)
+        self.assertGreater(ratio_46, ratio_43)
+        self.assertLess(ratio_46, ratio_50)
+
+    def test_high_solids_rea_blends_toward_legacy_50_branch(self) -> None:
+        delta = 0.6
+        moisture_dry_basis = 0.60
+        ratio_43, *_ = activation_ratio(delta, 0.43, moisture_dry_basis)
+        ratio_47, *_ = activation_ratio(delta, 0.47, moisture_dry_basis)
+        ratio_50, *_ = activation_ratio(delta, 0.50, moisture_dry_basis)
+
+        self.assertGreater(ratio_43, ratio_47)
+        self.assertGreater(ratio_47, ratio_50)
+        self.assertAlmostEqual(
+            ratio_50,
+            legacy_high_solids_activation_ratio(delta, moisture_dry_basis),
+            places=12,
+        )
+
+    def test_high_solids_rea_uses_legacy_dry_cutoff_at_50_percent(self) -> None:
+        ratio_50, *_ = activation_ratio(
+            delta=0.2,
+            feed_total_solids=0.50,
+            moisture_dry_basis=1.05,
+        )
+
+        self.assertAlmostEqual(ratio_50, 0.05, places=12)
+
     def test_20_percent_case_runs_with_low_solids_extension(self) -> None:
         result = solve_stationary_smp_profile(
             StationarySMPREAInput(feed_total_solids=0.20)
@@ -136,6 +173,18 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertEqual(result.series["shrinkage_mode"].iloc[0], "legacy_extended")
         self.assertTrue(
             any("below 30 wt%" in warning.lower() for warning in result.warnings)
+        )
+        self.assertLess(result.outlet["outlet_X"], result.series["X"].iloc[0])
+
+    def test_50_percent_case_runs_with_high_solids_extension(self) -> None:
+        result = solve_stationary_smp_profile(
+            StationarySMPREAInput(feed_total_solids=0.50)
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.series["shrinkage_mode"].iloc[0], "chew")
+        self.assertTrue(
+            any("above 43 wt%" in warning.lower() for warning in result.warnings)
         )
         self.assertLess(result.outlet["outlet_X"], result.series["X"].iloc[0])
 
