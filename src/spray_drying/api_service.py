@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 
 from core.stationary_smp_rea import (
     MS400GeometryAssumption,
     StationarySMPREAInput,
-    build_ms400_stationary_input,
     derive_inputs,
-    load_ms400_experiments,
     solve_stationary_smp_profile,
 )
 from core.stationary_smp_rea.air import moist_air_density
@@ -19,7 +15,6 @@ from .api_schemas import (
     CompareResponseDTO,
     CompareScenarioResponseDTO,
     ModelDefaultsDTO,
-    ReferenceCasePresetDTO,
     SimulationOutletDTO,
     SimulationProfileDTO,
     SimulationRequestDTO,
@@ -32,7 +27,6 @@ from .api_schemas import (
 
 
 DEFAULT_TARGET_MOISTURE_WB_PCT = 4.0
-MS400_PSD_PATH = Path(__file__).resolve().parents[2] / "ms400" / "psd.csv"
 SOLVER_METHODS = ["BDF", "RK45", "Radau"]
 SUPPRESSED_UI_WARNINGS = {
     "The section-wise geometry treats cylinder, cone, and outlet duct as an effective 1D flow path with local cross section; redirection, back-mixing, and changes in flow direction are not resolved separately.",
@@ -41,32 +35,12 @@ SUPPRESSED_UI_WARNINGS = {
 
 
 def get_model_defaults() -> ModelDefaultsDTO:
-    reference_cases = list_reference_cases()
     return ModelDefaultsDTO(
         default_target_moisture_wb_pct=DEFAULT_TARGET_MOISTURE_WB_PCT,
         default_inputs=build_default_input_dto(),
         x_b_models=list(X_B_MODELS),
         solver_methods=SOLVER_METHODS,
-        reference_cases=reference_cases,
     )
-
-
-def list_reference_cases() -> list[ReferenceCasePresetDTO]:
-    experiments = load_ms400_experiments(MS400_PSD_PATH)
-    presets: list[ReferenceCasePresetDTO] = []
-    for _, experiment in experiments.sort_values("label").iterrows():
-        model_input = build_ms400_stationary_input(experiment)
-        presets.append(
-            ReferenceCasePresetDTO(
-                label=str(experiment["label"]),
-                title=f"MS400 {experiment['label']}",
-                measured_Tout_c=_optional_float(experiment.get("Tout_C")),
-                measured_powder_moisture_wb_pct=_optional_float(experiment.get("powder_moisture_wb_pct")),
-                measured_d32_um=_optional_float(experiment.get("d32_um")),
-                inputs=_dto_from_stationary_input(model_input),
-            )
-        )
-    return presets
 
 
 def run_simulation(request: SimulationRequestDTO) -> SimulationResponseDTO:

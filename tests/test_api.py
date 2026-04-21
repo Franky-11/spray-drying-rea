@@ -30,7 +30,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
-    async def test_model_defaults_expose_v2_reference_case(self) -> None:
+    async def test_model_defaults_expose_runtime_defaults(self) -> None:
         response = await self.client.get("/model/defaults")
 
         self.assertEqual(response.status_code, 200)
@@ -43,17 +43,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["humid_air_mass_flow_kg_h"], 300.0)
         self.assertAlmostEqual(data["default_inputs"]["inlet_abs_humidity_g_kg"], 6.0)
         self.assertAlmostEqual(data["default_inputs"]["feed_total_solids"], 0.37)
-        labels = [item["label"] for item in data["reference_cases"]]
-        self.assertEqual(labels[:3], ["V1", "V2", "V3"])
-
-    async def test_reference_cases_endpoint_matches_defaults(self) -> None:
-        response = await self.client.get("/presets/reference-cases")
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(len(data), 6)
-        self.assertEqual(data[1]["label"], "V2")
-        self.assertAlmostEqual(data[1]["measured_powder_moisture_wb_pct"], 3.2)
+        self.assertNotIn("reference_cases", data)
 
     async def test_simulate_returns_summary_and_profile(self) -> None:
         response = await self.client.post(
@@ -129,7 +119,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                 "scenarios": [
                     {
                         "scenario_id": "base",
-                        "label": "Basisfall",
+                        "label": "Base case",
                         "inputs": {
                             "Tin": 190.0,
                             "humid_air_mass_flow_kg_h": 300.0,
@@ -151,7 +141,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                     },
                     {
                         "scenario_id": "var-1",
-                        "label": "Variante 1",
+                        "label": "Scenario 1",
                         "inputs": {
                             "Tin": 195.0,
                             "humid_air_mass_flow_kg_h": 300.0,
@@ -179,7 +169,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         data = response.json()
         self.assertEqual(data["base_scenario_id"], "base")
         self.assertEqual(len(data["scenarios"]), 2)
-        self.assertEqual(data["scenarios"][0]["label"], "Basisfall")
+        self.assertEqual(data["scenarios"][0]["label"], "Base case")
         self.assertEqual(data["scenarios"][1]["scenario_id"], "var-1")
         self.assertIn("summary", data["scenarios"][0])
         self.assertIn("profile", data["scenarios"][1])

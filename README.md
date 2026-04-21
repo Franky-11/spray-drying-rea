@@ -1,73 +1,222 @@
-# Sprühtrockner REA
+# Spray Drying REA
 
-Neuer technischer App-Neuaufbau fuer die stationaere SMP-REA-Trocknung. Der fachliche Kern unter
-`core/stationary_smp_rea/` bleibt bestehen und wird nun ueber ein React-Frontend und eine Python-API
-im Stil von `powder-caking` gekapselt.
+Web app for evaluating steady-state spray drying of skim milk powder with a Reaction Engineering Approach (REA) core. The active application consists of a React frontend, a FastAPI backend, and the stationary SMP model in `core/stationary_smp_rea/`.
 
-## Projektstruktur
+## Features
 
-- `core/stationary_smp_rea/`: fachlicher stationaerer SMP-REA-Kern
-- `src/spray_drying/api.py`: FastAPI-App inklusive statischem Frontend-Serving
-- `src/spray_drying/api_service.py`: Uebersetzung zwischen API-Datenmodellen und Kern
-- `src/spray_drying/api_schemas.py`: Pydantic-DTOs fuer Defaults, Referenzfaelle und Simulation
-- `frontend/`: React + Vite + TypeScript Frontend
-- `tests/test_stationary_smp_rea.py`: Kernregressionen
-- `tests/test_api.py`: API-Shell-Tests fuer Defaults, Referenzfaelle und Simulation
+- Home page with direct entry into the simulator and model foundations.
+- Scenario-based simulation for skim milk powder spray drying.
+- Base case plus up to three comparison scenarios.
+- Core input set for inlet air conditions, feed rate, droplet diameter, feed solids, and segmented dryer geometry.
+- Expert inputs for equilibrium moisture model selection, nozzle parameters, heat loss, and geometry details.
+- KPI summary for final powder moisture, outlet air temperature, outlet relative humidity, residence time, target attainment, and mean particle diameter.
+- Axial charts for moisture, temperature, equilibrium moisture, particle diameter, velocity, and KPI comparison.
+- Tower preview linked to the active axial chart position.
+- Model foundations page with process steps, governing equations, sources, and model limits.
 
-## Funktionen
+## Active Runtime Layout
 
-- Frontend-App-Shell mit den Seiten `Start`, `Simulation` und `Modellgrundlagen`
-- Top-Bar, KPI-Band, Chart-Tabs und technische Light-Theme-Gestaltung nach `powder-caking`
-- Python-API fuer Referenzfaelle, Defaultwerte und Simulation des stationaeren SMP-Kerns
-- Referenzfaelle `V1` bis `V6` aus `ms400/psd.csv` als Ausgangspunkt fuer V1
-- Basismodus plus aufklappbarer Expertenmodus fuer zentrale Eingaben und Geometriedaten
-- KPI- und Profilstruktur fuer spaetere Vergleichsszenarien
+The active web app uses only these paths at runtime:
 
-## Voraussetzungen
+- `src/spray_drying/`
+- `frontend/`
+- `core/stationary_smp_rea/`
 
-- Python 3.12 oder kompatibel
-- Node.js 24 oder kompatibel
-- Python-Abhaengigkeiten in `.venv`
-- Frontend-Abhaengigkeiten im Projektordner `frontend/`
+Legacy Streamlit code, process simulation, and calibration tooling were moved to `legacy/` and are no longer part of the active Docker image or the active Python runtime requirements.
 
-## Schnellstart
+## Requirements
+
+- Git
+- Python 3.12 or a compatible Python 3 version
+- Node.js and npm
+- Optional: Docker and Docker Compose for the fastest local setup
+
+## Quick Start With Docker
+
+Clone the repository and change into the project directory:
 
 ```bash
 git clone https://github.com/Franky-11/spray-drying-rea.git
-cd spray-drying-rea
-python3 -m venv .venv
+cd spray-drying
+```
+
+Build and start the container:
+
+```bash
+docker compose up --build
+```
+
+The full app is then available at:
+
+```text
+http://localhost:8000
+```
+
+Stop containers:
+
+```bash
+docker compose stop
+```
+
+Stop and remove containers:
+
+```bash
+docker compose down
+```
+
+## Manual Installation
+
+Clone the repository and change into the project directory:
+
+```bash
+git clone https://github.com/Franky-11/spray-drying-rea.git
+cd spray-drying
+```
+
+Create a Python environment for the backend and install active runtime dependencies:
+
+```bash
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+On Windows:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Install frontend dependencies and build the frontend:
+
+```bash
 cd frontend
 npm install
+npm run build
 cd ..
+```
+
+## Run Locally Without Docker
+
+For normal local use, a single server is sufficient. FastAPI serves the built frontend from `frontend/dist/` in addition to the API endpoints.
+
+Start from the repo root:
+
+```bash
+source .venv/bin/activate
+PYTHONPATH=src:. uvicorn spray_drying.api:app --host 0.0.0.0 --port 8000
+```
+
+On Windows:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src;."
+uvicorn spray_drying.api:app --host 0.0.0.0 --port 8000
+```
+
+The full app is then available at:
+
+```text
+http://localhost:8000
+```
+
+React routes fall back to `frontend/dist/index.html`.
+
+## Development Mode With Vite
+
+For UI development, the frontend can run separately with Vite hot reload.
+
+Start the backend from the repo root:
+
+```bash
+source .venv/bin/activate
 PYTHONPATH=src:. uvicorn spray_drying.api:app --reload
 ```
 
-Im Entwicklungsmodus kann das Frontend separat gestartet werden:
+Start the frontend in a second terminal:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-## Tests ausführen
+The frontend is then available at:
+
+```text
+http://localhost:5173
+```
+
+The Vite dev server proxies API requests to `http://127.0.0.1:8000`.
+
+## Usage
+
+1. Open the app and choose `Open Simulation` on the home screen.
+2. Start from the base case and inspect the default SMP operating point.
+3. Adjust inlet air temperature, air mass flow, feed rate, droplet diameter, inlet humidity, feed solids, and target powder moisture.
+4. Optionally open `Expert Inputs` to change the equilibrium moisture model, nozzle parameters, heat loss, and segmented geometry.
+5. Add comparison scenarios if operating sensitivities should be evaluated against the base case.
+6. Run `Run Comparison`.
+7. Review KPIs, axial profiles, warnings, and the tower position preview.
+8. Open `Model Foundations` to inspect the process workflow, equations, sources, assumptions, and limits.
+
+## Model Scope and Limits
+
+- The current app targets steady-state SMP spray drying with an REA-based axial core.
+- Equilibrium moisture is available through the temperature-dependent GAB closure and the Langrish isotherm option.
+- Segmented geometry is treated as an effective 1D flow path consisting of cylinder, cone, and outlet duct.
+- The model evaluates outlet air conditions, powder moisture, residence time, and mean particle diameter at the pre-cyclone outlet location.
+- Warnings are emitted when inputs move outside the main calibration or design window, for example for inlet air temperature or low-solids shrinkage use.
+- The current V1 app does not include a Tg or stickiness risk model.
+
+## Tests and Checks
+
+Install active test dependencies:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Backend API and stationary-core tests:
 
 ```bash
 source .venv/bin/activate
-PYTHONPATH=src:. python -m unittest tests.test_stationary_smp_rea tests.test_api
+python -m unittest tests.test_api tests.test_stationary_smp_rea -v
 ```
 
-## Verwendete Pakete
+Frontend lint and build:
 
-- Python: `numpy`, `scipy`, `pandas`, `fastapi`, `pydantic`, `uvicorn`
-- Frontend: `react`, `vite`, `typescript`, `echarts`
+```bash
+cd frontend
+npm run lint
+npm run build
+```
 
-## Modellgrenzen
+Docker image build:
 
-- `SMP` ist nur für `TS < 0.2` sowie für die diskreten Werte `0.2`, `0.3` und `0.5` vorgesehen.
-- `WPC` ist in diesem Modell nur für `TS = 0.3` validiert.
-- Für `SMP` mit `TS = 0.2` und `0.3` wird nach Chen (2008) eine kurze initiale Nassphase modelliert. `TS = 0.5` nutzt weiterhin die hinterlegte REA-Korrelation direkt ab Start.
-- Die Standardzusammensetzung der Expertenparameter ist materialabhängig: `SMP` startet mit Protein `0.35`, Lactose `0.55`, Fett `0.01`; `WPC` mit Protein `0.80`, Lactose `0.074`, Fett `0.056`.
-- Das Modell gibt Warnungen aus, wenn typische Arbeitsbereiche für Zulufttemperatur oder Tropfengröße verlassen werden.
-- Ein formaler Modellabgleich sollte später mit geeigneten Messdaten für ausgewählte Fälle erfolgen.
+```bash
+docker build -t spray-drying-rea .
+```
+
+## Legacy Tooling
+
+Archived Streamlit UI, process simulation, and calibration tooling live under `legacy/`.
+
+To work with the archived code paths:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt -r requirements-legacy.txt
+```
+
+See `legacy/README.md` for the archived layout.
+
+## Repository Contents
+
+- `src/spray_drying/`: FastAPI app, API schemas, and service layer
+- `core/stationary_smp_rea/`: active stationary SMP REA core
+- `frontend/`: React/Vite/TypeScript frontend
+- `tests/`: active API and stationary-core tests
+- `legacy/`: archived Streamlit app, process simulation, calibration code, and legacy tests
+- `ms400/`: reference and calibration data retained for validation and archived workflows

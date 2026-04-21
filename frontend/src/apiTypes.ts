@@ -32,21 +32,11 @@ export interface StationaryInput {
   solver_atol: number
 }
 
-export interface ReferenceCasePreset {
-  label: string
-  title: string
-  measured_Tout_c: number | null
-  measured_powder_moisture_wb_pct: number | null
-  measured_d32_um: number | null
-  inputs: StationaryInput
-}
-
 export interface ModelDefaults {
   default_target_moisture_wb_pct: number
   default_inputs: StationaryInput
   x_b_models: XBModel[]
   solver_methods: Array<'BDF' | 'RK45' | 'Radau'>
-  reference_cases: ReferenceCasePreset[]
 }
 
 export interface SimulationRequest {

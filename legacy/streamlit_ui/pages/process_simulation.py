@@ -10,13 +10,13 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 APP_DIR = Path(__file__).resolve().parents[1]
 for candidate in (str(ROOT), str(APP_DIR)):
     if candidate not in sys.path:
         sys.path.insert(0, candidate)
 
-from core import (
+from legacy.python_core import (
     ProcessEvent,
     ProcessSimulationInput,
     build_stepwise_inputs,

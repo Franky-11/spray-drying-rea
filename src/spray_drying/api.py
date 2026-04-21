@@ -12,11 +12,10 @@ from .api_schemas import (
     CompareResponseDTO,
     HealthDTO,
     ModelDefaultsDTO,
-    ReferenceCasePresetDTO,
     SimulationRequestDTO,
     SimulationResponseDTO,
 )
-from .api_service import get_model_defaults, list_reference_cases, run_compare, run_simulation
+from .api_service import get_model_defaults, run_compare, run_simulation
 
 
 def create_app(frontend_dist_dir: Path | None = None) -> FastAPI:
@@ -38,10 +37,6 @@ def create_app(frontend_dist_dir: Path | None = None) -> FastAPI:
     @app.get("/model/defaults", response_model=ModelDefaultsDTO)
     async def model_defaults() -> ModelDefaultsDTO:
         return get_model_defaults()
-
-    @app.get("/presets/reference-cases", response_model=list[ReferenceCasePresetDTO])
-    async def reference_cases() -> list[ReferenceCasePresetDTO]:
-        return list_reference_cases()
 
     @app.post("/simulate", response_model=SimulationResponseDTO)
     async def simulate(request: SimulationRequestDTO) -> SimulationResponseDTO:

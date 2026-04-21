@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
 
-from core import (
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from legacy.python_core import (
     ProcessEvent,
     ProcessSimulationInput,
     SimulationInput,

@@ -9,11 +9,11 @@ import pandas as pd
 import streamlit as st
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.model import (  # noqa: E402
+from legacy.python_core.model import (  # noqa: E402
     ScenarioConfig,
     SimulationInput,
     SimulationResult,

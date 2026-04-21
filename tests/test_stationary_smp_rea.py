@@ -82,7 +82,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertTrue(
-            any("20/30-wt%-Ankern" in warning for warning in result.warnings)
+            any("20/30-wt% anchors" in warning for warning in result.warnings)
         )
         self.assertLess(
             result.outlet["outlet_X"],
@@ -135,7 +135,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.series["shrinkage_mode"].iloc[0], "legacy_extended")
         self.assertTrue(
-            any("unter 30 wt%" in warning.lower() for warning in result.warnings)
+            any("below 30 wt%" in warning.lower() for warning in result.warnings)
         )
         self.assertLess(result.outlet["outlet_X"], result.series["X"].iloc[0])
 
@@ -213,7 +213,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertEqual(pre_cyclone["section"], "outlet_duct")
         self.assertEqual(result.outlet["outlet_section"], "outlet_duct")
         self.assertTrue(
-            any("effektive 1D-Strombahn" in warning for warning in result.warnings)
+            any("effective 1d flow path" in warning.lower() for warning in result.warnings)
         )
         self.assertAlmostEqual(
             float(pre_cyclone["T_a_c"]),
@@ -267,7 +267,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertTrue(
-            any("Geschwindigkeitsdiagnose" in warning for warning in result.warnings)
+            any("velocity diagnostic" in warning.lower() for warning in result.warnings)
         )
         self.assertAlmostEqual(float(result.series["U_p_ms"].iloc[0]), 5.0, places=9)
         self.assertAlmostEqual(float(result.series["U_p_ms"].iloc[-1]), 5.0, places=9)

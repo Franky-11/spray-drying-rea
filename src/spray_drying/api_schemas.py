@@ -39,21 +39,11 @@ class StationaryInputDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ReferenceCasePresetDTO(BaseModel):
-    label: str
-    title: str
-    measured_Tout_c: float | None
-    measured_powder_moisture_wb_pct: float | None
-    measured_d32_um: float | None
-    inputs: StationaryInputDTO
-
-
 class ModelDefaultsDTO(BaseModel):
     default_target_moisture_wb_pct: float
     default_inputs: StationaryInputDTO
     x_b_models: list[str]
     solver_methods: list[str]
-    reference_cases: list[ReferenceCasePresetDTO]
 
 
 class SimulationRequestDTO(BaseModel):

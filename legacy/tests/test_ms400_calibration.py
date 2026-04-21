@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from core import (
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from legacy.python_core import (
     MS400CalibrationParameters,
     MS400CalibrationSettings,
     evaluate_ms400_stationary_model,
@@ -12,7 +18,7 @@ from core import (
     ms400_calibration_residuals,
     run_simulation,
 )
-from core.model import SimulationInput, _build_derived, _rea_snapshot
+from legacy.python_core.model import SimulationInput, _build_derived, _rea_snapshot
 
 
 class MS400CalibrationTests(unittest.TestCase):
