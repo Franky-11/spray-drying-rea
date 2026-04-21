@@ -31,6 +31,19 @@ const chartTabs: Array<{ id: ChartTab; label: string }> = [
   { id: 'comparison', label: 'Comparison Table' },
 ]
 
+const XB_MODEL_DETAILS: Record<XBModel, { label: string; description: string }> = {
+  lin_gab: {
+    label: 'Temperature-dependent GAB (Lin et al., 2005)',
+    description:
+      'Uses the temperature-dependent GAB closure for skim milk powder and remains the recommended default for the active SMP workflow.',
+  },
+  langrish: {
+    label: 'Langrish isotherm (2009)',
+    description:
+      'Uses the Langrish equilibrium isotherm as a sensitivity option for cross-checking outlet moisture and approach-to-equilibrium trends.',
+  },
+}
+
 interface ScenarioDraft {
   scenario_id: string
   label: string
@@ -265,6 +278,7 @@ function App() {
   }, [activeChartTab, baseScenarioResult, comparisonResult])
 
   const activeScenarioWarnings = activeScenarioResult?.warnings ?? []
+  const activeXBModelDetails = activeScenario ? XB_MODEL_DETAILS[activeScenario.inputs.x_b_model] : null
 
   function invalidateResults() {
     setComparisonResult(null)
@@ -583,81 +597,114 @@ function App() {
                     </button>
                     {isExpertOpen && (
                       <div className="field-stack expert-fields">
-                        <div className="field-row">
-                          <NumberField
-                            id="heat_loss_coeff_w_m2k"
-                            label="Heat Loss Coefficient Up (W/m2/K)"
-                            onChange={(value) => updateNumberField('heat_loss_coeff_w_m2k', value)}
-                            value={activeScenario.inputs.heat_loss_coeff_w_m2k}
-                          />
+                        <section className="expert-group" aria-labelledby="expert-equilibrium-title">
+                          <div className="expert-group-header">
+                            <h3 id="expert-equilibrium-title">Equilibrium Moisture</h3>
+                            <p>Select the `x_b` closure used by the REA core to evaluate local approach to equilibrium.</p>
+                          </div>
                           <div className="field">
-                            <label htmlFor="x_b_model">Equilibrium Moisture Model</label>
+                            <label htmlFor="x_b_model">Equilibrium Moisture Closure</label>
                             <select
                               id="x_b_model"
                               onChange={(event) => updateXBModel(event.target.value as XBModel)}
                               value={activeScenario.inputs.x_b_model}
                             >
-                              <option value="langrish">Langrish</option>
-                              <option value="lin_gab">Temperature-dependent GAB</option>
+                              {(defaults?.x_b_models ?? []).map((model) => (
+                                <option key={model} value={model}>
+                                  {XB_MODEL_DETAILS[model].label}
+                                </option>
+                              ))}
                             </select>
+                            {activeXBModelDetails && <div className="field-note field-note-compact">{activeXBModelDetails.description}</div>}
                           </div>
-                        </div>
-                        <div className="field-row">
-                          <NumberField
-                            id="nozzle_delta_p_bar"
-                            label="Nozzle Pressure Drop (bar)"
-                            onChange={(value) => updateNumberField('nozzle_delta_p_bar', value)}
-                            value={activeScenario.inputs.nozzle_delta_p_bar}
-                          />
-                          <NumberField
-                            id="nozzle_velocity_coefficient"
-                            label="Nozzle Velocity Coefficient"
-                            onChange={(value) => updateNumberField('nozzle_velocity_coefficient', value)}
-                            value={activeScenario.inputs.nozzle_velocity_coefficient}
-                          />
-                        </div>
-                        <div className="field-row">
-                          <NumberField
-                            id="dryer_diameter_m"
-                            label="Dryer Diameter (m)"
-                            onChange={(value) => updateNumberField('dryer_diameter_m', value)}
-                            value={activeScenario.inputs.dryer_diameter_m}
-                          />
-                          <NullableNumberField
-                            id="cylinder_height_m"
-                            label="Cylinder Height (m)"
-                            onChange={(value) => updateNullableNumberField('cylinder_height_m', value)}
-                            value={activeScenario.inputs.cylinder_height_m}
-                          />
-                        </div>
-                        <div className="field-row">
-                          <NumberField
-                            id="cone_height_m"
-                            label="Cone Height (m)"
-                            onChange={(value) => updateNumberField('cone_height_m', value)}
-                            value={activeScenario.inputs.cone_height_m}
-                          />
-                          <NumberField
-                            id="outlet_duct_length_m"
-                            label="Outlet Duct Length (m)"
-                            onChange={(value) => updateNumberField('outlet_duct_length_m', value)}
-                            value={activeScenario.inputs.outlet_duct_length_m}
-                          />
-                        </div>
-                        <div className="field-row">
-                          <NullableNumberField
-                            id="outlet_duct_diameter_m"
-                            label="Outlet Duct Diameter (m)"
-                            onChange={(value) => updateNullableNumberField('outlet_duct_diameter_m', value)}
-                            value={activeScenario.inputs.outlet_duct_diameter_m}
-                          />
-                          <div className="field">
-                            <label>Geometry Note</label>
-                            <div className="field-note">
-                              The segmented geometry is defined directly by cylinder height, cone height, and the outlet duct.
-                            </div>
+                        </section>
+                        <section className="expert-group" aria-labelledby="expert-nozzle-title">
+                          <div className="expert-group-header">
+                            <h3 id="expert-nozzle-title">Pressure-Nozzle Entry</h3>
+                            <p>
+                              The active API derives inlet droplet velocity from pressure drop and the velocity coefficient. No nozzle orifice geometry is exposed in the current product path.
+                            </p>
                           </div>
-                        </div>
+                          <div className="field-row">
+                            <NumberField
+                              id="nozzle_delta_p_bar"
+                              label="Nozzle Liquid Pressure Drop Delta p (bar)"
+                              note="Applied in the pressure-nozzle entry velocity relation together with feed density."
+                              onChange={(value) => updateNumberField('nozzle_delta_p_bar', value)}
+                              value={activeScenario.inputs.nozzle_delta_p_bar}
+                            />
+                            <NumberField
+                              id="nozzle_velocity_coefficient"
+                              label="Nozzle Velocity Coefficient Cv (-)"
+                              note="Dimensionless discharge factor in U_p,0 = Cv * sqrt(2 * Delta p / rho_l)."
+                              onChange={(value) => updateNumberField('nozzle_velocity_coefficient', value)}
+                              value={activeScenario.inputs.nozzle_velocity_coefficient}
+                            />
+                          </div>
+                        </section>
+                        <section className="expert-group" aria-labelledby="expert-thermal-title">
+                          <div className="expert-group-header">
+                            <h3 id="expert-thermal-title">Thermal Loss</h3>
+                            <p>
+                              The wall-loss term uses a single overall coefficient over the effective cylinder, cone, and outlet-duct surface area.
+                            </p>
+                          </div>
+                          <div className="field-row">
+                            <NumberField
+                              id="heat_loss_coeff_w_m2k"
+                              label="Overall Heat Loss Coefficient (W/m2/K)"
+                              note="Higher values increase wall heat loss from the air-side enthalpy balance."
+                              onChange={(value) => updateNumberField('heat_loss_coeff_w_m2k', value)}
+                              value={activeScenario.inputs.heat_loss_coeff_w_m2k}
+                            />
+                          </div>
+                        </section>
+                        <section className="expert-group" aria-labelledby="expert-geometry-title">
+                          <div className="expert-group-header">
+                            <h3 id="expert-geometry-title">Segmented Geometry</h3>
+                            <p>
+                              The active core resolves an effective 1D path through cylinder, cone, and outlet duct. Back-mixing and flow redirection are not modeled separately.
+                            </p>
+                          </div>
+                          <div className="field-row">
+                            <NumberField
+                              id="dryer_diameter_m"
+                              label="Cylinder Diameter (m)"
+                              onChange={(value) => updateNumberField('dryer_diameter_m', value)}
+                              value={activeScenario.inputs.dryer_diameter_m}
+                            />
+                            <NullableNumberField
+                              id="cylinder_height_m"
+                              label="Cylinder Height (m)"
+                              note="This height defines the main vertical section before the cone starts."
+                              onChange={(value) => updateNullableNumberField('cylinder_height_m', value)}
+                              value={activeScenario.inputs.cylinder_height_m}
+                            />
+                          </div>
+                          <div className="field-row">
+                            <NumberField
+                              id="cone_height_m"
+                              label="Cone Height (m)"
+                              onChange={(value) => updateNumberField('cone_height_m', value)}
+                              value={activeScenario.inputs.cone_height_m}
+                            />
+                            <NumberField
+                              id="outlet_duct_length_m"
+                              label="Outlet Duct Length (m)"
+                              onChange={(value) => updateNumberField('outlet_duct_length_m', value)}
+                              value={activeScenario.inputs.outlet_duct_length_m}
+                            />
+                          </div>
+                          <div className="field-row">
+                            <NullableNumberField
+                              id="outlet_duct_diameter_m"
+                              label="Outlet Duct Diameter (m)"
+                              note="Leave empty only if the backend default should provide the duct diameter."
+                              onChange={(value) => updateNullableNumberField('outlet_duct_diameter_m', value)}
+                              value={activeScenario.inputs.outlet_duct_diameter_m}
+                            />
+                          </div>
+                        </section>
                       </div>
                     )}
                   </section>
@@ -707,6 +754,15 @@ function App() {
                     <ParameterItem label="Droplet Diameter" value={`${formatKpi(activeScenario.inputs.droplet_size_um)} um`} />
                     <ParameterItem label="Feed Solids" value={`${formatKpi(activeScenario.inputs.feed_total_solids * 100)} wt%`} />
                     <ParameterItem label="Target Moisture" value={`${formatKpi(activeScenario.target_moisture_wb_pct)} wt% wb`} />
+                    <ParameterItem label="Equilibrium x_b Model" value={XB_MODEL_DETAILS[activeScenario.inputs.x_b_model].label} />
+                    <ParameterItem
+                      label="Pressure-Nozzle Entry"
+                      value={`${formatKpi(activeScenario.inputs.nozzle_delta_p_bar)} bar / Cv ${formatKpi(activeScenario.inputs.nozzle_velocity_coefficient)}`}
+                    />
+                    <ParameterItem
+                      label="Heat Loss Coefficient"
+                      value={`${formatKpi(activeScenario.inputs.heat_loss_coeff_w_m2k)} W/m2/K`}
+                    />
                     <ParameterItem
                       label="Cylinder"
                       value={`${formatKpi(activeScenario.inputs.cylinder_height_m)} m x ${formatKpi(activeScenario.inputs.dryer_diameter_m)} m`}
@@ -1365,15 +1421,17 @@ function MathFormula({ tex, display }: { tex: string; display: boolean }) {
 interface SimpleNumberFieldProps {
   id: string
   label: string
+  note?: string
   value: number
   onChange: (value: string) => void
 }
 
-function NumberField({ id, label, value, onChange }: SimpleNumberFieldProps) {
+function NumberField({ id, label, note, value, onChange }: SimpleNumberFieldProps) {
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <input id={id} onChange={(event) => onChange(event.target.value)} step="any" type="number" value={value} />
+      {note && <div className="field-note field-note-compact">{note}</div>}
     </div>
   )
 }
@@ -1381,11 +1439,12 @@ function NumberField({ id, label, value, onChange }: SimpleNumberFieldProps) {
 interface NullableNumberFieldProps {
   id: string
   label: string
+  note?: string
   value: number | null
   onChange: (value: string) => void
 }
 
-function NullableNumberField({ id, label, value, onChange }: NullableNumberFieldProps) {
+function NullableNumberField({ id, label, note, value, onChange }: NullableNumberFieldProps) {
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
@@ -1397,6 +1456,7 @@ function NullableNumberField({ id, label, value, onChange }: NullableNumberField
         type="number"
         value={value ?? ''}
       />
+      {note && <div className="field-note field-note-compact">{note}</div>}
     </div>
   )
 }

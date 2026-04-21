@@ -7,8 +7,8 @@ Web app for evaluating steady-state spray drying of skim milk powder with a Reac
 - Home page with direct entry into the simulator and model foundations.
 - Scenario-based simulation for skim milk powder spray drying.
 - Base case plus up to three comparison scenarios.
-- Core input set for inlet air conditions, feed rate, droplet diameter, feed solids, and segmented dryer geometry.
-- Expert inputs for equilibrium moisture model selection, nozzle parameters, heat loss, and geometry details.
+- Core input set for inlet air conditions, feed rate, droplet diameter, inlet humidity, and feed solids.
+- Expert inputs for equilibrium moisture closure selection, pressure-nozzle entry parameters, heat-loss coefficient, and segmented geometry.
 - KPI summary for final powder moisture, outlet air temperature, outlet relative humidity, residence time, target attainment, and mean particle diameter.
 - Axial charts for moisture, temperature, equilibrium moisture, particle diameter, velocity, and KPI comparison.
 - Tower preview linked to the active axial chart position.
@@ -170,7 +170,7 @@ The Vite dev server proxies API requests to `http://127.0.0.1:8000`.
 1. Open the app and choose `Open Simulation` on the home screen.
 2. Start from the base case and inspect the default SMP operating point.
 3. Adjust inlet air temperature, air mass flow, feed rate, droplet diameter, inlet humidity, feed solids, and target powder moisture.
-4. Optionally open `Expert Inputs` to change the equilibrium moisture model, nozzle parameters, heat loss, and segmented geometry.
+4. Optionally open `Expert Inputs` to change the equilibrium moisture closure, pressure-nozzle entry parameters, heat-loss coefficient, and segmented geometry.
 5. Add comparison scenarios if operating sensitivities should be evaluated against the base case.
 6. Run `Run Comparison`.
 7. Review KPIs, axial profiles, warnings, and the tower position preview.

@@ -312,6 +312,11 @@
   padding: 8px 12px;
 }
 
+.field-note-compact {
+  align-items: flex-start;
+  min-height: 0;
+}
+
 label {
   color: var(--text-primary);
   font-size: 12px;
@@ -419,6 +424,35 @@ button:disabled {
 
 .expert-fields {
   padding-top: 16px;
+}
+
+.expert-group {
+  border-top: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.expert-group:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.expert-group-header {
+  display: grid;
+  gap: 6px;
+}
+
+.expert-group-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  margin: 0;
+}
+
+.expert-group-header p {
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 .result-band {
