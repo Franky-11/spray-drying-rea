@@ -1518,16 +1518,40 @@ interface PercentageFieldProps {
   onChange: (value: string) => void
 }
 
+function formatPercentageInput(value: number): string {
+  return (value * 100).toFixed(1)
+}
+
 function PercentageField({ id, label, value, onChange }: PercentageFieldProps) {
+  const [displayValue, setDisplayValue] = useState(() => formatPercentageInput(value))
+  const [isEditing, setIsEditing] = useState(false)
+  const renderedValue = isEditing ? displayValue : formatPercentageInput(value)
+
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
-        onChange={(event) => onChange(event.target.value)}
+        onBlur={() => {
+          setIsEditing(false)
+          if (displayValue === '') {
+            setDisplayValue(formatPercentageInput(value))
+            return
+          }
+          setDisplayValue(formatPercentageInput(value))
+        }}
+        onChange={(event) => {
+          const nextValue = event.target.value
+          setDisplayValue(nextValue)
+          onChange(nextValue)
+        }}
+        onFocus={() => {
+          setDisplayValue(formatPercentageInput(value))
+          setIsEditing(true)
+        }}
         step="0.1"
         type="number"
-        value={(value * 100).toFixed(1)}
+        value={renderedValue}
       />
     </div>
   )
