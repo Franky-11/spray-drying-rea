@@ -18,8 +18,8 @@ from core.stationary_smp_rea.materials.smp_chew import (
     chew_shrinkage_ratio,
     chew_material_state,
     fu_50_shrinkage_ratio,
-    fu_50_activation_ratio,
     legacy_extended_shrinkage_ratio,
+    legacy_high_solids_activation_ratio,
     initial_moisture_dry_basis,
     linear_parameters_from_initial_moisture,
     low_solids_activation_parameters,
@@ -179,11 +179,11 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertGreater(ratio_47, ratio_50)
         self.assertAlmostEqual(
             ratio_50,
-            fu_50_activation_ratio(delta),
+            legacy_high_solids_activation_ratio(delta),
             places=12,
         )
 
-    def test_high_solids_rea_uses_fu_50_cubic_and_saturates_at_delta_one(self) -> None:
+    def test_high_solids_rea_uses_legacy_50_polynomial_and_saturates_at_delta_one(self) -> None:
         ratio_50, *_ = activation_ratio(
             delta=1.20,
             feed_total_solids=0.50,
@@ -191,10 +191,10 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
         self.assertAlmostEqual(
             ratio_50,
-            fu_50_activation_ratio(1.0),
+            legacy_high_solids_activation_ratio(1.0),
             places=12,
         )
-        self.assertAlmostEqual(ratio_50, 0.0570, places=4)
+        self.assertAlmostEqual(ratio_50, 0.0182, places=4)
 
     def test_20_percent_case_runs_with_low_solids_extension(self) -> None:
         result = solve_stationary_smp_profile(

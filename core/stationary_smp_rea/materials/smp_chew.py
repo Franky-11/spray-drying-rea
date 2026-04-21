@@ -13,7 +13,6 @@ EARLY_FALLING_RATE_WINDOW_WIDTH = 0.025
 HIGH_SOLIDS_BLEND_START = 0.43
 HIGH_SOLIDS_BLEND_END = 0.50
 LEGACY_REA_50_DELTA_LIMIT = 1.0
-FU_REA_50_CUBIC = {"a": -1.485, "b": 2.728, "c": -2.186}
 FU_SHRINKAGE_50_TEMP_LOW_C = 70.0
 FU_SHRINKAGE_50_TEMP_HIGH_C = 90.0
 LINEAR_ANCHORS = {
@@ -64,7 +63,7 @@ def chew_validity_warnings(feed_total_solids: float) -> list[str]:
         )
     if feed_total_solids > HIGH_SOLIDS_BLEND_START:
         warnings.append(
-            "Above 43 wt%, SMP REA smoothly blends the active high-solids law toward the Fu et al. 50-wt% function, and shrinkage blends from the 43-wt% anchor onto the temperature-dependent 50-wt% endpoint."
+            "Above 43 wt%, SMP REA smoothly blends the active high-solids law toward the legacy 50-wt% function, and shrinkage blends from the 43-wt% anchor onto the temperature-dependent 50-wt% endpoint."
         )
     return warnings
 
@@ -175,18 +174,20 @@ def _continuous_activation_ratio(
     )
 
 
-def fu_50_activation_ratio(
+def legacy_high_solids_activation_ratio(
     delta: float,
 ) -> float:
-    # Fu et al. (2012) report a dedicated 50-wt% REA cubic in delta = X - x_b.
-    # It stays positive up to delta = 1.0 and turns negative beyond that, so
+    # The legacy 50-wt% polynomial stays positive up to delta = 1.0 and turns
+    # negative beyond that, so
     # the active kernel saturates the delta input at that last positive boundary.
     bounded_delta = min(max(delta, 0.0), LEGACY_REA_50_DELTA_LIMIT)
     ratio = (
-        FU_REA_50_CUBIC["a"] * bounded_delta**3
-        + FU_REA_50_CUBIC["b"] * bounded_delta**2
-        + FU_REA_50_CUBIC["c"] * bounded_delta
-        + 1.0
+        1.0063
+        - 1.5828 * bounded_delta
+        + 3.3561 * bounded_delta**2
+        - 9.389 * bounded_delta**3
+        + 12.22 * bounded_delta**4
+        - 5.5924 * bounded_delta**5
     )
     return min(max(ratio, 0.0), 1.0)
 
@@ -202,13 +203,13 @@ def activation_ratio(
     if feed_total_solids <= HIGH_SOLIDS_BLEND_START:
         return ratio, slope, intercept, critical_delta, critical_ratio
 
-    fu_ratio = fu_50_activation_ratio(
+    legacy_ratio = legacy_high_solids_activation_ratio(
         delta,
     )
     # Above 43 wt%, keep the active continuous Chew-based branch as the lower
-    # endpoint and blend it smoothly onto the Fu et al. 50-wt% REA function.
+    # endpoint and blend it smoothly onto the legacy 50-wt% REA function.
     blend = _smoothstep(feed_total_solids, HIGH_SOLIDS_BLEND_START, HIGH_SOLIDS_BLEND_END)
-    blended_ratio = _lerp(ratio, fu_ratio, blend)
+    blended_ratio = _lerp(ratio, legacy_ratio, blend)
     return (
         min(max(blended_ratio, 0.0), 1.0),
         slope,
