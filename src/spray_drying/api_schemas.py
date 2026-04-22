@@ -6,10 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 X_B_MODELS = (
-    "langrish",
+    "kockel",
     "lin_gab",
-    "lin_gab_langrish_blend",
-    "lin_gab_langrish_blend_rh",
+    "lin_gab_kockel_blend",
+    "lin_gab_kockel_blend_rh",
 )
 
 
@@ -37,14 +37,14 @@ class StationaryInputDTO(BaseModel):
     humidity_bias_zone2_target_rh: float = Field(default=0.0, ge=0, lt=1)
     enable_material_retardation_add: bool = True
     x_b_model: Literal[
-        "langrish",
+        "kockel",
         "lin_gab",
-        "lin_gab_langrish_blend",
-        "lin_gab_langrish_blend_rh",
+        "lin_gab_kockel_blend",
+        "lin_gab_kockel_blend_rh",
     ] = "lin_gab"
-    x_b_blend_langrish_weight: float = Field(default=0.5, ge=0, le=1)
-    x_b_blend_langrish_weight_base: float = 0.0
-    x_b_blend_langrish_weight_rh_coeff: float = 0.0
+    x_b_blend_kockel_weight: float = Field(default=0.5, ge=0, le=1)
+    x_b_blend_kockel_weight_base: float = 0.0
+    x_b_blend_kockel_weight_rh_coeff: float = 0.0
     nozzle_delta_p_bar: float = Field(gt=0)
     nozzle_velocity_coefficient: float = Field(gt=0)
     dryer_diameter_m: float = Field(gt=0)

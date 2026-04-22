@@ -69,9 +69,9 @@ class StationarySMPREAInput:
     dry_solids_specific_heat_j_kg_k: float = 1500.0
     material: Literal["SMP"] = "SMP"
     x_b_model: XBModel = "lin_gab"
-    x_b_blend_langrish_weight: float = 0.5
-    x_b_blend_langrish_weight_base: float = 0.0
-    x_b_blend_langrish_weight_rh_coeff: float = 0.0
+    x_b_blend_kockel_weight: float = 0.5
+    x_b_blend_kockel_weight_base: float = 0.0
+    x_b_blend_kockel_weight_rh_coeff: float = 0.0
     shrinkage_model: ShrinkageModel = "auto"
     axial_points: int = 250
     include_tau_state: bool = True
@@ -142,8 +142,8 @@ class StationarySMPREAInput:
             errors.append("humidity_bias_zone_target_rh muss im Bereich [0, 1) liegen.")
         if not 0.0 <= self.humidity_bias_zone2_target_rh < 1.0:
             errors.append("humidity_bias_zone2_target_rh muss im Bereich [0, 1) liegen.")
-        if not 0.0 <= self.x_b_blend_langrish_weight <= 1.0:
-            errors.append("x_b_blend_langrish_weight muss im Bereich [0, 1] liegen.")
+        if not 0.0 <= self.x_b_blend_kockel_weight <= 1.0:
+            errors.append("x_b_blend_kockel_weight muss im Bereich [0, 1] liegen.")
         if self.inlet_abs_humidity_g_kg < 0.0:
             errors.append("inlet_abs_humidity_g_kg darf nicht negativ sein.")
         if self.axial_points < 25:
@@ -239,30 +239,30 @@ class StationarySMPREAInput:
             warnings.append(
                 "The extra early falling-rate material-side REA retardation is disabled; drying follows only the baseline REA branch."
             )
-        if self.x_b_model == "lin_gab_langrish_blend":
+        if self.x_b_model == "lin_gab_kockel_blend":
             warnings.append(
-                "The x_b closure linearly blends Lin-GAB and Langrish equilibrium moistures with x_b_blend_langrish_weight as the Langrish share."
+                "The x_b closure linearly blends Lin-GAB and Kockel equilibrium moistures with x_b_blend_kockel_weight as the Kockel share."
             )
-        if self.x_b_model == "lin_gab_langrish_blend_rh":
+        if self.x_b_model == "lin_gab_kockel_blend_rh":
             warnings.append(
-                "The x_b closure linearly blends Lin-GAB and Langrish equilibrium moistures with a clamped RH-dependent Langrish share x_b_blend_langrish_weight_base + x_b_blend_langrish_weight_rh_coeff * RH_eff."
+                "The x_b closure linearly blends Lin-GAB and Kockel equilibrium moistures with a clamped RH-dependent Kockel share x_b_blend_kockel_weight_base + x_b_blend_kockel_weight_rh_coeff * RH_eff."
             )
         if (
-            self.x_b_model != "lin_gab_langrish_blend"
-            and abs(self.x_b_blend_langrish_weight - 0.5) > 1e-12
+            self.x_b_model != "lin_gab_kockel_blend"
+            and abs(self.x_b_blend_kockel_weight - 0.5) > 1e-12
         ):
             warnings.append(
-                "x_b_blend_langrish_weight is set but x_b_model is not 'lin_gab_langrish_blend', so the blend weight has no effect."
+                "x_b_blend_kockel_weight is set but x_b_model is not 'lin_gab_kockel_blend', so the blend weight has no effect."
             )
         if (
-            self.x_b_model != "lin_gab_langrish_blend_rh"
+            self.x_b_model != "lin_gab_kockel_blend_rh"
             and (
-                abs(self.x_b_blend_langrish_weight_base) > 1e-12
-                or abs(self.x_b_blend_langrish_weight_rh_coeff) > 1e-12
+                abs(self.x_b_blend_kockel_weight_base) > 1e-12
+                or abs(self.x_b_blend_kockel_weight_rh_coeff) > 1e-12
             )
         ):
             warnings.append(
-                "x_b_blend_langrish_weight_base and/or x_b_blend_langrish_weight_rh_coeff are set but x_b_model is not 'lin_gab_langrish_blend_rh', so the RH-dependent blend parameters have no effect."
+                "x_b_blend_kockel_weight_base and/or x_b_blend_kockel_weight_rh_coeff are set but x_b_model is not 'lin_gab_kockel_blend_rh', so the RH-dependent blend parameters have no effect."
             )
 
         return errors, warnings

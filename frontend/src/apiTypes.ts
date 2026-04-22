@@ -1,7 +1,7 @@
 export type ApiStatus = 'checking' | 'online' | 'offline'
 export type AppView = 'start' | 'simulation' | 'model'
 export type ChartTab = 'moisture' | 'temperature' | 'equilibrium' | 'particle' | 'velocity' | 'comparison'
-export type XBModel = 'langrish' | 'lin_gab' | 'lin_gab_langrish_blend' | 'lin_gab_langrish_blend_rh'
+export type XBModel = 'kockel' | 'lin_gab' | 'lin_gab_kockel_blend' | 'lin_gab_kockel_blend_rh'
 
 export interface HealthResponse {
   status: 'ok'
@@ -27,9 +27,9 @@ export interface StationaryInput {
   humidity_bias_zone2_target_rh: number
   enable_material_retardation_add: boolean
   x_b_model: XBModel
-  x_b_blend_langrish_weight: number
-  x_b_blend_langrish_weight_base: number
-  x_b_blend_langrish_weight_rh_coeff: number
+  x_b_blend_kockel_weight: number
+  x_b_blend_kockel_weight_base: number
+  x_b_blend_kockel_weight_rh_coeff: number
   nozzle_delta_p_bar: number
   nozzle_velocity_coefficient: number
   dryer_diameter_m: number

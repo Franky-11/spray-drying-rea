@@ -93,8 +93,8 @@ def _series_from_solution(
             "rho_v_surface_kg_m3": algebraic.rho_v_surface_kg_m3,
             "x_b": algebraic.x_b,
             "x_b_lin_gab": algebraic.x_b_lin_gab,
-            "x_b_langrish": algebraic.x_b_langrish,
-            "x_b_langrish_weight": algebraic.x_b_langrish_weight,
+            "x_b_kockel": algebraic.x_b_kockel,
+            "x_b_kockel_weight": algebraic.x_b_kockel_weight,
             "delta": algebraic.delta,
             "initial_moisture_dry_basis": algebraic.initial_moisture_dry_basis,
             "linear_slope": algebraic.linear_slope,
@@ -220,7 +220,7 @@ def solve_stationary_smp_profile(
         "balances": "Langrish (2009), Eqs. (20), (36), (41), (42)",
         "material_closure": "Chew (2013), Eqs. (11)-(13), Table 1, Table 2",
         "x_b_default": "Lin, Chen, Pearce (2005) temperature-dependent GAB",
-        "x_b_optional": "Langrish (2009) coarsest-scale skim milk isotherm, Eq. (11), an explicit constant blend between Lin-GAB and Langrish via x_b_blend_langrish_weight, or a clamped RH-dependent blend via x_b_blend_langrish_weight_base + x_b_blend_langrish_weight_rh_coeff * RH_eff.",
+        "x_b_optional": "Kockel et al. (2002) skim milk powder equilibrium fit at elevated temperature, plus an explicit constant blend between Lin-GAB and Kockel via x_b_blend_kockel_weight, or a clamped RH-dependent blend via x_b_blend_kockel_weight_base + x_b_blend_kockel_weight_rh_coeff * RH_eff.",
         "geometry": "Section-wise effective geometry with local U_a(h) and wall-loss density; outlet duct uses the same 1D axial momentum simplification as the main chamber.",
     }
     return StationarySMPREAResult(

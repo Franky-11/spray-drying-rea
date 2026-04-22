@@ -37,20 +37,20 @@ const XB_MODEL_DETAILS: Record<XBModel, { label: string; description: string }> 
     description:
       'Uses the temperature-dependent GAB closure for skim milk powder as the drier closure anchor in the active SMP workflow.',
   },
-  langrish: {
-    label: 'Langrish isotherm (2009)',
+  kockel: {
+    label: 'Kockel SMP equilibrium fit (2002)',
     description:
-      'Uses the Langrish equilibrium isotherm as the wetter closure anchor for cross-checking outlet moisture and approach-to-equilibrium trends.',
+      'Uses the Kockel et al. equilibrium fit for skim milk powder at elevated temperature as the wetter closure anchor for cross-checking outlet moisture and approach-to-equilibrium trends.',
   },
-  lin_gab_langrish_blend: {
-    label: 'Constant Lin-GAB / Langrish blend',
+  lin_gab_kockel_blend: {
+    label: 'Constant Lin-GAB / Kockel blend',
     description:
-      'Uses one constant Langrish share to linearly blend the Lin-GAB and Langrish equilibrium closures.',
+      'Uses one constant Kockel share to linearly blend the Lin-GAB and Kockel equilibrium closures.',
   },
-  lin_gab_langrish_blend_rh: {
-    label: 'RH-dependent Lin-GAB / Langrish blend',
+  lin_gab_kockel_blend_rh: {
+    label: 'RH-dependent Lin-GAB / Kockel blend',
     description:
-      'Uses the current app default x_b path: a clamped RH-dependent Langrish share that blends Lin-GAB and Langrish without the project-specific material brake.',
+      'Uses the current app default x_b path: a clamped RH-dependent Kockel share that blends Lin-GAB and Kockel without the project-specific material brake.',
   },
 }
 
@@ -289,8 +289,8 @@ function App() {
 
   const activeScenarioWarnings = activeScenarioResult?.warnings ?? []
   const activeXBModelDetails = activeScenario ? XB_MODEL_DETAILS[activeScenario.inputs.x_b_model] : null
-  const showsConstantBlendWeight = activeScenario?.inputs.x_b_model === 'lin_gab_langrish_blend'
-  const showsRhBlendWeights = activeScenario?.inputs.x_b_model === 'lin_gab_langrish_blend_rh'
+  const showsConstantBlendWeight = activeScenario?.inputs.x_b_model === 'lin_gab_kockel_blend'
+  const showsRhBlendWeights = activeScenario?.inputs.x_b_model === 'lin_gab_kockel_blend_rh'
 
   function invalidateResults() {
     setComparisonResult(null)
@@ -613,7 +613,7 @@ function App() {
                           <div className="expert-group-header">
                             <h3 id="expert-equilibrium-title">Equilibrium Moisture</h3>
                             <p>
-                              Select the `x_b` closure used by the REA core to evaluate local approach to equilibrium. The current app default uses the RH-dependent Lin-GAB / Langrish blend with the material brake and tower-side add-ons switched off.
+                              Select the `x_b` closure used by the REA core to evaluate local approach to equilibrium. The current app default uses the RH-dependent Lin-GAB / Kockel blend with the material brake and tower-side add-ons switched off.
                             </p>
                           </div>
                           <div className="field">
@@ -634,29 +634,29 @@ function App() {
                           {showsConstantBlendWeight && (
                             <div className="field-row">
                               <NumberField
-                                id="x_b_blend_langrish_weight"
-                                label="Constant Langrish Share (-)"
-                                note="0.0 gives pure Lin-GAB and 1.0 gives pure Langrish."
-                                onChange={(value) => updateNumberField('x_b_blend_langrish_weight', value)}
-                                value={activeScenario.inputs.x_b_blend_langrish_weight}
+                                id="x_b_blend_kockel_weight"
+                                label="Constant Kockel Share (-)"
+                                note="0.0 gives pure Lin-GAB and 1.0 gives pure Kockel."
+                                onChange={(value) => updateNumberField('x_b_blend_kockel_weight', value)}
+                                value={activeScenario.inputs.x_b_blend_kockel_weight}
                               />
                             </div>
                           )}
                           {showsRhBlendWeights && (
                             <div className="field-row">
                               <NumberField
-                                id="x_b_blend_langrish_weight_base"
-                                label="Base Langrish Share w_base (-)"
+                                id="x_b_blend_kockel_weight_base"
+                                label="Base Kockel Share w_base (-)"
                                 note="Current app default: 0.02."
-                                onChange={(value) => updateNumberField('x_b_blend_langrish_weight_base', value)}
-                                value={activeScenario.inputs.x_b_blend_langrish_weight_base}
+                                onChange={(value) => updateNumberField('x_b_blend_kockel_weight_base', value)}
+                                value={activeScenario.inputs.x_b_blend_kockel_weight_base}
                               />
                               <NumberField
-                                id="x_b_blend_langrish_weight_rh_coeff"
+                                id="x_b_blend_kockel_weight_rh_coeff"
                                 label="RH Blend Coefficient k_RH (-)"
-                                note="Current app default: 2.0 in w_langrish = clamp(w_base + k_RH * RH_eff, 0, 1)."
-                                onChange={(value) => updateNumberField('x_b_blend_langrish_weight_rh_coeff', value)}
-                                value={activeScenario.inputs.x_b_blend_langrish_weight_rh_coeff}
+                                note="Current app default: 2.0 in w_kockel = clamp(w_base + k_RH * RH_eff, 0, 1)."
+                                onChange={(value) => updateNumberField('x_b_blend_kockel_weight_rh_coeff', value)}
+                                value={activeScenario.inputs.x_b_blend_kockel_weight_rh_coeff}
                               />
                             </div>
                           )}
@@ -798,21 +798,21 @@ function App() {
                     <ParameterItem label="Feed Solids" value={`${formatKpi(activeScenario.inputs.feed_total_solids * 100)} wt%`} />
                     <ParameterItem label="Target Moisture" value={`${formatKpi(activeScenario.target_moisture_wb_pct)} wt% wb`} />
                     <ParameterItem label="Equilibrium x_b Model" value={XB_MODEL_DETAILS[activeScenario.inputs.x_b_model].label} />
-                    {activeScenario.inputs.x_b_model === 'lin_gab_langrish_blend' && (
+                    {activeScenario.inputs.x_b_model === 'lin_gab_kockel_blend' && (
                       <ParameterItem
-                        label="Constant Langrish Share"
-                        value={formatKpi(activeScenario.inputs.x_b_blend_langrish_weight)}
+                        label="Constant Kockel Share"
+                        value={formatKpi(activeScenario.inputs.x_b_blend_kockel_weight)}
                       />
                     )}
-                    {activeScenario.inputs.x_b_model === 'lin_gab_langrish_blend_rh' && (
+                    {activeScenario.inputs.x_b_model === 'lin_gab_kockel_blend_rh' && (
                       <>
                         <ParameterItem
-                          label="Base Langrish Share"
-                          value={formatKpi(activeScenario.inputs.x_b_blend_langrish_weight_base)}
+                          label="Base Kockel Share"
+                          value={formatKpi(activeScenario.inputs.x_b_blend_kockel_weight_base)}
                         />
                         <ParameterItem
                           label="RH Blend Coefficient"
-                          value={formatKpi(activeScenario.inputs.x_b_blend_langrish_weight_rh_coeff)}
+                          value={formatKpi(activeScenario.inputs.x_b_blend_kockel_weight_rh_coeff)}
                         />
                       </>
                     )}
@@ -1142,20 +1142,20 @@ function ModelFoundationView() {
               <MathBlock tex={'RH_{\\mathrm{eff}} = RH_a \\qquad \\text{(default app path, tower-side correction off)}'} />
               <MathBlock tex={'x_{b,\\mathrm{GAB}} = \\frac{C(T) K(T) m_0 RH_a}{\\left(1-K(T)RH_a\\right)\\left(1-K(T)RH_a + C(T)K(T)RH_a\\right)}'} />
               <MathBlock tex={'m_0 = 0.06156, \\quad C(T) = 0.001645 \\, \\exp\\!\\left(\\frac{24831}{RT}\\right), \\quad K(T) = 5.710 \\, \\exp\\!\\left(-\\frac{5118}{RT}\\right)'} />
-              <MathBlock tex={'x_{b,\\mathrm{Langrish}} = 0.1499 \\, \\exp\\!\\left(-2.306 \\times 10^{-3} T_{a,K}\\right)\\ln\\!\\left(\\frac{1}{RH_a}\\right)'} />
-              <MathBlock tex={'w_{\\mathrm{Langrish}} = \\mathrm{clamp}\\!\\left(0.02 + 2.0 \\, RH_{\\mathrm{eff}}, 0, 1\\right)'} />
-              <MathBlock tex={'x_b = \\left(1 - w_{\\mathrm{Langrish}}\\right) x_{b,\\mathrm{GAB}} + w_{\\mathrm{Langrish}} x_{b,\\mathrm{Langrish}}'} />
+              <MathBlock tex={'x_{b,\\mathrm{Kockel}} = 0.1499 \\, \\exp\\!\\left(-2.306 \\times 10^{-3} T_{a,K}\\right)\\ln\\!\\left(\\frac{1}{RH_a}\\right)'} />
+              <MathBlock tex={'w_{\\mathrm{Kockel}} = \\mathrm{clamp}\\!\\left(0.02 + 2.0 \\, RH_{\\mathrm{eff}}, 0, 1\\right)'} />
+              <MathBlock tex={'x_b = \\left(1 - w_{\\mathrm{Kockel}}\\right) x_{b,\\mathrm{GAB}} + w_{\\mathrm{Kockel}} x_{b,\\mathrm{Kockel}}'} />
             </div>
             <p className="equation-note">
               The local cross section from cylinder, cone, and outlet duct determines the air velocity. In the
               current app default, tower-side exposure and humidity add-ons remain off, so `RH_eff = RH_a`.
-              The equilibrium moisture path is the RH-dependent Lin-GAB / Langrish blend with the current
+              The equilibrium moisture path is the RH-dependent Lin-GAB / Kockel blend with the current
               default weights `w_base = 0.02` and `k_RH = 2.0`.
             </p>
             <div className="equation-sources">
               <span className="label">Sources</span>
               <p>Lin, Chen, Pearce, 2005. Journal of Food Engineering 68, 257-264.</p>
-              <p>Langrish, 2009. Journal of Food Engineering 93, 218-228.</p>
+              <p>Kockel, Allen, Hennigs, Langrish, 2002. Journal of Food Engineering 51, 291-297.</p>
             </div>
           </article>
 
@@ -1272,7 +1272,7 @@ const modelProcessSteps = [
     index: '03',
     title: 'Air State and Equilibrium Moisture',
     description:
-      'Local T_a is calculated from Y and H_h. With tower-side corrections off in the default app path, RH_eff equals RH_a and the equilibrium moisture x_b follows the RH-dependent Lin-GAB / Langrish blend.',
+      'Local T_a is calculated from Y and H_h. With tower-side corrections off in the default app path, RH_eff equals RH_a and the equilibrium moisture x_b follows the RH-dependent Lin-GAB / Kockel blend.',
   },
   {
     index: '04',
@@ -1353,9 +1353,9 @@ type NumberFieldKey =
   | 'inlet_abs_humidity_g_kg'
   | 'feed_total_solids'
   | 'heat_loss_coeff_w_m2k'
-  | 'x_b_blend_langrish_weight'
-  | 'x_b_blend_langrish_weight_base'
-  | 'x_b_blend_langrish_weight_rh_coeff'
+  | 'x_b_blend_kockel_weight'
+  | 'x_b_blend_kockel_weight_base'
+  | 'x_b_blend_kockel_weight_rh_coeff'
   | 'nozzle_delta_p_bar'
   | 'nozzle_velocity_coefficient'
   | 'dryer_diameter_m'

@@ -74,8 +74,8 @@ class AlgebraicState:
     q_sorption_j_kg: float
     x_b: float
     x_b_lin_gab: float
-    x_b_langrish: float
-    x_b_langrish_weight: float
+    x_b_kockel: float
+    x_b_kockel_weight: float
     delta: float
     initial_moisture_dry_basis: float
     linear_slope: float
@@ -320,9 +320,9 @@ def evaluate_algebraic_state(
         t_a_k,
         rh_eff,
         inputs.x_b_model,
-        x_b_blend_langrish_weight=inputs.x_b_blend_langrish_weight,
-        x_b_blend_langrish_weight_base=inputs.x_b_blend_langrish_weight_base,
-        x_b_blend_langrish_weight_rh_coeff=inputs.x_b_blend_langrish_weight_rh_coeff,
+        x_b_blend_kockel_weight=inputs.x_b_blend_kockel_weight,
+        x_b_blend_kockel_weight_base=inputs.x_b_blend_kockel_weight_base,
+        x_b_blend_kockel_weight_rh_coeff=inputs.x_b_blend_kockel_weight_rh_coeff,
     )
     x_b = x_b_closure.x_b
     chew = chew_material_state(
@@ -391,8 +391,8 @@ def evaluate_algebraic_state(
         q_sorption_j_kg=633.0e3 if bounded_x <= 0.08 else 0.0,
         x_b=chew.x_b,
         x_b_lin_gab=x_b_closure.x_b_lin_gab,
-        x_b_langrish=x_b_closure.x_b_langrish,
-        x_b_langrish_weight=x_b_closure.x_b_langrish_weight,
+        x_b_kockel=x_b_closure.x_b_kockel,
+        x_b_kockel_weight=x_b_closure.x_b_kockel_weight,
         delta=chew.delta,
         initial_moisture_dry_basis=chew.initial_moisture_dry_basis,
         linear_slope=chew.linear_slope,

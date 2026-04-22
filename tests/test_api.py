@@ -37,7 +37,7 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         data = response.json()
         self.assertEqual(
             data["x_b_models"],
-            ["langrish", "lin_gab", "lin_gab_langrish_blend", "lin_gab_langrish_blend_rh"],
+            ["kockel", "lin_gab", "lin_gab_kockel_blend", "lin_gab_kockel_blend_rh"],
         )
         self.assertEqual(data["solver_methods"], ["BDF", "RK45", "Radau"])
         self.assertAlmostEqual(data["default_inputs"]["Tin"], 190.0)
@@ -57,10 +57,10 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone2_length_m"], 0.0)
         self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone2_target_rh"], 0.0)
         self.assertFalse(data["default_inputs"]["enable_material_retardation_add"])
-        self.assertEqual(data["default_inputs"]["x_b_model"], "lin_gab_langrish_blend_rh")
-        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight"], 0.5)
-        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_base"], 0.02)
-        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_rh_coeff"], 2.0)
+        self.assertEqual(data["default_inputs"]["x_b_model"], "lin_gab_kockel_blend_rh")
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_kockel_weight"], 0.5)
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_kockel_weight_base"], 0.02)
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_kockel_weight_rh_coeff"], 2.0)
         self.assertNotIn("reference_cases", data)
 
     async def test_simulate_returns_summary_and_profile(self) -> None:
@@ -86,9 +86,9 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                     "humidity_bias_zone2_length_m": 0.6,
                     "humidity_bias_zone2_target_rh": 0.18,
                     "enable_material_retardation_add": False,
-                    "x_b_model": "lin_gab_langrish_blend_rh",
-                    "x_b_blend_langrish_weight_base": 0.05,
-                    "x_b_blend_langrish_weight_rh_coeff": 5.0,
+                    "x_b_model": "lin_gab_kockel_blend_rh",
+                    "x_b_blend_kockel_weight_base": 0.05,
+                    "x_b_blend_kockel_weight_rh_coeff": 5.0,
                     "nozzle_delta_p_bar": 47.0,
                     "nozzle_velocity_coefficient": 0.6,
                     "dryer_diameter_m": 1.15,
@@ -132,9 +132,9 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["inputs"]["humidity_bias_zone2_length_m"], 0.6)
         self.assertAlmostEqual(data["inputs"]["humidity_bias_zone2_target_rh"], 0.18)
         self.assertFalse(data["inputs"]["enable_material_retardation_add"])
-        self.assertEqual(data["inputs"]["x_b_model"], "lin_gab_langrish_blend_rh")
-        self.assertAlmostEqual(data["inputs"]["x_b_blend_langrish_weight_base"], 0.05)
-        self.assertAlmostEqual(data["inputs"]["x_b_blend_langrish_weight_rh_coeff"], 5.0)
+        self.assertEqual(data["inputs"]["x_b_model"], "lin_gab_kockel_blend_rh")
+        self.assertAlmostEqual(data["inputs"]["x_b_blend_kockel_weight_base"], 0.05)
+        self.assertAlmostEqual(data["inputs"]["x_b_blend_kockel_weight_rh_coeff"], 5.0)
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:
         response = await self.client.post(

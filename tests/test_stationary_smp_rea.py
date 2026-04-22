@@ -76,7 +76,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
 
     def test_xb_closure_switch_changes_outlet_prediction(self) -> None:
         baseline = solve_stationary_smp_profile(
-            StationarySMPREAInput(x_b_model="langrish")
+            StationarySMPREAInput(x_b_model="kockel")
         )
         gab = solve_stationary_smp_profile(StationarySMPREAInput(x_b_model="lin_gab"))
 
@@ -98,36 +98,36 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         rh = 0.23
 
         lin_gab = equilibrium_moisture_closure(temp_k, rh, "lin_gab")
-        langrish = equilibrium_moisture_closure(temp_k, rh, "langrish")
+        kockel = equilibrium_moisture_closure(temp_k, rh, "kockel")
         blend_zero = equilibrium_moisture_closure(
             temp_k,
             rh,
-            "lin_gab_langrish_blend",
-            x_b_blend_langrish_weight=0.0,
+            "lin_gab_kockel_blend",
+            x_b_blend_kockel_weight=0.0,
         )
         blend_one = equilibrium_moisture_closure(
             temp_k,
             rh,
-            "lin_gab_langrish_blend",
-            x_b_blend_langrish_weight=1.0,
+            "lin_gab_kockel_blend",
+            x_b_blend_kockel_weight=1.0,
         )
         blend_mid = equilibrium_moisture_closure(
             temp_k,
             rh,
-            "lin_gab_langrish_blend",
-            x_b_blend_langrish_weight=0.35,
+            "lin_gab_kockel_blend",
+            x_b_blend_kockel_weight=0.35,
         )
 
         self.assertAlmostEqual(blend_zero.x_b, lin_gab.x_b, places=12)
-        self.assertAlmostEqual(blend_one.x_b, langrish.x_b, places=12)
+        self.assertAlmostEqual(blend_one.x_b, kockel.x_b, places=12)
         self.assertGreater(blend_mid.x_b, lin_gab.x_b)
-        self.assertLess(blend_mid.x_b, langrish.x_b)
+        self.assertLess(blend_mid.x_b, kockel.x_b)
 
-    def test_langrish_closure_matches_log_form_without_power_law(self) -> None:
+    def test_kockel_closure_matches_log_form_without_power_law(self) -> None:
         temp_k = 353.15
         rh = 0.17
 
-        closure = equilibrium_moisture_closure(temp_k, rh, "langrish")
+        closure = equilibrium_moisture_closure(temp_k, rh, "kockel")
         expected = 0.1499 * exp(-2.306e-3 * temp_k) * log(1.0 / rh)
 
         self.assertAlmostEqual(closure.x_b, expected, places=12)
@@ -136,27 +136,27 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         baseline = solve_stationary_smp_profile(StationarySMPREAInput(x_b_model="lin_gab"))
         blended = solve_stationary_smp_profile(
             StationarySMPREAInput(
-                x_b_model="lin_gab_langrish_blend",
-                x_b_blend_langrish_weight=0.35,
+                x_b_model="lin_gab_kockel_blend",
+                x_b_blend_kockel_weight=0.35,
             )
         )
-        langrish = solve_stationary_smp_profile(
-            StationarySMPREAInput(x_b_model="langrish")
+        kockel = solve_stationary_smp_profile(
+            StationarySMPREAInput(x_b_model="kockel")
         )
 
         self.assertTrue(blended.success)
         self.assertGreater(blended.outlet["outlet_X"], baseline.outlet["outlet_X"])
-        self.assertLess(blended.outlet["outlet_X"], langrish.outlet["outlet_X"])
+        self.assertLess(blended.outlet["outlet_X"], kockel.outlet["outlet_X"])
         self.assertGreater(
             float(blended.series["x_b"].iloc[-1]),
             float(baseline.series["x_b"].iloc[-1]),
         )
         self.assertLess(
             float(blended.series["x_b"].iloc[-1]),
-            float(langrish.series["x_b"].iloc[-1]),
+            float(kockel.series["x_b"].iloc[-1]),
         )
         self.assertAlmostEqual(
-            float(blended.series["x_b_langrish_weight"].iloc[-1]),
+            float(blended.series["x_b_kockel_weight"].iloc[-1]),
             0.35,
             places=12,
         )
@@ -168,29 +168,29 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         low = equilibrium_moisture_closure(
             temp_k,
             rh_low,
-            "lin_gab_langrish_blend_rh",
-            x_b_blend_langrish_weight_base=0.05,
-            x_b_blend_langrish_weight_rh_coeff=5.0,
+            "lin_gab_kockel_blend_rh",
+            x_b_blend_kockel_weight_base=0.05,
+            x_b_blend_kockel_weight_rh_coeff=5.0,
         )
         high = equilibrium_moisture_closure(
             temp_k,
             rh_high,
-            "lin_gab_langrish_blend_rh",
-            x_b_blend_langrish_weight_base=0.05,
-            x_b_blend_langrish_weight_rh_coeff=5.0,
+            "lin_gab_kockel_blend_rh",
+            x_b_blend_kockel_weight_base=0.05,
+            x_b_blend_kockel_weight_rh_coeff=5.0,
         )
         saturated = equilibrium_moisture_closure(
             temp_k,
             0.30,
-            "lin_gab_langrish_blend_rh",
-            x_b_blend_langrish_weight_base=0.30,
-            x_b_blend_langrish_weight_rh_coeff=5.0,
+            "lin_gab_kockel_blend_rh",
+            x_b_blend_kockel_weight_base=0.30,
+            x_b_blend_kockel_weight_rh_coeff=5.0,
         )
 
-        self.assertAlmostEqual(low.x_b_langrish_weight, 0.25, places=12)
-        self.assertAlmostEqual(high.x_b_langrish_weight, 0.60, places=12)
+        self.assertAlmostEqual(low.x_b_kockel_weight, 0.25, places=12)
+        self.assertAlmostEqual(high.x_b_kockel_weight, 0.60, places=12)
         self.assertGreater(high.x_b, low.x_b)
-        self.assertAlmostEqual(saturated.x_b_langrish_weight, 1.0, places=12)
+        self.assertAlmostEqual(saturated.x_b_kockel_weight, 1.0, places=12)
 
     def test_xb_rh_blend_profile_increases_applied_weight_for_more_humid_case(self) -> None:
         v2_input = build_ms400_stationary_input_from_label(
@@ -198,24 +198,24 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             feed_rate_kg_h=14.0,
             humid_air_mass_flow_kg_h=304.0,
             heat_loss_coeff_w_m2k=1.4,
-            x_b_model="lin_gab_langrish_blend_rh",
+            x_b_model="lin_gab_kockel_blend_rh",
         )
         v3_input = build_ms400_stationary_input_from_label(
             "V3",
             feed_rate_kg_h=14.0,
             humid_air_mass_flow_kg_h=304.0,
             heat_loss_coeff_w_m2k=1.4,
-            x_b_model="lin_gab_langrish_blend_rh",
+            x_b_model="lin_gab_kockel_blend_rh",
         )
         v2 = solve_stationary_smp_profile(v2_input)
         v3 = solve_stationary_smp_profile(v3_input)
-        v2_mean_weight = float(v2.series["x_b_langrish_weight"].mean())
-        v3_mean_weight = float(v3.series["x_b_langrish_weight"].mean())
+        v2_mean_weight = float(v2.series["x_b_kockel_weight"].mean())
+        v3_mean_weight = float(v3.series["x_b_kockel_weight"].mean())
 
         self.assertTrue(v2.success)
         self.assertTrue(v3.success)
-        self.assertAlmostEqual(v2.inputs.x_b_blend_langrish_weight_base, 0.0, places=12)
-        self.assertAlmostEqual(v2.inputs.x_b_blend_langrish_weight_rh_coeff, 0.0, places=12)
+        self.assertAlmostEqual(v2.inputs.x_b_blend_kockel_weight_base, 0.0, places=12)
+        self.assertAlmostEqual(v2.inputs.x_b_blend_kockel_weight_rh_coeff, 0.0, places=12)
         self.assertAlmostEqual(v2_mean_weight, 0.0, places=12)
         self.assertAlmostEqual(v3_mean_weight, 0.0, places=12)
 
@@ -223,22 +223,22 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             replace(
                 v2_input,
                 enable_material_retardation_add=False,
-                x_b_blend_langrish_weight_base=0.05,
-                x_b_blend_langrish_weight_rh_coeff=5.0,
+                x_b_blend_kockel_weight_base=0.05,
+                x_b_blend_kockel_weight_rh_coeff=5.0,
             )
         )
         tuned_v3 = solve_stationary_smp_profile(
             replace(
                 v3_input,
                 enable_material_retardation_add=False,
-                x_b_blend_langrish_weight_base=0.05,
-                x_b_blend_langrish_weight_rh_coeff=5.0,
+                x_b_blend_kockel_weight_base=0.05,
+                x_b_blend_kockel_weight_rh_coeff=5.0,
             )
         )
 
         self.assertGreater(
-            float(tuned_v3.series["x_b_langrish_weight"].mean()),
-            float(tuned_v2.series["x_b_langrish_weight"].mean()),
+            float(tuned_v3.series["x_b_kockel_weight"].mean()),
+            float(tuned_v2.series["x_b_kockel_weight"].mean()),
         )
         self.assertGreater(tuned_v3.outlet["outlet_X"], tuned_v2.outlet["outlet_X"])
 
@@ -504,7 +504,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertEqual(sim_input.feed_rate_kg_h, 14.0)
         self.assertEqual(sim_input.feed_total_solids, 0.37)
         self.assertEqual(sim_input.x_b_model, "lin_gab")
-        self.assertAlmostEqual(sim_input.x_b_blend_langrish_weight, 0.5)
+        self.assertAlmostEqual(sim_input.x_b_blend_kockel_weight, 0.5)
         self.assertEqual(sim_input.cylinder_height_m, MS400GeometryAssumption().cylinder_height_m)
         self.assertEqual(sim_input.cone_height_m, MS400GeometryAssumption().cone_height_m)
         self.assertEqual(
@@ -522,7 +522,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertEqual(sim_input.feed_rate_kg_h, 14.0)
         self.assertAlmostEqual(derived.humid_air_mass_flow_kg_s * 3600.0, 304.0, places=9)
         self.assertEqual(sim_input.x_b_model, "lin_gab")
-        self.assertAlmostEqual(sim_input.x_b_blend_langrish_weight, 0.5)
+        self.assertAlmostEqual(sim_input.x_b_blend_kockel_weight, 0.5)
 
     def test_pressure_nozzle_default_initial_velocity_uses_feed_density(self) -> None:
         sim_input = StationarySMPREAInput(
