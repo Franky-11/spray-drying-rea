@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import exp, log
 import unittest
 
 from core.stationary_smp_rea import (
@@ -121,6 +122,15 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertAlmostEqual(blend_one.x_b, langrish.x_b, places=12)
         self.assertGreater(blend_mid.x_b, lin_gab.x_b)
         self.assertLess(blend_mid.x_b, langrish.x_b)
+
+    def test_langrish_closure_matches_log_form_without_power_law(self) -> None:
+        temp_k = 353.15
+        rh = 0.17
+
+        closure = equilibrium_moisture_closure(temp_k, rh, "langrish")
+        expected = 0.1499 * exp(-2.306e-3 * temp_k) * log(1.0 / rh)
+
+        self.assertAlmostEqual(closure.x_b, expected, places=12)
 
     def test_xb_blend_profile_sits_between_endpoints(self) -> None:
         baseline = solve_stationary_smp_profile(StationarySMPREAInput(x_b_model="lin_gab"))

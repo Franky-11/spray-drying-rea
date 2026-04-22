@@ -56,10 +56,11 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone_target_rh"], 0.0)
         self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone2_length_m"], 0.0)
         self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone2_target_rh"], 0.0)
-        self.assertTrue(data["default_inputs"]["enable_material_retardation_add"])
+        self.assertFalse(data["default_inputs"]["enable_material_retardation_add"])
+        self.assertEqual(data["default_inputs"]["x_b_model"], "lin_gab_langrish_blend_rh")
         self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight"], 0.5)
-        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_base"], 0.0)
-        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_rh_coeff"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_base"], 0.02)
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_rh_coeff"], 2.0)
         self.assertNotIn("reference_cases", data)
 
     async def test_simulate_returns_summary_and_profile(self) -> None:

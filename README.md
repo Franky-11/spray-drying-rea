@@ -8,7 +8,7 @@ Web app for evaluating steady-state spray drying of skim milk powder with a Reac
 - Scenario-based simulation for skim milk powder spray drying.
 - Base case plus up to three comparison scenarios.
 - Core input set for inlet air conditions, feed rate, droplet diameter, inlet humidity, and feed solids.
-- Expert inputs for equilibrium moisture closure selection, pressure-nozzle entry parameters, heat-loss coefficient, and segmented geometry.
+- Expert inputs for equilibrium moisture closure selection including the RH-dependent Lin-GAB / Langrish blend, pressure-nozzle entry parameters, heat-loss coefficient, and segmented geometry.
 - KPI summary for final powder moisture, outlet air temperature, outlet relative humidity, residence time, target attainment, and mean particle diameter.
 - Axial charts for moisture, temperature, equilibrium moisture, particle diameter, velocity, and KPI comparison.
 - Tower preview linked to the active axial chart position.
@@ -170,7 +170,7 @@ The Vite dev server proxies API requests to `http://127.0.0.1:8000`.
 1. Open the app and choose `Open Simulation` on the home screen.
 2. Start from the base case and inspect the default SMP operating point.
 3. Adjust inlet air temperature, air mass flow, feed rate, droplet diameter, inlet humidity, feed solids, and target powder moisture.
-4. Optionally open `Expert Inputs` to change the equilibrium moisture closure, pressure-nozzle entry parameters, heat-loss coefficient, and segmented geometry.
+4. Optionally open `Expert Inputs` to change the equilibrium moisture closure, RH-blend parameters, pressure-nozzle entry parameters, heat-loss coefficient, and segmented geometry.
 5. Add comparison scenarios if operating sensitivities should be evaluated against the base case.
 6. Run `Run Comparison`.
 7. Review KPIs, axial profiles, warnings, and the tower position preview.
@@ -179,7 +179,7 @@ The Vite dev server proxies API requests to `http://127.0.0.1:8000`.
 ## Model Scope and Limits
 
 - The current app targets steady-state SMP spray drying with an REA-based axial core.
-- Equilibrium moisture is available through the temperature-dependent GAB closure and the Langrish isotherm option.
+- The current app default uses an RH-dependent blend between the temperature-dependent GAB closure and the Langrish isotherm, with tower-side add-ons off, the former project-specific REA material brake disabled, and the current default blend weights `w_base = 0.02`, `k_RH = 2.0`.
 - Segmented geometry is treated as an effective 1D flow path consisting of cylinder, cone, and outlet duct.
 - The model evaluates outlet air conditions, powder moisture, residence time, and mean particle diameter at the pre-cyclone outlet location.
 - Warnings are emitted when inputs move outside the main calibration or design window, for example for inlet air temperature or low-solids shrinkage use.

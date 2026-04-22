@@ -35,12 +35,22 @@ const XB_MODEL_DETAILS: Record<XBModel, { label: string; description: string }> 
   lin_gab: {
     label: 'Temperature-dependent GAB (Lin et al., 2005)',
     description:
-      'Uses the temperature-dependent GAB closure for skim milk powder and remains the recommended default for the active SMP workflow.',
+      'Uses the temperature-dependent GAB closure for skim milk powder as the drier closure anchor in the active SMP workflow.',
   },
   langrish: {
     label: 'Langrish isotherm (2009)',
     description:
-      'Uses the Langrish equilibrium isotherm as a sensitivity option for cross-checking outlet moisture and approach-to-equilibrium trends.',
+      'Uses the Langrish equilibrium isotherm as the wetter closure anchor for cross-checking outlet moisture and approach-to-equilibrium trends.',
+  },
+  lin_gab_langrish_blend: {
+    label: 'Constant Lin-GAB / Langrish blend',
+    description:
+      'Uses one constant Langrish share to linearly blend the Lin-GAB and Langrish equilibrium closures.',
+  },
+  lin_gab_langrish_blend_rh: {
+    label: 'RH-dependent Lin-GAB / Langrish blend',
+    description:
+      'Uses the current app default x_b path: a clamped RH-dependent Langrish share that blends Lin-GAB and Langrish without the project-specific material brake.',
   },
 }
 
@@ -279,6 +289,8 @@ function App() {
 
   const activeScenarioWarnings = activeScenarioResult?.warnings ?? []
   const activeXBModelDetails = activeScenario ? XB_MODEL_DETAILS[activeScenario.inputs.x_b_model] : null
+  const showsConstantBlendWeight = activeScenario?.inputs.x_b_model === 'lin_gab_langrish_blend'
+  const showsRhBlendWeights = activeScenario?.inputs.x_b_model === 'lin_gab_langrish_blend_rh'
 
   function invalidateResults() {
     setComparisonResult(null)
@@ -600,7 +612,9 @@ function App() {
                         <section className="expert-group" aria-labelledby="expert-equilibrium-title">
                           <div className="expert-group-header">
                             <h3 id="expert-equilibrium-title">Equilibrium Moisture</h3>
-                            <p>Select the `x_b` closure used by the REA core to evaluate local approach to equilibrium.</p>
+                            <p>
+                              Select the `x_b` closure used by the REA core to evaluate local approach to equilibrium. The current app default uses the RH-dependent Lin-GAB / Langrish blend with the material brake and tower-side add-ons switched off.
+                            </p>
                           </div>
                           <div className="field">
                             <label htmlFor="x_b_model">Equilibrium Moisture Closure</label>
@@ -617,6 +631,35 @@ function App() {
                             </select>
                             {activeXBModelDetails && <div className="field-note field-note-compact">{activeXBModelDetails.description}</div>}
                           </div>
+                          {showsConstantBlendWeight && (
+                            <div className="field-row">
+                              <NumberField
+                                id="x_b_blend_langrish_weight"
+                                label="Constant Langrish Share (-)"
+                                note="0.0 gives pure Lin-GAB and 1.0 gives pure Langrish."
+                                onChange={(value) => updateNumberField('x_b_blend_langrish_weight', value)}
+                                value={activeScenario.inputs.x_b_blend_langrish_weight}
+                              />
+                            </div>
+                          )}
+                          {showsRhBlendWeights && (
+                            <div className="field-row">
+                              <NumberField
+                                id="x_b_blend_langrish_weight_base"
+                                label="Base Langrish Share w_base (-)"
+                                note="Current app default: 0.02."
+                                onChange={(value) => updateNumberField('x_b_blend_langrish_weight_base', value)}
+                                value={activeScenario.inputs.x_b_blend_langrish_weight_base}
+                              />
+                              <NumberField
+                                id="x_b_blend_langrish_weight_rh_coeff"
+                                label="RH Blend Coefficient k_RH (-)"
+                                note="Current app default: 2.0 in w_langrish = clamp(w_base + k_RH * RH_eff, 0, 1)."
+                                onChange={(value) => updateNumberField('x_b_blend_langrish_weight_rh_coeff', value)}
+                                value={activeScenario.inputs.x_b_blend_langrish_weight_rh_coeff}
+                              />
+                            </div>
+                          )}
                         </section>
                         <section className="expert-group" aria-labelledby="expert-nozzle-title">
                           <div className="expert-group-header">
@@ -755,6 +798,24 @@ function App() {
                     <ParameterItem label="Feed Solids" value={`${formatKpi(activeScenario.inputs.feed_total_solids * 100)} wt%`} />
                     <ParameterItem label="Target Moisture" value={`${formatKpi(activeScenario.target_moisture_wb_pct)} wt% wb`} />
                     <ParameterItem label="Equilibrium x_b Model" value={XB_MODEL_DETAILS[activeScenario.inputs.x_b_model].label} />
+                    {activeScenario.inputs.x_b_model === 'lin_gab_langrish_blend' && (
+                      <ParameterItem
+                        label="Constant Langrish Share"
+                        value={formatKpi(activeScenario.inputs.x_b_blend_langrish_weight)}
+                      />
+                    )}
+                    {activeScenario.inputs.x_b_model === 'lin_gab_langrish_blend_rh' && (
+                      <>
+                        <ParameterItem
+                          label="Base Langrish Share"
+                          value={formatKpi(activeScenario.inputs.x_b_blend_langrish_weight_base)}
+                        />
+                        <ParameterItem
+                          label="RH Blend Coefficient"
+                          value={formatKpi(activeScenario.inputs.x_b_blend_langrish_weight_rh_coeff)}
+                        />
+                      </>
+                    )}
                     <ParameterItem
                       label="Pressure-Nozzle Entry"
                       value={`${formatKpi(activeScenario.inputs.nozzle_delta_p_bar)} bar / Cv ${formatKpi(activeScenario.inputs.nozzle_velocity_coefficient)}`}
@@ -1078,14 +1139,18 @@ function ModelFoundationView() {
             <div className="formula-rendered">
               <MathBlock tex={'U_a(h) = \\frac{\\dot{m}_{ha}}{\\rho_a(h) A(h)}'} />
               <MathBlock tex={'RH_a = \\frac{p_v(Y,p)}{p_{\\mathrm{sat}}(T_a)}'} />
+              <MathBlock tex={'RH_{\\mathrm{eff}} = RH_a \\qquad \\text{(default app path, tower-side correction off)}'} />
               <MathBlock tex={'x_{b,\\mathrm{GAB}} = \\frac{C(T) K(T) m_0 RH_a}{\\left(1-K(T)RH_a\\right)\\left(1-K(T)RH_a + C(T)K(T)RH_a\\right)}'} />
               <MathBlock tex={'m_0 = 0.06156, \\quad C(T) = 0.001645 \\, \\exp\\!\\left(\\frac{24831}{RT}\\right), \\quad K(T) = 5.710 \\, \\exp\\!\\left(-\\frac{5118}{RT}\\right)'} />
-              <MathBlock tex={'x_{b,\\mathrm{Langrish}} = 0.1499 \\, \\exp\\!\\left(-2.306 \\times 10^{-3} T_{a,K}\\right)\\left[\\ln\\!\\left(\\frac{1}{RH_a}\\right)\\right]^{0.4}'} />
+              <MathBlock tex={'x_{b,\\mathrm{Langrish}} = 0.1499 \\, \\exp\\!\\left(-2.306 \\times 10^{-3} T_{a,K}\\right)\\ln\\!\\left(\\frac{1}{RH_a}\\right)'} />
+              <MathBlock tex={'w_{\\mathrm{Langrish}} = \\mathrm{clamp}\\!\\left(0.02 + 2.0 \\, RH_{\\mathrm{eff}}, 0, 1\\right)'} />
+              <MathBlock tex={'x_b = \\left(1 - w_{\\mathrm{Langrish}}\\right) x_{b,\\mathrm{GAB}} + w_{\\mathrm{Langrish}} x_{b,\\mathrm{Langrish}}'} />
             </div>
             <p className="equation-note">
-              The local cross section from cylinder, cone, and outlet duct determines the air velocity. The
-              default closure for equilibrium moisture in the core is the temperature-dependent GAB variant;
-              the Langrish isotherm remains available for cross-checking.
+              The local cross section from cylinder, cone, and outlet duct determines the air velocity. In the
+              current app default, tower-side exposure and humidity add-ons remain off, so `RH_eff = RH_a`.
+              The equilibrium moisture path is the RH-dependent Lin-GAB / Langrish blend with the current
+              default weights `w_base = 0.02` and `k_RH = 2.0`.
             </p>
             <div className="equation-sources">
               <span className="label">Sources</span>
@@ -1100,25 +1165,18 @@ function ModelFoundationView() {
               <MathBlock tex={'\\delta = X - x_b'} />
               <MathBlock tex={'\\psi = \\exp\\!\\left(-\\frac{\\Delta E}{R T_p}\\right)'} />
               <MathBlock tex={'\\rho_{v,s} = \\psi \\, \\rho_{v,\\mathrm{sat}}(T_p)'} />
-              <MathBlock tex={'r_{\\mathrm{REA}} = \\min\\!\\left(1, \\max\\!\\left(0, r_{\\mathrm{base}} + r_{\\mathrm{add}}\\right)\\right)'} />
-              <MathBlock tex={'r_{\\mathrm{add}} = G \\, \\delta \\, \\sigma\\!\\left(\\frac{c - \\delta^{\\ast}}{w}\\right), \\qquad \\delta^{\\ast} = \\frac{\\max(\\delta,0)}{\\max(X_0 - x_b, \\varepsilon)}'} />
               <MathBlock tex={'d_p = d_{p,0} \\, s(\\delta, x_b, w_{\\mathrm{TS}})'} />
             </div>
             <p className="equation-note">
               REA denotes the Reaction Engineering Approach. The REA term retards surface evaporation through
-              the activation energy. In parallel, the particle diameter is updated through the selected
+              the activation energy. In the current app default, the former project-specific additional REA
+              material brake is switched off. In parallel, the particle diameter is updated through the selected
               shrinkage model.
             </p>
             <div className="equation-sources">
               <span className="label">Sources</span>
               <p>Chen, 2008. Drying Technology 26, 627-639.</p>
               <p>Chew et al., 2013. Dairy Science &amp; Technology 93, 415-430.</p>
-              <p>
-                In the current core, REA retardation in the early falling-rate period is augmented by an
-                additional material-specific term. This project-specific implementation adjustment was tuned
-                against powder moisture and outlet air temperature data from an SPX MS400 pilot tower and is
-                not a direct literature equation.
-              </p>
             </div>
           </article>
 
@@ -1214,13 +1272,13 @@ const modelProcessSteps = [
     index: '03',
     title: 'Air State and Equilibrium Moisture',
     description:
-      'Local T_a is calculated from Y and H_h. This determines RH_a and the equilibrium moisture x_b through the selected isotherm model.',
+      'Local T_a is calculated from Y and H_h. With tower-side corrections off in the default app path, RH_eff equals RH_a and the equilibrium moisture x_b follows the RH-dependent Lin-GAB / Langrish blend.',
   },
   {
     index: '04',
     title: 'REA and Shrinkage',
     description:
-      'The local difference delta = X - x_b determines the surface retardation psi through the REA activation energy and the current particle diameter through the shrinkage model.',
+      'The local difference delta = X - x_b determines the surface retardation psi through the REA activation energy, while the current particle diameter follows the shrinkage model.',
   },
   {
     index: '05',
@@ -1278,7 +1336,7 @@ const modelAssumptions = [
   {
     title: 'SMP material closure',
     description:
-      'The REA and shrinkage closures are parameterized for the current SMP context over 20-50 wt% feed solids. Above 43 wt%, REA blends toward the legacy 50-wt% material function and shrinkage blends onto the temperature-dependent 50-wt% endpoint; below 37 wt%, the legacy extended shrinkage path is used.',
+      'The REA and shrinkage closures are parameterized for the current SMP context over 20-50 wt% feed solids. Above 43 wt%, REA blends toward the legacy 50-wt% material function and shrinkage blends onto the temperature-dependent 50-wt% endpoint; below 37 wt%, the legacy extended shrinkage path is used. The current app default does not activate the former project-specific extra REA material brake.',
   },
   {
     title: 'No Tg or stickiness model in V1',
@@ -1295,6 +1353,9 @@ type NumberFieldKey =
   | 'inlet_abs_humidity_g_kg'
   | 'feed_total_solids'
   | 'heat_loss_coeff_w_m2k'
+  | 'x_b_blend_langrish_weight'
+  | 'x_b_blend_langrish_weight_base'
+  | 'x_b_blend_langrish_weight_rh_coeff'
   | 'nozzle_delta_p_bar'
   | 'nozzle_velocity_coefficient'
   | 'dryer_diameter_m'

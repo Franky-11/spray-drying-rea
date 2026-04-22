@@ -28,7 +28,7 @@ def _bounded_langrish_weight(weight: float) -> float:
 
 def equilibrium_moisture_langrish(temp_k: float, rh: float) -> float:
     bounded_rh = min(max(rh, EPS), 0.999999)
-    return 0.1499 * exp(-2.306e-3 * temp_k) * (log(1.0 / bounded_rh) ** 0.4)
+    return 0.1499 * exp(-2.306e-3 * temp_k) * log(1.0 / bounded_rh)
 
 
 def equilibrium_moisture_lin_gab(temp_k: float, rh: float) -> float:

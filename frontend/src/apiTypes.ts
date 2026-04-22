@@ -1,7 +1,7 @@
 export type ApiStatus = 'checking' | 'online' | 'offline'
 export type AppView = 'start' | 'simulation' | 'model'
 export type ChartTab = 'moisture' | 'temperature' | 'equilibrium' | 'particle' | 'velocity' | 'comparison'
-export type XBModel = 'langrish' | 'lin_gab'
+export type XBModel = 'langrish' | 'lin_gab' | 'lin_gab_langrish_blend' | 'lin_gab_langrish_blend_rh'
 
 export interface HealthResponse {
   status: 'ok'
@@ -15,7 +15,21 @@ export interface StationaryInput {
   inlet_abs_humidity_g_kg: number
   feed_total_solids: number
   heat_loss_coeff_w_m2k: number
+  contact_efficiency: number
+  atomization_zone_length_m: number
+  atomization_zone_exposure_factor: number
+  secondary_exposure_zone_length_m: number
+  secondary_exposure_zone_factor: number
+  effective_gas_humidity_mode: 'off' | 'target_rh'
+  humidity_bias_zone_length_m: number
+  humidity_bias_zone_target_rh: number
+  humidity_bias_zone2_length_m: number
+  humidity_bias_zone2_target_rh: number
+  enable_material_retardation_add: boolean
   x_b_model: XBModel
+  x_b_blend_langrish_weight: number
+  x_b_blend_langrish_weight_base: number
+  x_b_blend_langrish_weight_rh_coeff: number
   nozzle_delta_p_bar: number
   nozzle_velocity_coefficient: number
   dryer_diameter_m: number
