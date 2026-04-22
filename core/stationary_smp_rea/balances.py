@@ -9,6 +9,7 @@ from .air import (
     T_REF_K,
     air_superficial_velocity,
     dynamic_viscosity_air,
+    humidity_ratio_from_vapor_pressure,
     invert_humid_air_enthalpy,
     latent_heat_evaporation,
     moist_air_density,
@@ -20,7 +21,7 @@ from .air import (
     water_vapor_density,
     water_vapor_diffusivity,
 )
-from .closures import equilibrium_moisture
+from .closures import equilibrium_moisture_closure
 from .inputs import StationarySMPREADerivedInputs, StationarySMPREAInput
 from .materials import chew_material_state
 from .particle import (
@@ -40,6 +41,7 @@ class AlgebraicState:
     X: float
     T_p_k: float
     Y: float
+    Y_eff: float
     H_h_j_kg_da: float
     U_p_ms: float
     tau_s: float | None
@@ -47,10 +49,14 @@ class AlgebraicState:
     T_p_c: float
     T_a_c: float
     p_v_pa: float
+    p_v_eff_pa: float
     p_sat_air_pa: float
     p_sat_particle_pa: float
     RH_a: float
+    RH_eff: float
+    humidity_bias_active: float
     rho_v_air_kg_m3: float
+    rho_v_air_eff_kg_m3: float
     rho_v_sat_air_kg_m3: float
     rho_v_sat_particle_kg_m3: float
     rho_v_surface_kg_m3: float
@@ -67,6 +73,9 @@ class AlgebraicState:
     h_fg_j_kg: float
     q_sorption_j_kg: float
     x_b: float
+    x_b_lin_gab: float
+    x_b_langrish: float
+    x_b_langrish_weight: float
     delta: float
     initial_moisture_dry_basis: float
     linear_slope: float
@@ -186,6 +195,72 @@ def _atomization_zone_axial_exposure_factor(
     ) * ramp_coordinate
 
 
+def _effective_local_target_rh(
+    h_m: float,
+    inputs: StationarySMPREAInput,
+    bulk_rh: float,
+) -> float:
+    if inputs.effective_gas_humidity_mode != "target_rh":
+        return bulk_rh
+
+    zone1_active = (
+        inputs.humidity_bias_zone_length_m > 0.0 and inputs.humidity_bias_zone_target_rh > 0.0
+    )
+    zone2_active = (
+        inputs.humidity_bias_zone2_length_m > 0.0 and inputs.humidity_bias_zone2_target_rh > 0.0
+    )
+    if not zone1_active and not zone2_active:
+        return bulk_rh
+
+    zone1_target = max(inputs.humidity_bias_zone_target_rh, bulk_rh)
+    zone2_target = max(inputs.humidity_bias_zone2_target_rh, bulk_rh)
+
+    if zone2_active:
+        first_zone_end_h_m = inputs.humidity_bias_zone_length_m if zone1_active else 0.0
+        second_zone_end_h_m = first_zone_end_h_m + inputs.humidity_bias_zone2_length_m
+        transition_width_h_m = min(
+            0.05,
+            0.25
+            * max(
+                min(
+                    inputs.humidity_bias_zone2_length_m,
+                    max(inputs.humidity_bias_zone_length_m, inputs.humidity_bias_zone2_length_m),
+                ),
+                EPS,
+            ),
+        )
+
+        if zone1_active and h_m < max(first_zone_end_h_m - transition_width_h_m, 0.0):
+            return zone1_target
+        if zone1_active and h_m < first_zone_end_h_m + transition_width_h_m:
+            return _smooth_transition(
+                h_m,
+                max(first_zone_end_h_m - transition_width_h_m, 0.0),
+                first_zone_end_h_m + transition_width_h_m,
+                zone1_target,
+                zone2_target,
+            )
+        if h_m < max(second_zone_end_h_m - transition_width_h_m, first_zone_end_h_m):
+            return zone2_target
+        if h_m < second_zone_end_h_m + transition_width_h_m:
+            return _smooth_transition(
+                h_m,
+                max(second_zone_end_h_m - transition_width_h_m, first_zone_end_h_m),
+                second_zone_end_h_m + transition_width_h_m,
+                zone2_target,
+                bulk_rh,
+            )
+        return bulk_rh
+
+    return _smooth_transition(
+        h_m,
+        0.0,
+        max(inputs.humidity_bias_zone_length_m, EPS),
+        zone1_target,
+        bulk_rh,
+    )
+
+
 def evaluate_algebraic_state(
     h_m: float,
     state_vector: np.ndarray,
@@ -208,10 +283,20 @@ def evaluate_algebraic_state(
 
     t_a_k = max(invert_humid_air_enthalpy(h_h, bounded_y), 250.0)
     rh_air = relative_humidity(t_a_k, bounded_y, inputs.pressure_pa)
+    rh_eff = min(
+        max(_effective_local_target_rh(h_m, inputs, rh_air), rh_air),
+        0.999999,
+    )
     p_v = vapor_partial_pressure(bounded_y, inputs.pressure_pa)
+    p_v_eff = min(
+        max(rh_eff * saturation_vapor_pressure(t_a_k), 0.0),
+        0.999999 * inputs.pressure_pa,
+    )
+    y_eff = max(humidity_ratio_from_vapor_pressure(p_v_eff, inputs.pressure_pa), EPS)
     p_sat_air = saturation_vapor_pressure(t_a_k)
     p_sat_particle = saturation_vapor_pressure(bounded_t_p_k)
     rho_v_air = water_vapor_density(t_a_k, bounded_y, inputs.pressure_pa)
+    rho_v_air_eff = water_vapor_density(t_a_k, y_eff, inputs.pressure_pa)
     rho_v_sat_air = saturated_vapor_density(t_a_k)
     rho_v_sat_particle = saturated_vapor_density(bounded_t_p_k)
     rho_air = moist_air_density(t_a_k, bounded_y, inputs.pressure_pa)
@@ -231,7 +316,15 @@ def evaluate_algebraic_state(
             local_cross_section_area_m2,
         )
     )
-    x_b = equilibrium_moisture(t_a_k, rh_air, inputs.x_b_model)
+    x_b_closure = equilibrium_moisture_closure(
+        t_a_k,
+        rh_eff,
+        inputs.x_b_model,
+        x_b_blend_langrish_weight=inputs.x_b_blend_langrish_weight,
+        x_b_blend_langrish_weight_base=inputs.x_b_blend_langrish_weight_base,
+        x_b_blend_langrish_weight_rh_coeff=inputs.x_b_blend_langrish_weight_rh_coeff,
+    )
+    x_b = x_b_closure.x_b
     chew = chew_material_state(
         moisture_dry_basis=bounded_x,
         x_b=x_b,
@@ -239,7 +332,7 @@ def evaluate_algebraic_state(
         shrinkage_model=inputs.shrinkage_model,
         temp_particle_k=bounded_t_p_k,
         temp_air_k=t_a_k,
-        rh_air=rh_air,
+        rh_air=rh_eff,
         enable_material_retardation_add=inputs.enable_material_retardation_add,
     )
     particle_diameter = derived.droplet_diameter_m * chew.shrinkage_ratio
@@ -265,6 +358,7 @@ def evaluate_algebraic_state(
         X=bounded_x,
         T_p_k=bounded_t_p_k,
         Y=bounded_y,
+        Y_eff=y_eff,
         H_h_j_kg_da=h_h,
         U_p_ms=bounded_u_p_ms,
         tau_s=tau,
@@ -272,10 +366,14 @@ def evaluate_algebraic_state(
         T_p_c=bounded_t_p_k - 273.15,
         T_a_c=t_a_k - 273.15,
         p_v_pa=p_v,
+        p_v_eff_pa=p_v_eff,
         p_sat_air_pa=p_sat_air,
         p_sat_particle_pa=p_sat_particle,
         RH_a=rh_air,
+        RH_eff=rh_eff,
+        humidity_bias_active=1.0 if rh_eff > rh_air + 1e-12 else 0.0,
         rho_v_air_kg_m3=rho_v_air,
+        rho_v_air_eff_kg_m3=rho_v_air_eff,
         rho_v_sat_air_kg_m3=rho_v_sat_air,
         rho_v_sat_particle_kg_m3=rho_v_sat_particle,
         rho_v_surface_kg_m3=chew.psi * rho_v_sat_particle,
@@ -292,6 +390,9 @@ def evaluate_algebraic_state(
         h_fg_j_kg=latent_heat_evaporation(t_a_k),
         q_sorption_j_kg=633.0e3 if bounded_x <= 0.08 else 0.0,
         x_b=chew.x_b,
+        x_b_lin_gab=x_b_closure.x_b_lin_gab,
+        x_b_langrish=x_b_closure.x_b_langrish,
+        x_b_langrish_weight=x_b_closure.x_b_langrish_weight,
         delta=chew.delta,
         initial_moisture_dry_basis=chew.initial_moisture_dry_basis,
         linear_slope=chew.linear_slope,
@@ -335,7 +436,7 @@ def evaluate_rhs(
         algebraic.effective_mass_transfer_coeff_ms
         * algebraic.particle_area_m2
         / max(algebraic.U_p_ms, EPS)
-        * (algebraic.rho_v_surface_kg_m3 - algebraic.rho_v_air_kg_m3)
+        * (algebraic.rho_v_surface_kg_m3 - algebraic.rho_v_air_eff_kg_m3)
     )
     # Enforce zero drying rate once the local equilibrium moisture is reached.
     # The current REA closure is only calibrated on the drying side (X >= X_b),

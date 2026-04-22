@@ -35,7 +35,10 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["x_b_models"], ["langrish", "lin_gab"])
+        self.assertEqual(
+            data["x_b_models"],
+            ["langrish", "lin_gab", "lin_gab_langrish_blend", "lin_gab_langrish_blend_rh"],
+        )
         self.assertEqual(data["solver_methods"], ["BDF", "RK45", "Radau"])
         self.assertAlmostEqual(data["default_inputs"]["Tin"], 190.0)
         self.assertAlmostEqual(data["default_inputs"]["feed_rate_kg_h"], 15.0)
@@ -48,7 +51,15 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertAlmostEqual(data["default_inputs"]["atomization_zone_exposure_factor"], 1.0)
         self.assertAlmostEqual(data["default_inputs"]["secondary_exposure_zone_length_m"], 0.0)
         self.assertAlmostEqual(data["default_inputs"]["secondary_exposure_zone_factor"], 1.0)
+        self.assertEqual(data["default_inputs"]["effective_gas_humidity_mode"], "off")
+        self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone_length_m"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone_target_rh"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone2_length_m"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["humidity_bias_zone2_target_rh"], 0.0)
         self.assertTrue(data["default_inputs"]["enable_material_retardation_add"])
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight"], 0.5)
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_base"], 0.0)
+        self.assertAlmostEqual(data["default_inputs"]["x_b_blend_langrish_weight_rh_coeff"], 0.0)
         self.assertNotIn("reference_cases", data)
 
     async def test_simulate_returns_summary_and_profile(self) -> None:
@@ -68,8 +79,15 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
                     "atomization_zone_exposure_factor": 0.75,
                     "secondary_exposure_zone_length_m": 0.5,
                     "secondary_exposure_zone_factor": 0.85,
+                    "effective_gas_humidity_mode": "target_rh",
+                    "humidity_bias_zone_length_m": 0.4,
+                    "humidity_bias_zone_target_rh": 0.25,
+                    "humidity_bias_zone2_length_m": 0.6,
+                    "humidity_bias_zone2_target_rh": 0.18,
                     "enable_material_retardation_add": False,
-                    "x_b_model": "lin_gab",
+                    "x_b_model": "lin_gab_langrish_blend_rh",
+                    "x_b_blend_langrish_weight_base": 0.05,
+                    "x_b_blend_langrish_weight_rh_coeff": 5.0,
                     "nozzle_delta_p_bar": 47.0,
                     "nozzle_velocity_coefficient": 0.6,
                     "dryer_diameter_m": 1.15,
@@ -98,13 +116,24 @@ class SprayDryingApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("delta_t_air_particle_c", data["profile"]["series"][0])
         self.assertIn("axial_exposure_factor", data["profile"]["series"][0])
         self.assertIn("combined_contact_exposure_factor", data["profile"]["series"][0])
+        self.assertIn("RH_eff_pct", data["profile"]["series"][0])
+        self.assertIn("Y_eff", data["profile"]["series"][0])
+        self.assertIn("humidity_bias_active", data["profile"]["series"][0])
         self.assertIn("q_evap_to_conv_ratio", data["profile"]["series"][0])
         self.assertAlmostEqual(data["inputs"]["contact_efficiency"], 0.9)
         self.assertAlmostEqual(data["inputs"]["atomization_zone_length_m"], 0.3)
         self.assertAlmostEqual(data["inputs"]["atomization_zone_exposure_factor"], 0.75)
         self.assertAlmostEqual(data["inputs"]["secondary_exposure_zone_length_m"], 0.5)
         self.assertAlmostEqual(data["inputs"]["secondary_exposure_zone_factor"], 0.85)
+        self.assertEqual(data["inputs"]["effective_gas_humidity_mode"], "target_rh")
+        self.assertAlmostEqual(data["inputs"]["humidity_bias_zone_length_m"], 0.4)
+        self.assertAlmostEqual(data["inputs"]["humidity_bias_zone_target_rh"], 0.25)
+        self.assertAlmostEqual(data["inputs"]["humidity_bias_zone2_length_m"], 0.6)
+        self.assertAlmostEqual(data["inputs"]["humidity_bias_zone2_target_rh"], 0.18)
         self.assertFalse(data["inputs"]["enable_material_retardation_add"])
+        self.assertEqual(data["inputs"]["x_b_model"], "lin_gab_langrish_blend_rh")
+        self.assertAlmostEqual(data["inputs"]["x_b_blend_langrish_weight_base"], 0.05)
+        self.assertAlmostEqual(data["inputs"]["x_b_blend_langrish_weight_rh_coeff"], 5.0)
 
     async def test_simulate_rejects_invalid_feed_solids(self) -> None:
         response = await self.client.post(

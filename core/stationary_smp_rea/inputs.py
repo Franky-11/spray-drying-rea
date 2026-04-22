@@ -28,6 +28,7 @@ from .particle import (
 EPS = 1e-12
 SUPPORTED_SOLVER_METHODS = {"BDF", "RK45", "Radau"}
 ShrinkageModel = Literal["auto", "chew", "legacy_extended"]
+EffectiveGasHumidityMode = Literal["off", "target_rh"]
 
 
 @dataclass(frozen=True)
@@ -57,12 +58,20 @@ class StationarySMPREAInput:
     atomization_zone_exposure_factor: float = 1.0
     secondary_exposure_zone_length_m: float = 0.0
     secondary_exposure_zone_factor: float = 1.0
+    effective_gas_humidity_mode: EffectiveGasHumidityMode = "off"
+    humidity_bias_zone_length_m: float = 0.0
+    humidity_bias_zone_target_rh: float = 0.0
+    humidity_bias_zone2_length_m: float = 0.0
+    humidity_bias_zone2_target_rh: float = 0.0
     enable_material_retardation_add: bool = True
     dry_solids_density_kg_m3: float = 1400.0
     water_density_kg_m3: float = 1000.0
     dry_solids_specific_heat_j_kg_k: float = 1500.0
     material: Literal["SMP"] = "SMP"
     x_b_model: XBModel = "lin_gab"
+    x_b_blend_langrish_weight: float = 0.5
+    x_b_blend_langrish_weight_base: float = 0.0
+    x_b_blend_langrish_weight_rh_coeff: float = 0.0
     shrinkage_model: ShrinkageModel = "auto"
     axial_points: int = 250
     include_tau_state: bool = True
@@ -114,6 +123,8 @@ class StationarySMPREAInput:
             "outlet_duct_length_m": self.outlet_duct_length_m,
             "atomization_zone_length_m": self.atomization_zone_length_m,
             "secondary_exposure_zone_length_m": self.secondary_exposure_zone_length_m,
+            "humidity_bias_zone_length_m": self.humidity_bias_zone_length_m,
+            "humidity_bias_zone2_length_m": self.humidity_bias_zone2_length_m,
         }
         for name, value in nonnegative_fields.items():
             if value < 0.0:
@@ -127,6 +138,12 @@ class StationarySMPREAInput:
             errors.append("atomization_zone_exposure_factor muss im Bereich (0, 1] liegen.")
         if not 0.0 < self.secondary_exposure_zone_factor <= 1.0:
             errors.append("secondary_exposure_zone_factor muss im Bereich (0, 1] liegen.")
+        if not 0.0 <= self.humidity_bias_zone_target_rh < 1.0:
+            errors.append("humidity_bias_zone_target_rh muss im Bereich [0, 1) liegen.")
+        if not 0.0 <= self.humidity_bias_zone2_target_rh < 1.0:
+            errors.append("humidity_bias_zone2_target_rh muss im Bereich [0, 1) liegen.")
+        if not 0.0 <= self.x_b_blend_langrish_weight <= 1.0:
+            errors.append("x_b_blend_langrish_weight muss im Bereich [0, 1] liegen.")
         if self.inlet_abs_humidity_g_kg < 0.0:
             errors.append("inlet_abs_humidity_g_kg darf nicht negativ sein.")
         if self.axial_points < 25:
@@ -135,6 +152,8 @@ class StationarySMPREAInput:
             errors.append(
                 f"solver_method muss eine von {sorted(SUPPORTED_SOLVER_METHODS)} sein."
             )
+        if self.effective_gas_humidity_mode not in {"off", "target_rh"}:
+            errors.append("effective_gas_humidity_mode muss 'off' oder 'target_rh' sein.")
         if self.material != "SMP":
             errors.append("Der neue stationaere Kern unterstuetzt nur SMP.")
         if not 0.20 <= self.feed_total_solids <= 0.50:
@@ -198,9 +217,52 @@ class StationarySMPREAInput:
             warnings.append(
                 "secondary_exposure_zone_factor below 1.0 has no effect because secondary_exposure_zone_length_m is zero."
             )
+        if self.effective_gas_humidity_mode == "target_rh":
+            warnings.append(
+                "An effective local gas humidity correction modifies the particle-side local humidity state without changing the bulk gas balances."
+            )
+            if self.humidity_bias_zone_length_m > 0.0 and self.humidity_bias_zone_target_rh > 0.0:
+                warnings.append(
+                    "A primary humidity-bias zone shifts the particle-side local humidity toward a target relative humidity in the upper tower region."
+                )
+            if self.humidity_bias_zone2_length_m > 0.0 and self.humidity_bias_zone2_target_rh > 0.0:
+                warnings.append(
+                    "A secondary humidity-bias zone shifts the particle-side local humidity toward a target relative humidity downstream of the primary zone."
+                )
+        if self.effective_gas_humidity_mode == "off" and (
+            self.humidity_bias_zone_target_rh > 0.0 or self.humidity_bias_zone2_target_rh > 0.0
+        ):
+            warnings.append(
+                "Humidity-bias targets are set but effective_gas_humidity_mode is 'off', so they have no effect."
+            )
         if not self.enable_material_retardation_add:
             warnings.append(
                 "The extra early falling-rate material-side REA retardation is disabled; drying follows only the baseline REA branch."
+            )
+        if self.x_b_model == "lin_gab_langrish_blend":
+            warnings.append(
+                "The x_b closure linearly blends Lin-GAB and Langrish equilibrium moistures with x_b_blend_langrish_weight as the Langrish share."
+            )
+        if self.x_b_model == "lin_gab_langrish_blend_rh":
+            warnings.append(
+                "The x_b closure linearly blends Lin-GAB and Langrish equilibrium moistures with a clamped RH-dependent Langrish share x_b_blend_langrish_weight_base + x_b_blend_langrish_weight_rh_coeff * RH_eff."
+            )
+        if (
+            self.x_b_model != "lin_gab_langrish_blend"
+            and abs(self.x_b_blend_langrish_weight - 0.5) > 1e-12
+        ):
+            warnings.append(
+                "x_b_blend_langrish_weight is set but x_b_model is not 'lin_gab_langrish_blend', so the blend weight has no effect."
+            )
+        if (
+            self.x_b_model != "lin_gab_langrish_blend_rh"
+            and (
+                abs(self.x_b_blend_langrish_weight_base) > 1e-12
+                or abs(self.x_b_blend_langrish_weight_rh_coeff) > 1e-12
+            )
+        ):
+            warnings.append(
+                "x_b_blend_langrish_weight_base and/or x_b_blend_langrish_weight_rh_coeff are set but x_b_model is not 'lin_gab_langrish_blend_rh', so the RH-dependent blend parameters have no effect."
             )
 
         return errors, warnings

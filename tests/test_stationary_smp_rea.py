@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from core.stationary_smp_rea import (
@@ -11,6 +12,7 @@ from core.stationary_smp_rea import (
 from core.stationary_smp_rea.air import latent_heat_evaporation
 from core.stationary_smp_rea.air import T_REF_K
 from core.stationary_smp_rea.balances import evaluate_algebraic_state, evaluate_rhs
+from core.stationary_smp_rea.closures import equilibrium_moisture_closure
 from core.stationary_smp_rea.inputs import derive_inputs
 from core.stationary_smp_rea.ms400 import load_ms400_experiments
 from core.stationary_smp_rea.materials.smp_chew import (
@@ -51,6 +53,9 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             "Nu",
             "axial_exposure_factor",
             "combined_contact_exposure_factor",
+            "RH_eff",
+            "Y_eff",
+            "humidity_bias_active",
             "delta_t_air_particle_k",
             "rho_v_driving_force_kg_m3",
             "q_conv_w",
@@ -86,6 +91,146 @@ class StationarySMPREAKernelTests(unittest.TestCase):
             float(gab.series["x_b"].iloc[-1]),
             places=4,
         )
+
+    def test_xb_blend_closure_reproduces_both_endpoints(self) -> None:
+        temp_k = 333.15
+        rh = 0.23
+
+        lin_gab = equilibrium_moisture_closure(temp_k, rh, "lin_gab")
+        langrish = equilibrium_moisture_closure(temp_k, rh, "langrish")
+        blend_zero = equilibrium_moisture_closure(
+            temp_k,
+            rh,
+            "lin_gab_langrish_blend",
+            x_b_blend_langrish_weight=0.0,
+        )
+        blend_one = equilibrium_moisture_closure(
+            temp_k,
+            rh,
+            "lin_gab_langrish_blend",
+            x_b_blend_langrish_weight=1.0,
+        )
+        blend_mid = equilibrium_moisture_closure(
+            temp_k,
+            rh,
+            "lin_gab_langrish_blend",
+            x_b_blend_langrish_weight=0.35,
+        )
+
+        self.assertAlmostEqual(blend_zero.x_b, lin_gab.x_b, places=12)
+        self.assertAlmostEqual(blend_one.x_b, langrish.x_b, places=12)
+        self.assertGreater(blend_mid.x_b, lin_gab.x_b)
+        self.assertLess(blend_mid.x_b, langrish.x_b)
+
+    def test_xb_blend_profile_sits_between_endpoints(self) -> None:
+        baseline = solve_stationary_smp_profile(StationarySMPREAInput(x_b_model="lin_gab"))
+        blended = solve_stationary_smp_profile(
+            StationarySMPREAInput(
+                x_b_model="lin_gab_langrish_blend",
+                x_b_blend_langrish_weight=0.35,
+            )
+        )
+        langrish = solve_stationary_smp_profile(
+            StationarySMPREAInput(x_b_model="langrish")
+        )
+
+        self.assertTrue(blended.success)
+        self.assertGreater(blended.outlet["outlet_X"], baseline.outlet["outlet_X"])
+        self.assertLess(blended.outlet["outlet_X"], langrish.outlet["outlet_X"])
+        self.assertGreater(
+            float(blended.series["x_b"].iloc[-1]),
+            float(baseline.series["x_b"].iloc[-1]),
+        )
+        self.assertLess(
+            float(blended.series["x_b"].iloc[-1]),
+            float(langrish.series["x_b"].iloc[-1]),
+        )
+        self.assertAlmostEqual(
+            float(blended.series["x_b_langrish_weight"].iloc[-1]),
+            0.35,
+            places=12,
+        )
+
+    def test_xb_rh_blend_closure_uses_clamped_rh_dependent_weight(self) -> None:
+        temp_k = 333.15
+        rh_low = 0.04
+        rh_high = 0.11
+        low = equilibrium_moisture_closure(
+            temp_k,
+            rh_low,
+            "lin_gab_langrish_blend_rh",
+            x_b_blend_langrish_weight_base=0.05,
+            x_b_blend_langrish_weight_rh_coeff=5.0,
+        )
+        high = equilibrium_moisture_closure(
+            temp_k,
+            rh_high,
+            "lin_gab_langrish_blend_rh",
+            x_b_blend_langrish_weight_base=0.05,
+            x_b_blend_langrish_weight_rh_coeff=5.0,
+        )
+        saturated = equilibrium_moisture_closure(
+            temp_k,
+            0.30,
+            "lin_gab_langrish_blend_rh",
+            x_b_blend_langrish_weight_base=0.30,
+            x_b_blend_langrish_weight_rh_coeff=5.0,
+        )
+
+        self.assertAlmostEqual(low.x_b_langrish_weight, 0.25, places=12)
+        self.assertAlmostEqual(high.x_b_langrish_weight, 0.60, places=12)
+        self.assertGreater(high.x_b, low.x_b)
+        self.assertAlmostEqual(saturated.x_b_langrish_weight, 1.0, places=12)
+
+    def test_xb_rh_blend_profile_increases_applied_weight_for_more_humid_case(self) -> None:
+        v2_input = build_ms400_stationary_input_from_label(
+            "V2",
+            feed_rate_kg_h=14.0,
+            humid_air_mass_flow_kg_h=304.0,
+            heat_loss_coeff_w_m2k=1.4,
+            x_b_model="lin_gab_langrish_blend_rh",
+        )
+        v3_input = build_ms400_stationary_input_from_label(
+            "V3",
+            feed_rate_kg_h=14.0,
+            humid_air_mass_flow_kg_h=304.0,
+            heat_loss_coeff_w_m2k=1.4,
+            x_b_model="lin_gab_langrish_blend_rh",
+        )
+        v2 = solve_stationary_smp_profile(v2_input)
+        v3 = solve_stationary_smp_profile(v3_input)
+        v2_mean_weight = float(v2.series["x_b_langrish_weight"].mean())
+        v3_mean_weight = float(v3.series["x_b_langrish_weight"].mean())
+
+        self.assertTrue(v2.success)
+        self.assertTrue(v3.success)
+        self.assertAlmostEqual(v2.inputs.x_b_blend_langrish_weight_base, 0.0, places=12)
+        self.assertAlmostEqual(v2.inputs.x_b_blend_langrish_weight_rh_coeff, 0.0, places=12)
+        self.assertAlmostEqual(v2_mean_weight, 0.0, places=12)
+        self.assertAlmostEqual(v3_mean_weight, 0.0, places=12)
+
+        tuned_v2 = solve_stationary_smp_profile(
+            replace(
+                v2_input,
+                enable_material_retardation_add=False,
+                x_b_blend_langrish_weight_base=0.05,
+                x_b_blend_langrish_weight_rh_coeff=5.0,
+            )
+        )
+        tuned_v3 = solve_stationary_smp_profile(
+            replace(
+                v3_input,
+                enable_material_retardation_add=False,
+                x_b_blend_langrish_weight_base=0.05,
+                x_b_blend_langrish_weight_rh_coeff=5.0,
+            )
+        )
+
+        self.assertGreater(
+            float(tuned_v3.series["x_b_langrish_weight"].mean()),
+            float(tuned_v2.series["x_b_langrish_weight"].mean()),
+        )
+        self.assertGreater(tuned_v3.outlet["outlet_X"], tuned_v2.outlet["outlet_X"])
 
     def test_sub_37_percent_case_warns_but_runs(self) -> None:
         result = solve_stationary_smp_profile(
@@ -349,6 +494,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertEqual(sim_input.feed_rate_kg_h, 14.0)
         self.assertEqual(sim_input.feed_total_solids, 0.37)
         self.assertEqual(sim_input.x_b_model, "lin_gab")
+        self.assertAlmostEqual(sim_input.x_b_blend_langrish_weight, 0.5)
         self.assertEqual(sim_input.cylinder_height_m, MS400GeometryAssumption().cylinder_height_m)
         self.assertEqual(sim_input.cone_height_m, MS400GeometryAssumption().cone_height_m)
         self.assertEqual(
@@ -366,6 +512,7 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertEqual(sim_input.feed_rate_kg_h, 14.0)
         self.assertAlmostEqual(derived.humid_air_mass_flow_kg_s * 3600.0, 304.0, places=9)
         self.assertEqual(sim_input.x_b_model, "lin_gab")
+        self.assertAlmostEqual(sim_input.x_b_blend_langrish_weight, 0.5)
 
     def test_pressure_nozzle_default_initial_velocity_uses_feed_density(self) -> None:
         sim_input = StationarySMPREAInput(
@@ -599,6 +746,80 @@ class StationarySMPREAKernelTests(unittest.TestCase):
         self.assertGreater(stage2_result.outlet["outlet_X"], stage1_result.outlet["outlet_X"])
         self.assertTrue(
             any("secondary axial exposure zone" in warning.lower() for warning in stage2_result.warnings)
+        )
+
+    def test_effective_local_humidity_bias_raises_particle_side_humidity_and_slows_drying(self) -> None:
+        baseline_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            axial_points=160,
+            enable_material_retardation_add=False,
+        )
+        humid_bias_input = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            axial_points=160,
+            enable_material_retardation_add=False,
+            effective_gas_humidity_mode="target_rh",
+            humidity_bias_zone_length_m=0.50,
+            humidity_bias_zone_target_rh=0.25,
+        )
+
+        baseline_result = solve_stationary_smp_profile(baseline_input)
+        humid_bias_result = solve_stationary_smp_profile(humid_bias_input)
+
+        early_row = humid_bias_result.series[humid_bias_result.series["h"] <= 0.10].iloc[-1]
+        late_row = humid_bias_result.series[humid_bias_result.series["h"] >= 0.70].iloc[0]
+
+        self.assertGreater(float(early_row["RH_eff"]), float(early_row["RH_a"]))
+        self.assertGreater(float(early_row["Y_eff"]), float(early_row["Y"]))
+        self.assertEqual(float(early_row["humidity_bias_active"]), 1.0)
+        self.assertAlmostEqual(float(late_row["RH_eff"]), float(late_row["RH_a"]), places=12)
+        self.assertAlmostEqual(float(late_row["Y_eff"]), float(late_row["Y"]), places=12)
+        self.assertGreater(humid_bias_result.outlet["outlet_X"], baseline_result.outlet["outlet_X"])
+        self.assertTrue(
+            any("effective local gas humidity correction" in warning.lower() for warning in humid_bias_result.warnings)
+        )
+
+    def test_second_humidity_bias_zone_extends_effective_local_humidity_downstream(self) -> None:
+        stage3_zone1 = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            axial_points=200,
+            enable_material_retardation_add=False,
+            effective_gas_humidity_mode="target_rh",
+            humidity_bias_zone_length_m=0.30,
+            humidity_bias_zone_target_rh=0.25,
+        )
+        stage3_zone2 = StationarySMPREAInput(
+            inlet_air_temp_c=190.0,
+            feed_total_solids=0.37,
+            axial_points=200,
+            enable_material_retardation_add=False,
+            effective_gas_humidity_mode="target_rh",
+            humidity_bias_zone_length_m=0.30,
+            humidity_bias_zone_target_rh=0.25,
+            humidity_bias_zone2_length_m=0.50,
+            humidity_bias_zone2_target_rh=0.18,
+        )
+
+        zone1_result = solve_stationary_smp_profile(stage3_zone1)
+        zone2_result = solve_stationary_smp_profile(stage3_zone2)
+
+        downstream_zone1 = zone1_result.series[
+            (zone1_result.series["h"] >= 0.45) & (zone1_result.series["h"] <= 0.65)
+        ].iloc[0]
+        downstream_zone2 = zone2_result.series[
+            (zone2_result.series["h"] >= 0.45) & (zone2_result.series["h"] <= 0.65)
+        ].iloc[0]
+        late_zone2 = zone2_result.series[zone2_result.series["h"] >= 1.00].iloc[0]
+
+        self.assertGreater(float(downstream_zone2["RH_eff"]), float(downstream_zone1["RH_eff"]))
+        self.assertGreater(float(downstream_zone2["Y_eff"]), float(downstream_zone1["Y_eff"]))
+        self.assertGreater(zone2_result.outlet["outlet_X"], zone1_result.outlet["outlet_X"])
+        self.assertAlmostEqual(float(late_zone2["RH_eff"]), float(late_zone2["RH_a"]), places=12)
+        self.assertTrue(
+            any("secondary humidity-bias zone" in warning.lower() for warning in zone2_result.warnings)
         )
 
     def test_disabling_material_retardation_add_reduces_outlet_moisture(self) -> None:

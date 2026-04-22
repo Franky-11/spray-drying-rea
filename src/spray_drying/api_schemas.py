@@ -5,7 +5,12 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-X_B_MODELS = ("langrish", "lin_gab")
+X_B_MODELS = (
+    "langrish",
+    "lin_gab",
+    "lin_gab_langrish_blend",
+    "lin_gab_langrish_blend_rh",
+)
 
 
 class HealthDTO(BaseModel):
@@ -25,8 +30,21 @@ class StationaryInputDTO(BaseModel):
     atomization_zone_exposure_factor: float = Field(default=1.0, gt=0, le=1)
     secondary_exposure_zone_length_m: float = Field(default=0.0, ge=0)
     secondary_exposure_zone_factor: float = Field(default=1.0, gt=0, le=1)
+    effective_gas_humidity_mode: Literal["off", "target_rh"] = "off"
+    humidity_bias_zone_length_m: float = Field(default=0.0, ge=0)
+    humidity_bias_zone_target_rh: float = Field(default=0.0, ge=0, lt=1)
+    humidity_bias_zone2_length_m: float = Field(default=0.0, ge=0)
+    humidity_bias_zone2_target_rh: float = Field(default=0.0, ge=0, lt=1)
     enable_material_retardation_add: bool = True
-    x_b_model: Literal["langrish", "lin_gab"] = "lin_gab"
+    x_b_model: Literal[
+        "langrish",
+        "lin_gab",
+        "lin_gab_langrish_blend",
+        "lin_gab_langrish_blend_rh",
+    ] = "lin_gab"
+    x_b_blend_langrish_weight: float = Field(default=0.5, ge=0, le=1)
+    x_b_blend_langrish_weight_base: float = 0.0
+    x_b_blend_langrish_weight_rh_coeff: float = 0.0
     nozzle_delta_p_bar: float = Field(gt=0)
     nozzle_velocity_coefficient: float = Field(gt=0)
     dryer_diameter_m: float = Field(gt=0)
@@ -88,6 +106,9 @@ class SimulationSeriesPointDTO(BaseModel):
     psi: float
     axial_exposure_factor: float
     combined_contact_exposure_factor: float
+    RH_eff_pct: float
+    Y_eff: float
+    humidity_bias_active: bool
     delta_t_air_particle_c: float
     rho_v_driving_force_kg_m3: float
     q_conv_w: float
